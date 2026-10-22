@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow connection test doc
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Public read for union members, write for admin portal
+    match /circulars/{circularId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string &&
+                     request.resource.data.category is string;
+    }
+
+    match /executiveMembers/{memberId} {
+      allow read: if true;
+      allow write: if request.resource.data.name is string &&
+                     request.resource.data.designation is string;
+    }
+
+    // Hero Slides for Home page (DakShiksha)
+    match /heroSlides/{slideId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string;
+    }
+
+    // Moving News Slider / Ticker items
+    match /newsSliderItems/{itemId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string;
+    }
+
+    // Announcements section
+    match /announcements/{annId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string;
+    }
+
+    // Important Documents section
+    match /importantDocuments/{docId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string;
+    }
+
+    // Notice & Circulars section
+    match /noticeCirculars/{ncId} {
+      allow read: if true;
+      allow write: if request.resource.data.title is string;
+    }
+  }
+}
+

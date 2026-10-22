@@ -1,0 +1,6 @@
+{
+  "name": "AIPEU Dhenkanal Mobile",
+  "description": "Mobile application for All India Postal Employees Union (AIPEU & AIGDSU), Dhenkanal Division. Read circulars, orders, and union updates offline with push notifications and social sharing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

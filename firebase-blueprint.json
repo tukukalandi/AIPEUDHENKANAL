@@ -1,0 +1,135 @@
+{
+  "entities": {
+    "Circular": {
+      "title": "Circular",
+      "description": "Union circular, official order, or notice",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of circular or notice" },
+        "category": { "type": "string", "description": "Union cadre or topic category" },
+        "snippet": { "type": "string", "description": "Short summary" },
+        "contentHtml": { "type": "string", "description": "Full HTML description/body" },
+        "fileLinks": { "type": "array", "description": "Uploaded or linked official document/PDF links" },
+        "imageUrls": { "type": "array", "description": "Uploaded or linked photo URLs" },
+        "published": { "type": "string", "description": "ISO date string" },
+        "author": { "type": "string", "description": "Author or issuing body" },
+        "urgent": { "type": "boolean", "description": "Whether this is urgent flash news" }
+      },
+      "required": ["title", "category", "snippet", "published"]
+    },
+    "ExecutiveMember": {
+      "title": "ExecutiveMember",
+      "description": "Office bearer details for Dhenkanal Division",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name with Comrade title" },
+        "designation": { "type": "string", "description": "Union post / designation" },
+        "branch": { "type": "string", "description": "Union wing / branch" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "location": { "type": "string", "description": "Office / Sub Post Office location" },
+        "roleType": { "type": "string", "description": "president, secretary, treasurer, or executive" }
+      },
+      "required": ["name", "designation", "branch", "location"]
+    },
+    "HeroSlide": {
+      "title": "HeroSlide",
+      "description": "Featured hero banner slides for DakShiksha home page",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Headline of the slide" },
+        "subtitle": { "type": "string", "description": "Description text / writings" },
+        "tag": { "type": "string", "description": "Tag badge text" },
+        "imageUrl": { "type": "string", "description": "Banner photo URL" },
+        "ctaText": { "type": "string", "description": "Call to action label" },
+        "ctaLink": { "type": "string", "description": "Target section or URL" },
+        "gradient": { "type": "string", "description": "Color theme gradient" },
+        "order": { "type": "number", "description": "Display order index" },
+        "active": { "type": "boolean", "description": "Whether visible" }
+      },
+      "required": ["title", "subtitle", "imageUrl"]
+    },
+    "NewsSliderItem": {
+      "title": "NewsSliderItem",
+      "description": "Headlines and writings displayed in moving news ticker slider",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "News headline text" },
+        "category": { "type": "string", "description": "Category or badge" },
+        "link": { "type": "string", "description": "Optional click link or circular ID" },
+        "isUrgent": { "type": "boolean", "description": "Whether urgent flash headline" },
+        "published": { "type": "string", "description": "ISO date string" },
+        "order": { "type": "number", "description": "Display order index" }
+      },
+      "required": ["title"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Urgent union and departmental announcements with red bell header",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title or subject of announcement" },
+        "link": { "type": "string", "description": "Optional click URL or order link" },
+        "published": { "type": "string", "description": "Date or timestamp" },
+        "order": { "type": "number", "description": "Display order" },
+        "active": { "type": "boolean", "description": "Visibility flag" }
+      },
+      "required": ["title"]
+    },
+    "ImportantDocument": {
+      "title": "ImportantDocument",
+      "description": "Key workflow documents, leave rules, and claim forms with LINK badge",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Document name" },
+        "url": { "type": "string", "description": "Direct file or webpage link" },
+        "category": { "type": "string", "description": "Document category tag" },
+        "order": { "type": "number", "description": "Display order" },
+        "published": { "type": "string", "description": "Publication date" }
+      },
+      "required": ["title", "url"]
+    },
+    "NoticeCircular": {
+      "title": "NoticeCircular",
+      "description": "Categorized notices and circulars (Notice, Accommodation, CGHS, Pension/Salary, Miscellaneous)",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Notice or circular title" },
+        "category": { "type": "string", "description": "Category tab name" },
+        "published": { "type": "string", "description": "Date published (YYYY-MM-DD)" },
+        "url": { "type": "string", "description": "Target download or view link" },
+        "order": { "type": "number", "description": "Display order" }
+      },
+      "required": ["title", "category", "published"]
+    }
+  },
+  "firestore": {
+    "/circulars/{circularId}": {
+      "schema": "Circular",
+      "description": "Collection of union circulars, orders and latest news items added by admins"
+    },
+    "/executiveMembers/{memberId}": {
+      "schema": "ExecutiveMember",
+      "description": "Directory of executive office bearers for Dhenkanal Division"
+    },
+    "/heroSlides/{slideId}": {
+      "schema": "HeroSlide",
+      "description": "Dynamic hero carousel slides for DakShiksha home page"
+    },
+    "/newsSliderItems/{itemId}": {
+      "schema": "NewsSliderItem",
+      "description": "Moving news ticker slider items managed by admin"
+    },
+    "/announcements/{annId}": {
+      "schema": "Announcement",
+      "description": "Announcements displayed below hero slider"
+    },
+    "/importantDocuments/{docId}": {
+      "schema": "ImportantDocument",
+      "description": "Important documents list with link badges"
+    },
+    "/noticeCirculars/{ncId}": {
+      "schema": "NoticeCircular",
+      "description": "Categorized notices and circulars with published date"
+    }
+  }
+}
