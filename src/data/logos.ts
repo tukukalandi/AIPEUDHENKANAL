@@ -9,12 +9,25 @@ export interface UnionLogo {
   description: string;
 }
 
+// Primary website brand logo requested by user:
+// WhatsApp_Image_2026-10-22_at_9.21.40_PM_18f144ee.jpeg (Official NFPE Red Solidarity Hands Flower Emblem)
+export const PRIMARY_BRAND_LOGO = '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.40_PM_18f144ee.jpeg';
+export const SECONDARY_BRAND_LOGO = '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.39_PM__1__95a7f1d9.jpeg'; // AIPEU Group C
+
 export const UNION_LOGOS: UnionLogo[] = [
   {
+    id: 'nfpe-national',
+    name: 'National Federation of Postal Employees (NFPE)',
+    shortName: 'NFPE CHQ & Circle',
+    cadre: 'All India Postal Employees & Fraternal Cadres',
+    imagePath: PRIMARY_BRAND_LOGO,
+    description: 'The supreme historic emblem of National Federation of Postal Employees uniting all postal comrades.',
+  },
+  {
     id: 'nfpe-crest',
-    name: 'National Federation of Postal Employees & NFTE',
-    shortName: 'NFPE Federation',
-    cadre: 'Central Federation (Postal & Telecom)',
+    name: 'NFPE & NFTE Federation Crest',
+    shortName: 'NFPE-NFTE Federation',
+    cadre: 'Federal Apex Body (Postal & Telecom)',
     imagePath: '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.38_PM_84cdaa31.jpeg',
     description: 'Supreme federation crest uniting all postal employees with fraternal telecom comrades.',
   },
@@ -67,7 +80,3 @@ export const UNION_LOGOS: UnionLogo[] = [
     description: 'Unified fraternal front fighting for medical insurance, restoration of commutation & 8th CPC.',
   },
 ];
-
-// Primary website brand logo
-export const PRIMARY_BRAND_LOGO = UNION_LOGOS[0].imagePath; // NFPE Crest
-export const SECONDARY_BRAND_LOGO = UNION_LOGOS[1].imagePath; // AIPEU Group C

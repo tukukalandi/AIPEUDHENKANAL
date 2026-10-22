@@ -12,6 +12,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle } from '../types';
+import { PRIMARY_BRAND_LOGO } from '../data/logos';
 
 interface BottomNavProps {
   activeTab: ActiveTab;
@@ -182,28 +183,18 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
       {/* Decorative India Post Gold & Red accent hairline */}
       <div className="h-0.5 w-full bg-gradient-to-r from-red-500 via-yellow-400 to-red-500" />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-[62px] py-2 flex items-center justify-between gap-4">
-        {/* Left: Brand / Logo */}
+        {/* Left: Brand / Logo (Single Website Logo, Clean Title, No Phone/Email in Header) */}
         <div
-          className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0"
+          className="flex items-center gap-3 cursor-pointer min-w-0"
           onClick={() => onSelectTab && onSelectTab('home')}
         >
-          <div className="relative flex items-center shrink-0">
-            {/* Primary Federation Crest (NFPE & NFTE) */}
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white p-0.5 shadow-lg ring-2 ring-amber-400 overflow-hidden shrink-0 flex items-center justify-center">
-              <img
-                src="/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.38_PM_84cdaa31.jpeg"
-                alt="NFPE Federation Official Logo"
-                className="w-full h-full object-cover rounded-full transform hover:scale-110 transition-transform"
-              />
-            </div>
-            {/* AIPEU Group C Emblem Badge (overlapping slightly on sm screens) */}
-            <div className="hidden sm:flex -ml-3.5 w-8 h-8 rounded-full bg-white p-0.5 shadow-md ring-2 ring-red-600 overflow-hidden shrink-0 items-center justify-center z-10">
-              <img
-                src="/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.39_PM__1__95a7f1d9.jpeg"
-                alt="AIPEU Group C Logo"
-                className="w-full h-full object-cover rounded-full"
-              />
-            </div>
+          {/* Single Website Logo */}
+          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white p-1 shadow-lg ring-2 ring-amber-400 overflow-hidden shrink-0 flex items-center justify-center">
+            <img
+              src={PRIMARY_BRAND_LOGO}
+              alt="NFPE Official Website Logo"
+              className="w-full h-full object-contain rounded-full transform hover:scale-105 transition-transform"
+            />
           </div>
           <div className="min-w-0">
             <h1
@@ -214,27 +205,6 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             >
               NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
             </h1>
-            <div
-              className={`text-[10px] sm:text-[11px] font-semibold flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-0.5 ${
-                isIOS ? 'text-slate-600 dark:text-slate-300' : 'text-amber-200 dark:text-slate-200'
-              }`}
-            >
-              <a
-                href="tel:9861184651"
-                onClick={(e) => e.stopPropagation()}
-                className="hover:underline font-bold"
-              >
-                Mob - 9861184651
-              </a>
-              <span className="opacity-60 hidden sm:inline">·</span>
-              <a
-                href="mailto:aipeup3dhenkanaldivn@gmail.com"
-                onClick={(e) => e.stopPropagation()}
-                className="hover:underline truncate hidden sm:inline"
-              >
-                aipeup3dhenkanaldivn@gmail.com
-              </a>
-            </div>
           </div>
         </div>
 
