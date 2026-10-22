@@ -9,6 +9,7 @@ import {
   PlatformStyle,
   ThemeMode,
   ActiveTab,
+  AppLanguage,
   ShareData,
   HeroSlide,
   NewsSliderItem,
@@ -24,6 +25,7 @@ import {
   DEFAULT_IMPORTANT_DOCUMENTS,
   DEFAULT_NOTICE_CIRCULARS,
 } from './data/dakshikshaData';
+import { TopTimeDateBar } from './components/TopTimeDateBar';
 import { TopAppBar, BottomNavBar } from './components/NavigationBars';
 import { HomePage } from './components/HomePage';
 import { FeedTab } from './components/FeedTab';
@@ -31,6 +33,8 @@ import { CategoriesTab } from './components/CategoriesTab';
 import { OfflineTab } from './components/OfflineTab';
 import { DirectoryTab } from './components/DirectoryTab';
 import { SettingsTab } from './components/SettingsTab';
+import { UserPortal } from './components/UserPortal';
+import { SocialAndVisitorSection } from './components/SocialAndVisitorSection';
 import { ArticleReader } from './components/ArticleReader';
 import { ShareModal } from './components/ShareModal';
 import { NotificationCenter } from './components/NotificationCenter';
@@ -70,6 +74,16 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+
+  // Multi-Language State (English, Hindi, Odia)
+  const [language, setLanguage] = useState<AppLanguage>(() => {
+    return (localStorage.getItem('aipeu_lang') as AppLanguage) || 'en';
+  });
+
+  const handleSetLanguage = (lang: AppLanguage) => {
+    setLanguage(lang);
+    localStorage.setItem('aipeu_lang', lang);
+  };
 
   // Modals
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -283,6 +297,19 @@ export default function App() {
         />
       ) : (
         <div className="flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors pb-16 md:pb-0">
+          {/* 🕒 Top Bar: Live Date & Clock, Language Switcher (EN, HI, OR) & Dark Mode Toggle */}
+          <TopTimeDateBar
+            language={language}
+            onSetLanguage={handleSetLanguage}
+            theme={themeMode}
+            onToggleTheme={() => handleSetTheme(themeMode === 'dark' ? 'light' : 'dark')}
+            onOpenUserPortal={() => {
+              setActiveTab('user-portal');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            activeTab={activeTab}
+          />
+
           {/* Top App Bar with Admin Portal Button */}
           <TopAppBar
             platform={effectivePlatform}
@@ -311,20 +338,41 @@ export default function App() {
           {/* Main Tab Content - Full Desktop Width with edge-to-edge layout */}
           <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 pt-5">
             {activeTab === 'home' && (
-              <HomePage
-                heroSlides={heroSlides}
-                newsItems={newsItems}
-                posts={posts}
-                announcements={announcements}
-                importantDocs={importantDocs}
-                noticeCirculars={noticeCirculars}
-                onSelectPost={(post) => setSelectedPost(post)}
+              <>
+                <HomePage
+                  heroSlides={heroSlides}
+                  newsItems={newsItems}
+                  posts={posts}
+                  announcements={announcements}
+                  importantDocs={importantDocs}
+                  noticeCirculars={noticeCirculars}
+                  onSelectPost={(post) => setSelectedPost(post)}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  onOpenAdmin={() => setIsAdminOpen(true)}
+                  platform={effectivePlatform}
+                />
+                {/* 📱 Official Social Media Network & Constituent Wings Showcase */}
+                <SocialAndVisitorSection
+                  language={language}
+                  onSelectWing={() => {
+                    setActiveTab('categories');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                />
+              </>
+            )}
+
+            {activeTab === 'user-portal' && (
+              <UserPortal
+                language={language}
+                platform={effectivePlatform}
                 onNavigateTab={(tab) => {
                   setActiveTab(tab);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                onOpenAdmin={() => setIsAdminOpen(true)}
-                platform={effectivePlatform}
               />
             )}
 

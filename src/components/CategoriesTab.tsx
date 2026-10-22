@@ -61,6 +61,15 @@ const BRANCH_THEMES: Record<
   },
 };
 
+const BRANCH_LOGOS: Record<string, string> = {
+  'group-c': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.39_PM__1__95a7f1d9.jpeg',
+  'postman-mts': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.39_PM_264cb60c.jpeg',
+  'aigdsu': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.37_PM_93ceb91c.jpeg',
+  'women-committee': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.34_PM_b252b6df.jpeg',
+  'pensioners': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.36_PM_899eb8f1.jpeg',
+  'rti-corner': '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.38_PM_84cdaa31.jpeg',
+};
+
 export const CategoriesTab: React.FC<CategoriesTabProps> = ({
   posts,
   onSelectPost,
@@ -158,9 +167,19 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({
 
         {/* Branch Header Card with rich gradient */}
         <div className={`p-5 rounded-3xl bg-gradient-to-r ${theme.gradient} text-white shadow-lg`}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-sm">
-              {branch && getIcon(branch.iconName)}
+          <div className="flex items-center gap-3.5 mb-2">
+            <div className="w-13 h-13 rounded-2xl bg-white p-1 shadow-md ring-2 ring-amber-400 overflow-hidden shrink-0 flex items-center justify-center">
+              {BRANCH_LOGOS[activeBranchId] ? (
+                <img
+                  src={BRANCH_LOGOS[activeBranchId]}
+                  alt={branch?.name}
+                  className="w-full h-full object-contain rounded-xl"
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-800">
+                  {branch && getIcon(branch.iconName)}
+                </div>
+              )}
             </div>
             <div>
               <h2 className="text-base sm:text-xl font-black tracking-tight">{branch?.name}</h2>
@@ -254,9 +273,20 @@ export const CategoriesTab: React.FC<CategoriesTabProps> = ({
             >
               <div className="flex items-start gap-3">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm ${theme.iconBg}`}
+                  className="w-12 h-12 rounded-2xl bg-white p-0.5 ring-2 ring-amber-400/60 shadow-sm overflow-hidden shrink-0 mt-0.5 flex items-center justify-center"
                 >
-                  {getIcon(branch.iconName)}
+                  {BRANCH_LOGOS[branch.id] ? (
+                    <img
+                      src={BRANCH_LOGOS[branch.id]}
+                      alt={branch.name}
+                      className="w-full h-full object-contain rounded-xl"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className={`w-full h-full rounded-xl flex items-center justify-center ${theme.iconBg}`}>
+                      {getIcon(branch.iconName)}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white">

@@ -5,7 +5,16 @@ import {
   ChevronLeft,
   Sparkles,
 } from 'lucide-react';
-import { BlogPost, HeroSlide, NewsSliderItem, PlatformStyle, AnnouncementItem, ImportantDocItem, NoticeCircularItem } from '../types';
+import {
+  BlogPost,
+  HeroSlide,
+  NewsSliderItem,
+  PlatformStyle,
+  AnnouncementItem,
+  ImportantDocItem,
+  NoticeCircularItem,
+  ActiveTab,
+} from '../types';
 import {
   DEFAULT_HERO_SLIDES,
   DEFAULT_ANNOUNCEMENTS,
@@ -23,7 +32,7 @@ interface HomePageProps {
   importantDocs?: ImportantDocItem[];
   noticeCirculars?: NoticeCircularItem[];
   onSelectPost: (post: BlogPost) => void;
-  onNavigateTab: (tab: 'feed' | 'categories' | 'offline' | 'directory' | 'settings') => void;
+  onNavigateTab: (tab: ActiveTab) => void;
   onOpenAdmin: () => void;
   platform: PlatformStyle;
 }

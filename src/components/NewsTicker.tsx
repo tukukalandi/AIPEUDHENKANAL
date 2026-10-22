@@ -129,26 +129,26 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({
           </div>
         </div>
 
-        {/* Right Controls: Pause/Play & Edit */}
-        <div className="flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-black/30 backdrop-blur-sm border-l border-white/20 shrink-0 z-10">
+        {/* Right Controls: Pause/Play (No edit button on home page) */}
+        <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-black/40 backdrop-blur-sm border-l border-white/20 shrink-0 z-10">
           <button
             onClick={() => setIsPaused(!isPaused)}
-            className="p-1 rounded-lg hover:bg-white/20 text-white transition-colors"
-            title={isPaused ? 'Resume scrolling' : 'Pause scrolling'}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer text-xs font-semibold"
+            title={isPaused ? 'Resume scrolling' : 'Pause scrolling (Slow Mode)'}
             aria-label={isPaused ? 'Play' : 'Pause'}
           >
-            {isPaused ? <Play className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" /> : <Pause className="w-3.5 h-3.5 text-white" />}
+            {isPaused ? (
+              <>
+                <Play className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
+                <span className="text-[10px] hidden sm:inline text-yellow-200">Play</span>
+              </>
+            ) : (
+              <>
+                <Pause className="w-3.5 h-3.5 text-white" />
+                <span className="text-[10px] hidden sm:inline text-slate-200">Slow</span>
+              </>
+            )}
           </button>
-
-          {onOpenAdmin && (
-            <button
-              onClick={onOpenAdmin}
-              className="px-2 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 text-[10px] font-bold text-white transition-colors hidden sm:block"
-              title="Edit news in Admin Portal"
-            >
-              ✏️ Edit
-            </button>
-          )}
         </div>
       </div>
     </div>

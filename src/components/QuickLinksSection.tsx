@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 interface QuickLinksSectionProps {
-  onNavigateTab?: (tab: 'feed' | 'categories' | 'offline' | 'directory' | 'settings') => void;
+  onNavigateTab?: (tab: any) => void;
 }
 
 export const QuickLinksSection: React.FC<QuickLinksSectionProps> = ({ onNavigateTab }) => {
@@ -28,14 +28,29 @@ export const QuickLinksSection: React.FC<QuickLinksSectionProps> = ({ onNavigate
 
   const quickLinks = [
     {
+      id: 'user-portal',
+      title: 'User Portal',
+      subtitle: 'STAFF & MEMBERS',
+      cardBorder: 'border-2 border-emerald-300 dark:border-emerald-800 hover:border-emerald-500 hover:shadow-emerald-500/25',
+      topStripe: 'bg-emerald-600',
+      iconBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 ring-2 ring-emerald-300 dark:ring-emerald-700',
+      icon: UserCheck,
+      action: () => {
+        if (onNavigateTab) onNavigateTab('user-portal');
+      },
+    },
+    {
       id: 'forms',
-      title: 'Forms',
+      title: 'Cadre Forms',
       subtitle: 'QUICK ACCESS',
       cardBorder: 'border-2 border-indigo-200 dark:border-indigo-900/70 hover:border-indigo-500 hover:shadow-indigo-500/20',
       topStripe: 'bg-indigo-600',
       iconBg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 ring-2 ring-indigo-200 dark:ring-indigo-800',
       icon: FileText,
-      action: () => window.open('https://www.indiapost.gov.in/VAS/Pages/Form.aspx', '_blank'),
+      action: () => {
+        if (onNavigateTab) onNavigateTab('user-portal');
+        else window.open('https://www.indiapost.gov.in/VAS/Pages/Form.aspx', '_blank');
+      },
     },
     {
       id: 'circulars',

@@ -129,18 +129,27 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
   },
 ];
 
+export const UNION_AFFILIATION = {
+  text: 'National JCM - Staff Side, Confederation of Central Government Employees and Workers, National Federation of Postal Employees - CHQ - New Delhi',
+  shortText: 'National JCM - Staff Side · Confederation · NFPE CHQ New Delhi',
+};
+
 export const UNION_CONTACT_INFO = {
   organization: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF',
   division: 'Dhenkanal Division',
   name: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division',
   headquarters: 'Office of the Superintendent of Post Offices, Dhenkanal Division, Dhenkanal, Odisha - 759001',
-  whatsappGroup: 'https://chat.whatsapp.com/invite/aipeudkl',
-  telegramChannel: 'https://t.me/aipeudkl',
+  whatsappGroup: 'https://chat.whatsapp.com/LWdnfVy9ZGGAaR1Ltr1iF2?s=sh&p=a&mlu=4&ilr=4&iam=0',
+  facebookGroup: 'https://www.facebook.com/share/g/1Fbi1km9XA/',
+  facebookPage: 'https://www.facebook.com/share/1C1e9fHijV/',
+  twitter: 'https://x.com/aipeup3dkl',
+  telegramChannel: 'https://t.me/+RgcDu9IJaBwgGW66',
   blogUrl: 'https://aipeup3dkl.blogspot.com/',
   email: 'aipeup3dhenkanaldivn@gmail.com',
   mobile: '9861184651',
   phone: 'Mob - 9861184651',
   chqDelhi: 'First Floor, North Avenue Post Office Building, New Delhi - 110001',
+  affiliatedTo: 'National JCM - Staff Side, Confederation of Central Government Employees and Workers, National Federation of Postal Employees - CHQ - New Delhi',
 };
 
 export const IMPORTANT_DOCUMENTS = [

@@ -9,6 +9,7 @@ import {
   Share2,
   Lock,
   FileText,
+  UserCheck,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle } from '../types';
 
@@ -29,11 +30,11 @@ export const BottomNavBar: React.FC<BottomNavProps> = ({
 
   const tabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'home', label: 'Home', icon: Home },
+    { id: 'user-portal', label: 'Portal', icon: UserCheck },
     { id: 'feed', label: 'Circulars', icon: FileText },
     { id: 'categories', label: 'Wings', icon: Layers },
     { id: 'offline', label: 'Saved', icon: Bookmark },
     { id: 'directory', label: 'Union', icon: Users },
-    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   if (isIOS) {
@@ -162,6 +163,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
   const navLinks: { id: ActiveTab; label: string }[] = [
     { id: 'home', label: 'Home' },
+    { id: 'user-portal', label: 'User Portal' },
     { id: 'feed', label: 'Circulars & Feed' },
     { id: 'categories', label: 'Union Wings' },
     { id: 'offline', label: 'Offline Vault' },
@@ -182,11 +184,26 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-[62px] py-2 flex items-center justify-between gap-4">
         {/* Left: Brand / Logo */}
         <div
-          className="flex items-center gap-3 cursor-pointer min-w-0"
+          className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0"
           onClick={() => onSelectTab && onSelectTab('home')}
         >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-500 p-0.5 shadow-md flex items-center justify-center text-white font-black text-base ring-2 ring-amber-400/30 shrink-0">
-            📮
+          <div className="relative flex items-center shrink-0">
+            {/* Primary Federation Crest (NFPE & NFTE) */}
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white p-0.5 shadow-lg ring-2 ring-amber-400 overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                src="/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.38_PM_84cdaa31.jpeg"
+                alt="NFPE Federation Official Logo"
+                className="w-full h-full object-cover rounded-full transform hover:scale-110 transition-transform"
+              />
+            </div>
+            {/* AIPEU Group C Emblem Badge (overlapping slightly on sm screens) */}
+            <div className="hidden sm:flex -ml-3.5 w-8 h-8 rounded-full bg-white p-0.5 shadow-md ring-2 ring-red-600 overflow-hidden shrink-0 items-center justify-center z-10">
+              <img
+                src="/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.39_PM__1__95a7f1d9.jpeg"
+                alt="AIPEU Group C Logo"
+                className="w-full h-full object-cover rounded-full"
+              />
+            </div>
           </div>
           <div className="min-w-0">
             <h1
@@ -223,14 +240,14 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Center: Desktop Navigation Bar (Direct Full Desktop View) */}
         {onSelectTab && (
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-3 text-xs font-bold">
+          <nav className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-xs font-bold">
             {navLinks.map((link) => {
               const isActive = activeTab === link.id;
               return (
                 <button
                   key={link.id}
                   onClick={() => onSelectTab(link.id)}
-                  className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                  className={`px-2.5 lg:px-3 py-1.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
                     isActive
                       ? isIOS
                         ? 'bg-blue-600 text-white shadow-sm'
@@ -254,10 +271,27 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* User Portal Button */}
+          {onSelectTab && (
+            <button
+              onClick={() => onSelectTab('user-portal')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer ${
+                activeTab === 'user-portal'
+                  ? 'bg-emerald-400 text-slate-950 ring-2 ring-emerald-300'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+              title="Open Postal Staff & Members Self-Service Portal"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">User Portal</span>
+              <span className="sm:hidden">Portal</span>
+            </button>
+          )}
+
           {/* Admin Portal Button */}
           <button
             onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer"
             title="Open Union Admin Portal (Add Circulars, News, Modify Executives)"
           >
             <Lock className="w-3.5 h-3.5" />
