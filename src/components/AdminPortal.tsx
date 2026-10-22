@@ -294,6 +294,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [execPhone, setExecPhone] = useState('');
   const [execLocation, setExecLocation] = useState('Dhenkanal HO');
   const [execRoleType, setExecRoleType] = useState<'president' | 'secretary' | 'treasurer' | 'executive'>('executive');
+  const [execPhotoUrl, setExecPhotoUrl] = useState('');
 
   // Load all data when modal opens
   const loadAllData = async () => {
@@ -802,6 +803,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 11. EXECUTIVE BEARERS HANDLERS =================
+  const handleEditExecutiveClick = (member: OfficeBearer & { id?: string }) => {
+    setEditingMember(member);
+    setExecName(member.name || '');
+    setExecDesignation(member.designation || '');
+    setExecBranch(member.branch || "AIPEU Group 'C', Dhenkanal Division");
+    setExecPhone(member.phone || '');
+    setExecLocation(member.location || 'Dhenkanal HO');
+    setExecRoleType(member.roleType || 'executive');
+    setExecPhotoUrl(member.photoUrl || '');
+  };
+
+  const handleCancelEditExecutive = () => {
+    setEditingMember(null);
+    setExecName('');
+    setExecDesignation('');
+    setExecBranch("AIPEU Group 'C', Dhenkanal Division");
+    setExecPhone('');
+    setExecLocation('Dhenkanal HO');
+    setExecRoleType('executive');
+    setExecPhotoUrl('');
+  };
+
   const handleSaveExecutive = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!execName.trim() || !execDesignation.trim()) {
@@ -814,19 +837,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         id: editingMember?.id,
         name: execName.trim(),
         designation: execDesignation.trim(),
-        branch: execBranch.trim(),
+        branch: execBranch.trim() || "AIPEU Group 'C', Dhenkanal Division",
         phone: execPhone.trim(),
-        location: execLocation.trim(),
+        location: execLocation.trim() || 'Dhenkanal HO',
         roleType: execRoleType,
+        photoUrl: execPhotoUrl.trim(),
       });
       const updated = await getExecutiveMembersFromFirestore();
       setExecutives(updated);
       onExecutiveUpdated();
-      setEditingMember(null);
-      setExecName('');
-      setExecDesignation('');
-      setExecPhone('');
-      showNotification('✅ Office Bearer updated in Firebase!');
+      handleCancelEditExecutive();
+      showNotification('✅ Office Bearer & photo saved successfully in Firebase!');
     } catch (e) {
       showNotification('❌ Failed to save bearer.');
     } finally {
@@ -2182,88 +2203,288 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'executives' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingMember ? 'EDIT OFFICE BEARER' : 'ADD OFFICE BEARER'}
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingMember ? 'EDIT OFFICE BEARER & PHOTO' : 'ADD OFFICE BEARER & PHOTO'}
+                    </h2>
+                    {editingMember && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditExecutive}
+                        className="text-xs font-bold text-slate-500 hover:text-red-600 underline"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+
                   <form onSubmit={handleSaveExecutive} className="space-y-4">
+                    {/* Photo Upload & Preview Section */}
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>OFFICE BEARER PHOTO</span>
+                        <span className="text-[10px] text-blue-600 font-semibold">URL or Device Upload</span>
+                      </label>
+
+                      <div className="flex items-center gap-3 mb-2.5">
+                        <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                          {execPhotoUrl ? (
+                            <img
+                              src={execPhotoUrl}
+                              alt="Preview"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <ImageIcon className="w-6 h-6 text-slate-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <input
+                            type="url"
+                            value={execPhotoUrl}
+                            onChange={(e) => setExecPhotoUrl(e.target.value)}
+                            placeholder="Paste photo URL here..."
+                            className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                          />
+                          <div className="mt-1.5 flex items-center gap-3">
+                            <label className="text-[11px] font-bold text-red-600 hover:text-red-700 cursor-pointer underline flex items-center gap-1">
+                              <span>📁 Choose Image File</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      if (ev.target?.result) {
+                                        setExecPhotoUrl(ev.target.result as string);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                            {execPhotoUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setExecPhotoUrl('')}
+                                className="text-[10px] text-slate-400 hover:text-red-600"
+                              >
+                                Clear Photo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick preset avatar selection */}
+                      <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                          Quick Presets:
+                        </span>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {[
+                            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
+                            'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
+                          ].map((url, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setExecPhotoUrl(url)}
+                              className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border-2 border-slate-200 hover:border-red-500 active:scale-95 transition-all shadow-xs"
+                              title="Click to apply photo"
+                            >
+                              <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        NAME *
+                        COMRADE NAME *
                       </label>
                       <input
                         type="text"
                         value={execName}
                         onChange={(e) => setExecName(e.target.value)}
-                        placeholder="e.g. Kalandi Charan Sahoo"
+                        placeholder="e.g. Com. Ramesh Chandra Sahoo"
                         required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
+
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DESIGNATION *
+                        DESIGNATION / POST *
                       </label>
                       <input
                         type="text"
                         value={execDesignation}
                         onChange={(e) => setExecDesignation(e.target.value)}
-                        placeholder="e.g. Divisional Secretary"
+                        placeholder="e.g. Divisional President / Divisional Secretary"
                         required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          ROLE TYPE
+                        </label>
+                        <select
+                          value={execRoleType}
+                          onChange={(e) => setExecRoleType(e.target.value as any)}
+                          className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none font-semibold text-slate-800"
+                        >
+                          <option value="president">President (Gold / Amber)</option>
+                          <option value="secretary">Secretary (Royal Blue)</option>
+                          <option value="treasurer">Financial Secretary (Emerald)</option>
+                          <option value="executive">Executive / Assistant (Teal / Purple)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          POSTING LOCATION
+                        </label>
+                        <input
+                          type="text"
+                          value={execLocation}
+                          onChange={(e) => setExecLocation(e.target.value)}
+                          placeholder="e.g. Dhenkanal HO"
+                          className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PHONE / CONTACT
+                        BRANCH / CADRE WING
+                      </label>
+                      <input
+                        type="text"
+                        value={execBranch}
+                        onChange={(e) => setExecBranch(e.target.value)}
+                        placeholder="e.g. AIPEU Group 'C', Dhenkanal Division"
+                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                        PHONE / CONTACT NUMBER
                       </label>
                       <input
                         type="tel"
                         value={execPhone}
                         onChange={(e) => setExecPhone(e.target.value)}
                         placeholder="+91 94371 XXXXX"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
+
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm active:scale-95 transition-all"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>{editingMember ? 'Update Bearer' : '+ Add Bearer'}</span>
+                      <span>{editingMember ? 'Save & Update Bearer' : '+ Add Office Bearer'}</span>
                     </button>
                   </form>
                 </div>
 
                 <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT EXECUTIVE MEMBERS ({executives.length})
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      CURRENT EXECUTIVE MEMBERS ({executives.length})
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      Click Edit ✏️ to add or change photo
+                    </span>
                   </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {executives.map((ex) => (
                       <div
                         key={ex.id || ex.name}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-start justify-between gap-3 hover:border-slate-300 transition-all"
+                        className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
+                          editingMember?.id === ex.id
+                            ? 'border-red-500 ring-2 ring-red-500/20'
+                            : 'border-slate-200/80 hover:border-slate-300'
+                        }`}
                       >
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-bold text-red-600 uppercase block">
-                            {ex.branch}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">
-                            {ex.name}
-                          </h3>
-                          <p className="text-xs text-slate-600 font-medium">{ex.designation}</p>
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            📍 {ex.location} {ex.phone && `· 📞 ${ex.phone}`}
-                          </p>
+                        <div className="flex items-start gap-3">
+                          {/* Photo Avatar Thumbnail */}
+                          <div className="relative shrink-0">
+                            {ex.photoUrl ? (
+                              <img
+                                src={ex.photoUrl}
+                                alt={ex.name}
+                                className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              style={{ display: ex.photoUrl ? 'none' : 'flex' }}
+                              className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-amber-600 text-white items-center justify-center font-bold text-xs shadow-sm"
+                            >
+                              {ex.name.replace(/^(Com\.|Shri|Sri|Smt\.)\s*/i, '').slice(0, 2).toUpperCase()}
+                            </div>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-red-600 uppercase block truncate">
+                              {ex.branch}
+                            </span>
+                            <h3 className="font-bold text-slate-900 text-sm truncate">
+                              {ex.name}
+                            </h3>
+                            <p className="text-xs text-slate-600 font-medium truncate">
+                              {ex.designation}
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-1 truncate">
+                              📍 {ex.location} {ex.phone && `· 📞 ${ex.phone}`}
+                            </p>
+                          </div>
+
+                          {/* Action Buttons: Edit and Delete */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleEditExecutiveClick(ex)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              title="Edit Member & Photo"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteExecutive(ex.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete Bearer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteExecutive(ex.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Bearer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     ))}
                   </div>

@@ -27,7 +27,8 @@
         "branch": { "type": "string", "description": "Union wing / branch" },
         "phone": { "type": "string", "description": "Contact phone number" },
         "location": { "type": "string", "description": "Office / Sub Post Office location" },
-        "roleType": { "type": "string", "description": "president, secretary, treasurer, or executive" }
+        "roleType": { "type": "string", "description": "president, secretary, treasurer, or executive" },
+        "photoUrl": { "type": "string", "description": "Profile portrait or avatar image URL" }
       },
       "required": ["name", "designation", "branch", "location"]
     },

@@ -132,6 +132,11 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
 
     return snapshot.docs.map((d) => {
       const data = d.data();
+      // If photoUrl not stored in Firestore document, check if default seed has a photo for this member
+      const matchedDefault = DEFAULT_OFFICE_BEARERS.find(
+        (def) => def.name.trim().toLowerCase() === (data.name || '').trim().toLowerCase()
+      );
+
       return {
         id: d.id,
         name: data.name || '',
@@ -140,6 +145,7 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
         phone: data.phone || '',
         location: data.location || '',
         roleType: data.roleType || 'executive',
+        photoUrl: data.photoUrl || matchedDefault?.photoUrl || '',
       } as OfficeBearer & { id: string };
     });
   } catch (err) {
@@ -152,25 +158,25 @@ export async function saveExecutiveMemberToFirestore(
   member: OfficeBearer & { id?: string }
 ): Promise<string> {
   const colRef = collection(db, 'executiveMembers');
+  const payload = {
+    name: member.name || '',
+    designation: member.designation || '',
+    branch: member.branch || '',
+    phone: member.phone || '',
+    location: member.location || '',
+    roleType: member.roleType || 'executive',
+    photoUrl: member.photoUrl || '',
+    updatedAt: serverTimestamp(),
+  };
+
   if (member.id && !member.id.startsWith('temp-')) {
     const memberDoc = doc(db, 'executiveMembers', member.id);
-    await updateDoc(memberDoc, {
-      name: member.name,
-      designation: member.designation,
-      branch: member.branch,
-      phone: member.phone || '',
-      location: member.location,
-      roleType: member.roleType,
-    });
+    await updateDoc(memberDoc, payload);
     return member.id;
   } else {
     const docRef = await addDoc(colRef, {
-      name: member.name,
-      designation: member.designation,
-      branch: member.branch,
-      phone: member.phone || '',
-      location: member.location,
-      roleType: member.roleType,
+      ...payload,
+      createdAt: serverTimestamp(),
     });
     return docRef.id;
   }

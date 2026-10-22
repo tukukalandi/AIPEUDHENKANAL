@@ -42,12 +42,14 @@ export interface NewsSliderItem {
 
 
 export interface OfficeBearer {
+  id?: string;
   name: string;
   designation: string;
   branch: string;
   phone?: string;
   location: string;
   roleType: 'president' | 'secretary' | 'treasurer' | 'executive';
+  photoUrl?: string;
 }
 
 export interface PushNotificationItem {
