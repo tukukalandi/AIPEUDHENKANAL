@@ -30,7 +30,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   if (!isOpen) return null;
 
   const encodedUrl = encodeURIComponent(data.url);
-  const shareText = `${data.title}\n\nRead more on AIPEU Dhenkanal:\n`;
+  const shareText = `${data.title}\n\nNFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division (Mob: 9861184651):\n`;
   const encodedText = encodeURIComponent(shareText);
 
   const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}${encodedUrl}`;

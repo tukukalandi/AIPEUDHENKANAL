@@ -91,7 +91,7 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({ platform }) => {
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-blue-500/10 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between flex-wrap gap-2">
             <div>
-              <strong className="text-red-700 dark:text-red-400 font-extrabold">Dhenkanal Division Executive Leadership:</strong> Serving all Postal Assistants, Sorting Assistants, Postmen, MTS, and GDS staff across Dhenkanal & Angul postal division.
+              <strong className="text-red-700 dark:text-red-400 font-extrabold">NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division:</strong> Executive leadership serving all Postal Assistants, Sorting Assistants, Postmen, MTS, Pensioners and GDS staff across Dhenkanal Division. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.
             </div>
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm">
               {bearers.length} Office Bearers
@@ -385,20 +385,25 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({ platform }) => {
                 Official Division Office
               </span>
               <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1">
-                {UNION_CONTACT_INFO.organization}
+                {UNION_CONTACT_INFO.name}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {UNION_CONTACT_INFO.division}
+                {UNION_CONTACT_INFO.headquarters}
               </p>
             </div>
 
             <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                <span>{UNION_CONTACT_INFO.headquarters}</span>
+              <div className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <a
+                  href="tel:9861184651"
+                  className="text-slate-800 dark:text-slate-200 hover:text-blue-600 font-bold font-mono"
+                >
+                  Mob - 9861184651
+                </a>
               </div>
               <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <a
                   href={`mailto:${UNION_CONTACT_INFO.email}`}
                   className="text-blue-600 hover:underline font-medium"

@@ -130,13 +130,16 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
 ];
 
 export const UNION_CONTACT_INFO = {
-  organization: 'ALL INDIA POSTAL EMPLOYEES UNION (NFPE)',
-  division: 'Dhenkanal Division, Odisha Circle',
+  organization: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF',
+  division: 'Dhenkanal Division',
+  name: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division',
   headquarters: 'Office of the Superintendent of Post Offices, Dhenkanal Division, Dhenkanal, Odisha - 759001',
   whatsappGroup: 'https://chat.whatsapp.com/invite/aipeudkl',
   telegramChannel: 'https://t.me/aipeudkl',
   blogUrl: 'https://aipeup3dkl.blogspot.com/',
-  email: 'aipeup3dkl@gmail.com',
+  email: 'aipeup3dhenkanaldivn@gmail.com',
+  mobile: '9861184651',
+  phone: 'Mob - 9861184651',
   chqDelhi: 'First Floor, North Avenue Post Office Building, New Delhi - 110001',
 };
 

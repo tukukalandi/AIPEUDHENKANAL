@@ -6,47 +6,54 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Public read for union members, write for admin portal
+    // Public read for union members, write/delete for admin portal
     match /circulars/{circularId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string &&
-                     request.resource.data.category is string;
+      allow create, update: if request.resource.data.title is string &&
+                             request.resource.data.category is string;
+      allow delete: if true;
     }
 
     match /executiveMembers/{memberId} {
       allow read: if true;
-      allow write: if request.resource.data.name is string &&
-                     request.resource.data.designation is string;
+      allow create, update: if request.resource.data.name is string &&
+                             request.resource.data.designation is string;
+      allow delete: if true;
     }
 
     // Hero Slides for Home page (DakShiksha)
     match /heroSlides/{slideId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
     }
 
     // Moving News Slider / Ticker items
     match /newsSliderItems/{itemId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
     }
 
     // Announcements section
     match /announcements/{annId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
     }
 
     // Important Documents section
     match /importantDocuments/{docId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
     }
 
     // Notice & Circulars section
     match /noticeCirculars/{ncId} {
       allow read: if true;
-      allow write: if request.resource.data.title is string;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
     }
   }
 }

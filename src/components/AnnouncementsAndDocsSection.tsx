@@ -66,15 +66,6 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
           </div>
 
           <div className="flex items-center gap-3">
-            {onOpenAdmin && (
-              <button
-                onClick={onOpenAdmin}
-                className="text-xs font-bold text-slate-500 hover:text-red-600 transition-colors"
-                title="Manage announcements in Admin Portal"
-              >
-                ✏️ Manage
-              </button>
-            )}
             <button
               onClick={onViewAllAnnouncements}
               className="text-xs sm:text-sm font-black text-red-600 hover:text-red-700 uppercase tracking-wider transition-colors hover:underline"
@@ -125,15 +116,6 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 IMPORTANT DOCUMENTS
               </h3>
             </div>
-            {onOpenAdmin && (
-              <button
-                onClick={onOpenAdmin}
-                className="text-xs font-bold text-blue-100 hover:text-white transition-colors"
-                title="Manage documents in Admin Portal"
-              >
-                ✏️ Edit
-              </button>
-            )}
           </div>
 
           {/* Documents List */}
@@ -175,15 +157,6 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 NOTICE / CIRCULAR
               </h3>
             </div>
-            {onOpenAdmin && (
-              <button
-                onClick={onOpenAdmin}
-                className="text-xs font-bold text-amber-100 hover:text-white transition-colors"
-                title="Manage notices in Admin Portal"
-              >
-                ✏️ Edit
-              </button>
-            )}
           </div>
 
           {/* Category Tabs Bar */}

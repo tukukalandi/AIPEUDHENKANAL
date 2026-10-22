@@ -74,8 +74,8 @@ export default function App() {
   // Modals
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareData, setShareData] = useState<ShareData>({
-    title: 'AIPEU Dhenkanal Mobile',
-    text: 'All India Postal Employees Union Dhenkanal Division updates and circulars.',
+    title: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division',
+    text: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division official portal. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.',
     url: window.location.href,
   });
   const [isNotifsOpen, setIsNotifsOpen] = useState(false);
@@ -203,7 +203,10 @@ export default function App() {
         if (!mergedMap.has(p.id)) mergedMap.set(p.id, p);
       });
 
-      setPosts(Array.from(mergedMap.values()));
+      // Filter out any posts deleted by admin
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
+      const finalPosts = Array.from(mergedMap.values()).filter((p) => !deletedIds.has(p.id));
+      setPosts(finalPosts);
     } catch {
       // Keep bundled posts
     } finally {
@@ -245,8 +248,8 @@ export default function App() {
       setShareData(data);
     } else {
       setShareData({
-        title: 'AIPEU Dhenkanal Mobile App',
-        text: 'All India Postal Employees Union Dhenkanal Division mobile portal for circulars, orders & updates.',
+        title: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division',
+        text: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division official portal. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.',
         url: window.location.href,
       });
     }
@@ -415,6 +418,10 @@ export default function App() {
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
         onCircularAdded={handleCircularAdded}
+        onCircularDeleted={(id) => {
+          setPosts((prev) => prev.filter((p) => p.id !== id));
+          fetchPosts();
+        }}
         onExecutiveUpdated={() => fetchPosts()}
         onHeroSlidesUpdated={() => loadDynamicContent()}
         onNewsItemsUpdated={() => loadDynamicContent()}

@@ -72,6 +72,7 @@ interface AdminPortalProps {
   isOpen: boolean;
   onClose: () => void;
   onCircularAdded: (newPost: BlogPost) => void;
+  onCircularDeleted?: (id: string) => void;
   onExecutiveUpdated: () => void;
   onHeroSlidesUpdated?: () => void;
   onNewsItemsUpdated?: () => void;
@@ -191,6 +192,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   isOpen,
   onClose,
   onCircularAdded,
+  onCircularDeleted,
   onExecutiveUpdated,
   onHeroSlidesUpdated,
   onNewsItemsUpdated,
@@ -205,6 +207,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [statusMsg, setStatusMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // In-app deletion confirmation state (replaces window.confirm which is blocked in iframes)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    type: string;
+    id: string;
+    title: string;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
 
   // ================= 1. HERO SLIDER STATE =================
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
@@ -313,8 +324,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setExecutives(execs);
       setAnnouncements(anns);
       setImportantDocs(docs);
-      setNoticeCirculars(notcs);
-      setCirculars(posts);
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
+      setCirculars(posts.filter((p) => !deletedIds.has(p.id)));
 
       // Local storage cache for gallery, forms, resources, apps
       const savedGal = localStorage.getItem('aipeu_admin_gallery');
@@ -413,21 +424,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteHeroSlide = async (id: string) => {
-    if (window.confirm('Delete this hero slide from the home page?')) {
-      try {
-        await deleteHeroSlideFromFirestore(id);
-        const updatedSlides = await getHeroSlidesFromFirestore();
-        setHeroSlides(updatedSlides);
-        if (onHeroSlidesUpdated) onHeroSlidesUpdated();
-        showNotification('✅ Hero slide deleted from Firebase.');
-      } catch (e) {
-        showNotification('❌ Could not delete slide.');
-      }
-    }
+  const handleDeleteHeroSlide = (id: string) => {
+    const slide = heroSlides.find((s) => s.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Hero Banner Slide',
+      id,
+      title: slide?.title || 'Selected slide',
+      onConfirm: async () => {
+        try {
+          setHeroSlides((prev) => prev.filter((s) => s.id !== id));
+          await deleteHeroSlideFromFirestore(id);
+          const updatedSlides = await getHeroSlidesFromFirestore();
+          setHeroSlides(updatedSlides);
+          if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+          showNotification('✅ Hero slide deleted from Firebase.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete slide.');
+        }
+      },
+    });
   };
 
   // ================= 2. DOCUMENTS / CIRCULAR HANDLERS =================
+  const markPostAsDeleted = (id: string) => {
+    try {
+      const list: string[] = JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]');
+      if (!list.includes(id)) {
+        list.push(id);
+        localStorage.setItem('aipeu_deleted_post_ids', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSaveCircular = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docPostTitle.trim() || !docPostSnippet.trim()) {
@@ -479,17 +511,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteCircular = async (id: string) => {
-    if (window.confirm('Delete this circular from website?')) {
-      try {
-        await deleteCircularFromFirestore(id);
-        const updated = await getCircularsFromFirestore();
-        setCirculars(updated);
-        showNotification('✅ Circular deleted.');
-      } catch (e) {
-        showNotification('❌ Could not delete circular.');
-      }
-    }
+  const handleDeleteCircular = (id: string) => {
+    const circ = circulars.find((c) => c.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Document / File',
+      id,
+      title: circ?.title || 'Selected document file',
+      onConfirm: async () => {
+        try {
+          markPostAsDeleted(id);
+          setCirculars((prev) => prev.filter((c) => c.id !== id));
+          await deleteCircularFromFirestore(id);
+          if (onCircularDeleted) onCircularDeleted(id);
+          showNotification('✅ Document file deleted successfully.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete document.');
+        }
+      },
+    });
   };
 
   // ================= 3. HOMEPAGE DOCS HANDLERS =================
@@ -527,18 +568,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteImportantDoc = async (id: string) => {
-    if (window.confirm('Delete this homepage document?')) {
-      try {
-        await deleteImportantDocumentFromFirestore(id);
-        const updated = await getImportantDocumentsFromFirestore();
-        setImportantDocs(updated);
-        if (onDocsUpdated) onDocsUpdated();
-        showNotification('✅ Document removed from Homepage.');
-      } catch (e) {
-        showNotification('❌ Could not delete document.');
-      }
-    }
+  const handleDeleteImportantDoc = (id: string) => {
+    const docItem = importantDocs.find((d) => d.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Homepage Document',
+      id,
+      title: docItem?.title || 'Selected document',
+      onConfirm: async () => {
+        try {
+          setImportantDocs((prev) => prev.filter((d) => d.id !== id));
+          await deleteImportantDocumentFromFirestore(id);
+          const updated = await getImportantDocumentsFromFirestore();
+          setImportantDocs(updated);
+          if (onDocsUpdated) onDocsUpdated();
+          showNotification('✅ Document removed from Homepage.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete document.');
+        }
+      },
+    });
   };
 
   // ================= 4. NOTICES & CIRCULARS HANDLERS =================
@@ -577,18 +627,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteNoticeCircular = async (id: string) => {
-    if (window.confirm('Delete this notice circular?')) {
-      try {
-        await deleteNoticeCircularFromFirestore(id);
-        const updated = await getNoticeCircularsFromFirestore();
-        setNoticeCirculars(updated);
-        if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
-        showNotification('✅ Notice circular deleted.');
-      } catch (e) {
-        showNotification('❌ Could not delete notice.');
-      }
-    }
+  const handleDeleteNoticeCircular = (id: string) => {
+    const nc = noticeCirculars.find((n) => n.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Notice / Circular',
+      id,
+      title: nc?.title || 'Selected notice',
+      onConfirm: async () => {
+        try {
+          setNoticeCirculars((prev) => prev.filter((n) => n.id !== id));
+          await deleteNoticeCircularFromFirestore(id);
+          const updated = await getNoticeCircularsFromFirestore();
+          setNoticeCirculars(updated);
+          if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+          showNotification('✅ Notice circular deleted.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete notice.');
+        }
+      },
+    });
   };
 
   // ================= 5. ANNOUNCEMENTS HANDLERS =================
@@ -627,18 +686,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteAnnouncement = async (id: string) => {
-    if (window.confirm('Delete this announcement?')) {
-      try {
-        await deleteAnnouncementFromFirestore(id);
-        const updated = await getAnnouncementsFromFirestore();
-        setAnnouncements(updated);
-        if (onAnnouncementsUpdated) onAnnouncementsUpdated();
-        showNotification('✅ Announcement removed.');
-      } catch (e) {
-        showNotification('❌ Could not delete announcement.');
-      }
-    }
+  const handleDeleteAnnouncement = (id: string) => {
+    const ann = announcements.find((a) => a.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Announcement',
+      id,
+      title: ann?.title || 'Selected announcement',
+      onConfirm: async () => {
+        try {
+          setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+          await deleteAnnouncementFromFirestore(id);
+          const updated = await getAnnouncementsFromFirestore();
+          setAnnouncements(updated);
+          if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+          showNotification('✅ Announcement removed.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete announcement.');
+        }
+      },
+    });
   };
 
   // ================= 6. PHOTO GALLERY HANDLERS =================
@@ -664,10 +732,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeletePhoto = (id: string) => {
-    const updated = galleryPhotos.filter((p) => p.id !== id);
-    setGalleryPhotos(updated);
-    localStorage.setItem('aipeu_admin_gallery', JSON.stringify(updated));
-    showNotification('✅ Photo deleted.');
+    const photo = galleryPhotos.find((p) => p.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Photo Gallery Item',
+      id,
+      title: photo?.title || 'Selected photo',
+      onConfirm: () => {
+        const updated = galleryPhotos.filter((p) => p.id !== id);
+        setGalleryPhotos(updated);
+        localStorage.setItem('aipeu_admin_gallery', JSON.stringify(updated));
+        showNotification('✅ Photo deleted.');
+      },
+    });
   };
 
   // ================= 7. MY APPS HANDLERS =================
@@ -694,10 +771,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeleteApp = (id: string) => {
-    const updated = myApps.filter((a) => a.id !== id);
-    setMyApps(updated);
-    localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
-    showNotification('✅ App shortcut removed.');
+    const app = myApps.find((a) => a.id !== id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Portal App Shortcut',
+      id,
+      title: app?.name || 'Selected app',
+      onConfirm: () => {
+        const updated = myApps.filter((a) => a.id !== id);
+        setMyApps(updated);
+        localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
+        showNotification('✅ App shortcut removed.');
+      },
+    });
   };
 
   // ================= 8. FORMS HANDLERS =================
@@ -724,10 +810,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeleteForm = (id: string) => {
-    const updated = formsList.filter((f) => f.id !== id);
-    setFormsList(updated);
-    localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
-    showNotification('✅ Form removed.');
+    const f = formsList.find((item) => item.id !== id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Downloadable Form',
+      id,
+      title: f?.title || 'Selected form',
+      onConfirm: () => {
+        const updated = formsList.filter((item) => item.id !== id);
+        setFormsList(updated);
+        localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
+        showNotification('✅ Form removed.');
+      },
+    });
   };
 
   // ================= 9. EMPLOYEE SITE HANDLERS =================
@@ -752,10 +847,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleDeleteResource = (id: string) => {
-    const updated = employeeResources.filter((r) => r.id !== id);
-    setEmployeeResources(updated);
-    localStorage.setItem('aipeu_admin_resources', JSON.stringify(updated));
-    showNotification('✅ Resource removed.');
+    const res = employeeResources.find((r) => r.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Employee Resource',
+      id,
+      title: res?.title || 'Selected resource',
+      onConfirm: () => {
+        const updated = employeeResources.filter((r) => r.id !== id);
+        setEmployeeResources(updated);
+        localStorage.setItem('aipeu_admin_resources', JSON.stringify(updated));
+        showNotification('✅ Resource removed.');
+      },
+    });
   };
 
   // ================= 10. NEWS TICKER HANDLERS =================
@@ -788,18 +892,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteNews = async (id: string) => {
-    if (window.confirm('Delete this headline?')) {
-      try {
-        await deleteNewsItemFromFirestore(id);
-        const updated = await getNewsItemsFromFirestore();
-        setNewsItems(updated);
-        if (onNewsItemsUpdated) onNewsItemsUpdated();
-        showNotification('✅ Headline deleted.');
-      } catch (e) {
-        showNotification('❌ Could not delete.');
-      }
-    }
+  const handleDeleteNews = (id: string) => {
+    const item = newsItems.find((n) => n.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'News Headline',
+      id,
+      title: item?.title || 'Selected headline',
+      onConfirm: async () => {
+        try {
+          setNewsItems((prev) => prev.filter((n) => n.id !== id));
+          await deleteNewsItemFromFirestore(id);
+          const updated = await getNewsItemsFromFirestore();
+          setNewsItems(updated);
+          if (onNewsItemsUpdated) onNewsItemsUpdated();
+          showNotification('✅ Headline deleted.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete.');
+        }
+      },
+    });
   };
 
   // ================= 11. EXECUTIVE BEARERS HANDLERS =================
@@ -855,19 +968,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteExecutive = async (id?: string) => {
+  const handleDeleteExecutive = (id?: string) => {
     if (!id) return;
-    if (window.confirm('Remove this office bearer?')) {
-      try {
-        await deleteExecutiveMemberFromFirestore(id);
-        const updated = await getExecutiveMembersFromFirestore();
-        setExecutives(updated);
-        onExecutiveUpdated();
-        showNotification('✅ Executive member removed.');
-      } catch (e) {
-        showNotification('❌ Could not delete.');
-      }
-    }
+    const member = executives.find((ex) => ex.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Office Bearer',
+      id,
+      title: member ? `${member.name} (${member.designation})` : 'Selected member',
+      onConfirm: async () => {
+        try {
+          setExecutives((prev) => prev.filter((ex) => ex.id !== id));
+          await deleteExecutiveMemberFromFirestore(id);
+          const updated = await getExecutiveMembersFromFirestore();
+          setExecutives(updated);
+          onExecutiveUpdated();
+          showNotification('✅ Executive member removed.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete.');
+        }
+      },
+    });
   };
 
   // Navigation menu items matching the screenshot
@@ -944,11 +1066,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <span className="text-[11px] font-bold text-red-600 uppercase tracking-widest block mb-1">
               ADMINISTRATIVE SECURITY
             </span>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              AIPEU Admin Login
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              NFPE AIPEU Unions Admin Login
             </h2>
             <p className="text-xs text-slate-500 mt-2 mb-6">
-              Enter authorized administrator PIN to manage hero slides, circulars, and divisional content.
+              NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.
             </p>
 
             <form onSubmit={handlePinSubmit} className="space-y-4 text-left">
@@ -1051,8 +1173,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </nav>
 
             {/* Sidebar Footer info */}
-            <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 text-center">
-              AIPEU Dhenkanal Division · v2.6
+            <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 text-center leading-tight">
+              NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
             </div>
           </aside>
 
@@ -2519,6 +2641,45 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <Home className="w-5 h-5" />
             </button>
           </div>
+          {/* In-App Deletion Confirmation Modal Dialog (immune to iframe sandbox restrictions) */}
+          {deleteConfirm?.isOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-200">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm">
+                  <Trash2 className="w-6 h-6 stroke-[2.2]" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  Delete {deleteConfirm.type}?
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-700 font-semibold mt-1 mb-2 line-clamp-2">
+                  "{deleteConfirm.title}"
+                </p>
+                <p className="text-xs text-red-600 font-medium mb-6">
+                  Are you sure? This will be permanently removed from the website and Firebase database.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const action = deleteConfirm.onConfirm;
+                      setDeleteConfirm(null);
+                      await action();
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md active:scale-95 transition-all"
+                  >
+                    Yes, Delete Permanently
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

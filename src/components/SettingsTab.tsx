@@ -362,10 +362,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </button>
 
         <div className="pt-2 text-center text-xs text-slate-400 dark:text-slate-500 space-y-0.5">
-          <p className="font-semibold text-slate-600 dark:text-slate-400">
-            AIPEU Dhenkanal Division Mobile App v2.4
+          <p className="font-bold text-slate-700 dark:text-slate-200">
+            NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
           </p>
-          <p>Affiliated to NFPE & AIGDSU · Dhenkanal, Odisha</p>
+          <p className="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-400">
+            Mob - 9861184651 · aipeup3dhenkanaldivn@gmail.com
+          </p>
+          <p>Affiliated to NFPE, AIGDSU, AIPRPA & AIPCPCCWF · Dhenkanal, Odisha</p>
           <a
             href="https://aipeup3dkl.blogspot.com/"
             target="_blank"

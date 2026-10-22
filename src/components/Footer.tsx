@@ -50,10 +50,10 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
               <div className="text-lg sm:text-xl font-black tracking-tight text-white flex items-center gap-1.5 leading-none">
                 <span>डाक संघ</span>
                 <span className="text-amber-400">·</span>
-                <span className="text-amber-400">AIPEU DKL</span>
+                <span className="text-amber-400">NFPE · AIPEU</span>
               </div>
               <p className="text-[11px] font-bold text-amber-200 mt-1 uppercase tracking-wider">
-                All India Postal Employees Union
+                NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
               </p>
             </div>
           </div>
@@ -66,16 +66,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
             <div className="flex items-center gap-2.5">
               <Mail className="w-4 h-4 text-amber-400 shrink-0" />
               <a
-                href={`mailto:${UNION_CONTACT_INFO.email}`}
-                className="hover:text-amber-300 transition-colors truncate"
+                href="mailto:aipeup3dhenkanaldivn@gmail.com"
+                className="hover:text-amber-300 transition-colors truncate font-medium"
               >
-                {UNION_CONTACT_INFO.email}
+                aipeup3dhenkanaldivn@gmail.com
               </a>
             </div>
             <div className="flex items-center gap-2.5">
               <Phone className="w-4 h-4 text-amber-400 shrink-0" />
-              <a href="tel:+919437071492" className="hover:text-amber-300 transition-colors">
-                +91 94370 71492 / +91 94372 45812
+              <a href="tel:9861184651" className="hover:text-amber-300 transition-colors font-mono font-bold">
+                Mob - 9861184651
               </a>
             </div>
           </div>
@@ -404,9 +404,9 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
 
       {/* Bottom Bar */}
       <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-        <p>© 2026 AIPEU Group C, Postman, MTS & AIGDSU Dhenkanal Division. All Rights Reserved.</p>
+        <p>© 2026 NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division. All Rights Reserved.</p>
         <p className="flex items-center gap-3">
-          <span>Affiliated to NFPE & AIGDSU</span>
+          <span>Affiliated to NFPE, AIGDSU, AIPRPA & AIPCPCCWF</span>
           <span>·</span>
           <a
             href="https://aipeup3dkl.blogspot.com/"

@@ -3,9 +3,9 @@ import { HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCi
 export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
   {
     id: 'slide-1',
-    title: 'AIPEU Dhenkanal Division Official Portal',
-    subtitle: 'Standing united for the rights, welfare and career progression of Postal Employees, Postmen, MTS and Gramin Dak Sevaks.',
-    tag: '✊ AIPEU DHENKANAL',
+    title: 'NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division',
+    subtitle: 'Standing united for the rights, welfare and career progression of Postal Employees, Postmen, MTS, Pensioners and Gramin Dak Sevaks. Mob: 9861184651 | Email: aipeup3dhenkanaldivn@gmail.com',
+    tag: '✊ NFPE AIPEU DHENKANAL',
     imageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80',
     ctaText: 'View Union Circulars',
     ctaLink: '#circulars',

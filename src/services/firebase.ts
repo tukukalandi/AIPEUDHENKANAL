@@ -22,6 +22,7 @@ import {
   DEFAULT_IMPORTANT_DOCUMENTS,
   DEFAULT_NOTICE_CIRCULARS,
 } from '../data/dakshikshaData';
+import fallbackPosts from '../data/posts.json';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp({
@@ -88,6 +89,43 @@ export async function getCircularsFromFirestore(): Promise<BlogPost[]> {
     const q = query(colRef, orderBy('published', 'desc'));
     const snapshot = await getDocs(q);
 
+    if (snapshot.empty) {
+      // Seed default circulars so all documents have real Firestore records that can be modified & deleted
+      for (const p of (fallbackPosts as BlogPost[])) {
+        await addDoc(colRef, {
+          title: p.title,
+          category: p.categories?.[0] || 'UNION NEWS',
+          snippet: p.snippet || '',
+          contentHtml: p.contentHtml || `<p>${p.snippet || ''}</p>`,
+          driveLinks: p.driveLinks || [],
+          images: p.images || [],
+          published: p.published || new Date().toISOString(),
+          updated: p.updated || p.published || new Date().toISOString(),
+          author: p.author || 'Divisional Secretary, AIPEU Dhenkanal',
+          urgent: false,
+          createdAt: serverTimestamp(),
+        });
+      }
+      const seededSnap = await getDocs(q);
+      return seededSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          published: data.published || new Date().toISOString(),
+          updated: data.updated || data.published || '',
+          author: data.author || 'AIPEU Dhenkanal',
+          url: data.url || '',
+          categories: data.category ? [data.category] : ['UNION NEWS'],
+          snippet: data.snippet || '',
+          contentHtml: data.contentHtml || '',
+          images: data.images || [],
+          driveLinks: data.driveLinks || [],
+          isSavedOffline: false,
+        };
+      });
+    }
+
     return snapshot.docs.map((d) => {
       const data = d.data();
       return {
@@ -112,7 +150,11 @@ export async function getCircularsFromFirestore(): Promise<BlogPost[]> {
 }
 
 export async function deleteCircularFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'circulars', id));
+  try {
+    await deleteDoc(doc(db, 'circulars', id));
+  } catch (err) {
+    console.warn(`Could not delete document ${id} directly from circulars collection:`, err);
+  }
 }
 
 // ================= EXECUTIVE MEMBERS =================

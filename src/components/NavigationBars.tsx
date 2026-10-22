@@ -179,30 +179,45 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
     >
       {/* Decorative India Post Gold & Red accent hairline */}
       <div className="h-0.5 w-full bg-gradient-to-r from-red-500 via-yellow-400 to-red-500" />
-      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 h-15 flex items-center justify-between gap-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-[62px] py-2 flex items-center justify-between gap-4">
         {/* Left: Brand / Logo */}
         <div
-          className="flex items-center gap-3 cursor-pointer shrink-0"
-          onClick={() => onSelectTab && onSelectTab('feed')}
+          className="flex items-center gap-3 cursor-pointer min-w-0"
+          onClick={() => onSelectTab && onSelectTab('home')}
         >
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-500 p-0.5 shadow-md flex items-center justify-center text-white font-black text-sm ring-2 ring-amber-400/30">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-500 p-0.5 shadow-md flex items-center justify-center text-white font-black text-base ring-2 ring-amber-400/30 shrink-0">
             📮
           </div>
-          <div>
+          <div className="min-w-0">
             <h1
-              className={`text-sm sm:text-base font-black tracking-tight leading-none ${
+              className={`text-xs sm:text-sm lg:text-base font-black tracking-tight leading-snug line-clamp-2 sm:line-clamp-none ${
                 isIOS ? 'text-slate-900 dark:text-white' : 'text-white'
               }`}
+              title="NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division"
             >
-              AIPEU Dhenkanal
+              NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
             </h1>
-            <p
-              className={`text-[10px] font-semibold mt-0.5 ${
-                isIOS ? 'text-slate-500 dark:text-slate-400' : 'text-amber-200 dark:text-slate-300'
+            <div
+              className={`text-[10px] sm:text-[11px] font-semibold flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-0.5 ${
+                isIOS ? 'text-slate-600 dark:text-slate-300' : 'text-amber-200 dark:text-slate-200'
               }`}
             >
-              Group C, Postman, MTS & AIGDSU
-            </p>
+              <a
+                href="tel:9861184651"
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline font-bold"
+              >
+                Mob - 9861184651
+              </a>
+              <span className="opacity-60 hidden sm:inline">·</span>
+              <a
+                href="mailto:aipeup3dhenkanaldivn@gmail.com"
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline truncate hidden sm:inline"
+              >
+                aipeup3dhenkanaldivn@gmail.com
+              </a>
+            </div>
           </div>
         </div>
 

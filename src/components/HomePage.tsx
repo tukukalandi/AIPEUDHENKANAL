@@ -118,16 +118,6 @@ export const HomePage: React.FC<HomePageProps> = ({
               <span className="px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-sm text-xs font-mono font-bold text-white/90">
                 {currentSlideIndex + 1} / {activeSlides.length}
               </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenAdmin();
-                }}
-                className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold backdrop-blur-sm transition-all"
-                title="Manage slides in admin portal"
-              >
-                ✏️ Edit
-              </button>
             </div>
           </div>
 
