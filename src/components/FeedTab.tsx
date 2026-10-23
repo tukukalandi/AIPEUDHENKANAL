@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -20,8 +20,9 @@ import {
   Shield,
   Users,
   CheckCircle,
+  UserPlus,
 } from 'lucide-react';
-import { BlogPost, PlatformStyle, ShareData } from '../types';
+import { BlogPost, PlatformStyle, ShareData, OfficeBearer, ActiveTab } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { NewsSlider } from './NewsSlider';
 import {
@@ -29,6 +30,8 @@ import {
   OFFICE_BEARERS,
   IMPORTANT_DOCUMENTS,
 } from '../data/unionInfo';
+import { getExecutiveMembersFromFirestore } from '../services/firebase';
+import { AddOfficeBearerModal } from './AddOfficeBearerModal';
 
 interface FeedTabProps {
   posts: BlogPost[];
@@ -38,6 +41,10 @@ interface FeedTabProps {
   savedPostIds: string[];
   platform: PlatformStyle;
   isOnline: boolean;
+  officeBearers?: OfficeBearer[];
+  onRefreshOfficeBearers?: () => void;
+  onOpenAdmin?: () => void;
+  onNavigateTab?: (tab: ActiveTab) => void;
 }
 
 const CATEGORIES = [
@@ -57,11 +64,79 @@ export const FeedTab: React.FC<FeedTabProps> = ({
   savedPostIds,
   platform,
   isOnline,
+  officeBearers,
+  onRefreshOfficeBearers,
+  onOpenAdmin,
+  onNavigateTab,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('All Circulars');
   const [searchQuery, setSearchQuery] = useState('');
 
   const isIOS = platform === 'ios';
+
+  // 🏛️ Office Bearers State synced with Firestore and Directory page
+  const [bearers, setBearers] = useState<OfficeBearer[]>(officeBearers || OFFICE_BEARERS);
+  const [bearerSearch, setBearerSearch] = useState('');
+  const [bearerWingFilter, setBearerWingFilter] = useState('All');
+  const [isAddBearerModalOpen, setIsAddBearerModalOpen] = useState(false);
+
+  // Sync when prop changes
+  useEffect(() => {
+    if (officeBearers && officeBearers.length > 0) {
+      setBearers(officeBearers);
+    }
+  }, [officeBearers]);
+
+  // Listen to global updates when any bearer is added from anywhere in the app
+  useEffect(() => {
+    const fetchLatestBearers = () => {
+      getExecutiveMembersFromFirestore()
+        .then((data) => {
+          if (data && data.length > 0) setBearers(data);
+        })
+        .catch((err) => console.error(err));
+    };
+
+    fetchLatestBearers();
+
+    const handleBearersUpdated = () => {
+      fetchLatestBearers();
+      if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+    };
+
+    window.addEventListener('office-bearers-updated', handleBearersUpdated);
+    return () => window.removeEventListener('office-bearers-updated', handleBearersUpdated);
+  }, [onRefreshOfficeBearers]);
+
+  const filteredBearers = useMemo(() => {
+    return bearers.filter((b) => {
+      const q = bearerSearch.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        b.name.toLowerCase().includes(q) ||
+        b.designation.toLowerCase().includes(q) ||
+        b.branch.toLowerCase().includes(q) ||
+        b.location.toLowerCase().includes(q);
+
+      const branchLower = (b.branch || '').toLowerCase();
+      const matchesWing =
+        bearerWingFilter === 'All'
+          ? true
+          : bearerWingFilter === "Group 'C'"
+          ? branchLower.includes('group') && branchLower.includes('c')
+          : bearerWingFilter === 'Postman/MTS'
+          ? branchLower.includes('postm') || branchLower.includes('mts')
+          : bearerWingFilter === 'AIGDSU'
+          ? branchLower.includes('gds') || branchLower.includes('aigdsu')
+          : bearerWingFilter === 'Pensioners'
+          ? branchLower.includes('pensioner') || branchLower.includes('aiprpa')
+          : bearerWingFilter === 'Women'
+          ? branchLower.includes('women')
+          : true;
+
+      return matchesSearch && matchesWing;
+    });
+  }, [bearers, bearerSearch, bearerWingFilter]);
 
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
@@ -446,39 +521,146 @@ export const FeedTab: React.FC<FeedTabProps> = ({
             </div>
           </div>
 
-          {/* 2. Key Executive Office Bearers Widget */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-600" />
-                <span>Executive Office Bearers</span>
-              </h3>
-              <span className="text-[10px] font-bold text-blue-600 uppercase">Dhenkanal</span>
+          {/* 2. Comprehensive Executive Office Bearers Widget (All Bearers Available & Synced) */}
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 shadow-md space-y-3.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 flex items-center justify-center">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                    Executive Office Bearers
+                  </h3>
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                    Dhenkanal Division
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-600 text-white shadow-sm">
+                  {bearers.length} Executives
+                </span>
+                <button
+                  onClick={() => setIsAddBearerModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white text-[11px] font-black shadow-sm transition-all active:scale-95 cursor-pointer"
+                  title="Add new office bearer (immediately syncs to Directory page)"
+                >
+                  <UserPlus className="w-3 h-3" />
+                  <span>+ Add</span>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-2.5 divide-y divide-slate-100 dark:divide-slate-800/80">
-              {OFFICE_BEARERS.slice(0, 4).map((bearer, idx) => (
-                <div key={idx} className="pt-2 first:pt-0 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                      {bearer.name}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                      {bearer.designation} · {bearer.location}
-                    </p>
-                  </div>
-                  {bearer.phone && (
-                    <a
-                      href={`tel:${bearer.phone.replace(/\s+/g, '')}`}
-                      className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold text-[11px] hover:bg-blue-600 hover:text-white transition-all shrink-0 flex items-center gap-1"
-                    >
-                      <Phone className="w-3 h-3" />
-                      <span>Call</span>
-                    </a>
-                  )}
-                </div>
+            {/* Quick Search for Office Bearers */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={bearerSearch}
+                onChange={(e) => setBearerSearch(e.target.value)}
+                placeholder="Search executive comrades by name, post, office..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+
+            {/* Wing Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 text-[10px] font-bold">
+              {['All', "Group 'C'", 'Postman/MTS', 'AIGDSU', 'Pensioners', 'Women'].map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setBearerWingFilter(w)}
+                  className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-all ${
+                    bearerWingFilter === w
+                      ? 'bg-[#022A61] dark:bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  {w}
+                </button>
               ))}
             </div>
+
+            {/* Scrollable List of ALL Office Bearers */}
+            <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 dark:divide-slate-800/80">
+              {filteredBearers.length === 0 ? (
+                <div className="text-center py-6 text-xs text-slate-400">
+                  No office bearers match "{bearerSearch}".
+                </div>
+              ) : (
+                filteredBearers.map((bearer, idx) => {
+                  const initials = bearer.name
+                    .replace(/^Com\.\s*/i, '')
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2) || 'CM';
+
+                  return (
+                    <div
+                      key={bearer.id || idx}
+                      className="pt-2.5 first:pt-0 flex items-center justify-between gap-2.5 group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {/* Avatar */}
+                        {bearer.photoUrl ? (
+                          <img
+                            src={bearer.photoUrl}
+                            alt={bearer.name}
+                            className="w-9 h-9 rounded-xl object-cover ring-2 ring-amber-400/50 shadow-sm shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 to-amber-600 text-white font-black text-xs flex items-center justify-center ring-1 ring-amber-400/40 shadow-sm shrink-0">
+                            {initials}
+                          </div>
+                        )}
+
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900 dark:text-white truncate group-hover:text-red-600 dark:group-hover:text-amber-400 transition-colors">
+                            {bearer.name}
+                          </p>
+                          <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300 truncate">
+                            {bearer.designation}
+                          </p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                            {bearer.location} · {bearer.branch.split(',')[0]}
+                          </p>
+                        </div>
+                      </div>
+
+                      {bearer.phone && (
+                        <a
+                          href={`tel:${bearer.phone.replace(/[^0-9+]/g, '')}`}
+                          className="px-2.5 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 hover:bg-red-600 hover:text-white font-bold text-[11px] transition-all shrink-0 flex items-center gap-1 shadow-sm active:scale-95"
+                          title={`Call ${bearer.name}`}
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>Call</span>
+                        </a>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom Navigate to Full Directory Tab */}
+            {onNavigateTab && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                <button
+                  onClick={() => onNavigateTab('directory')}
+                  className="text-xs font-bold text-blue-600 dark:text-amber-400 hover:underline inline-flex items-center gap-1"
+                >
+                  <span>View All {bearers.length} in Office Bearers & Docs Page</span>
+                  <span>→</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 3. Statutory Documents & Forms Widget */}
@@ -519,6 +701,15 @@ export const FeedTab: React.FC<FeedTabProps> = ({
           <PWAInstallButton variant="banner" />
         </div>
       </div>
+
+      {/* Add Office Bearer Modal (Real-time synchronization with Directory & Feed) */}
+      <AddOfficeBearerModal
+        isOpen={isAddBearerModalOpen}
+        onClose={() => setIsAddBearerModalOpen(false)}
+        onBearerAdded={() => {
+          if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+        }}
+      />
     </div>
   );
 };

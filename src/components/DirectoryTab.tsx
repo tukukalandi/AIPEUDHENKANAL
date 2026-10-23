@@ -11,6 +11,7 @@ import {
   Shield,
   Download,
   CheckCircle,
+  UserPlus,
 } from 'lucide-react';
 import { PlatformStyle, OfficeBearer } from '../types';
 import {
@@ -19,24 +20,53 @@ import {
   IMPORTANT_DOCUMENTS,
 } from '../data/unionInfo';
 import { getExecutiveMembersFromFirestore } from '../services/firebase';
+import { AddOfficeBearerModal } from './AddOfficeBearerModal';
 
 interface DirectoryTabProps {
   platform: PlatformStyle;
+  officeBearers?: OfficeBearer[];
+  onRefreshOfficeBearers?: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const DirectoryTab: React.FC<DirectoryTabProps> = ({ platform }) => {
+export const DirectoryTab: React.FC<DirectoryTabProps> = ({
+  platform,
+  officeBearers,
+  onRefreshOfficeBearers,
+  onOpenAdmin,
+}) => {
   const [activeSection, setActiveSection] = useState<'bearers' | 'documents' | 'contact'>(
     'bearers'
   );
-  const [bearers, setBearers] = useState<OfficeBearer[]>(OFFICE_BEARERS);
+  const [bearers, setBearers] = useState<OfficeBearer[]>(officeBearers || OFFICE_BEARERS);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Sync with prop when passed
+  useEffect(() => {
+    if (officeBearers && officeBearers.length > 0) {
+      setBearers(officeBearers);
+    }
+  }, [officeBearers]);
 
   useEffect(() => {
-    getExecutiveMembersFromFirestore()
-      .then((data) => {
-        if (data && data.length > 0) setBearers(data);
-      })
-      .catch((err) => console.error(err));
-  }, []);
+    const fetchLatest = () => {
+      getExecutiveMembersFromFirestore()
+        .then((data) => {
+          if (data && data.length > 0) setBearers(data);
+        })
+        .catch((err) => console.error(err));
+    };
+
+    fetchLatest();
+
+    const handleUpdate = () => {
+      fetchLatest();
+      if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+    };
+
+    window.addEventListener('office-bearers-updated', handleUpdate);
+    return () => window.removeEventListener('office-bearers-updated', handleUpdate);
+  }, [onRefreshOfficeBearers]);
 
   const isIOS = platform === 'ios';
 
@@ -89,13 +119,23 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({ platform }) => {
       {/* Section 1: Office Bearers */}
       {activeSection === 'bearers' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-blue-500/10 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between flex-wrap gap-2">
-            <div>
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-blue-500/10 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between flex-wrap gap-3">
+            <div className="max-w-3xl">
               <strong className="text-red-700 dark:text-red-400 font-extrabold">NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division:</strong> Executive leadership serving all Postal Assistants, Sorting Assistants, Postmen, MTS, Pensioners and GDS staff across Dhenkanal Division. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.
             </div>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm">
-              {bearers.length} Office Bearers
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                title="Add new office bearer (instantly syncs to Circulars & Feed page)"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ Add Office Bearer</span>
+              </button>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm whitespace-nowrap">
+                {bearers.length} Office Bearers
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
@@ -452,6 +492,15 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({ platform }) => {
           </div>
         </div>
       )}
+
+      {/* Add Office Bearer Modal */}
+      <AddOfficeBearerModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onBearerAdded={() => {
+          if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+        }}
+      />
     </div>
   );
 };

@@ -16,6 +16,7 @@ import {
   AnnouncementItem,
   ImportantDocItem,
   NoticeCircularItem,
+  OfficeBearer,
 } from './types';
 import fallbackPosts from './data/posts.json';
 import {
@@ -25,6 +26,7 @@ import {
   DEFAULT_IMPORTANT_DOCUMENTS,
   DEFAULT_NOTICE_CIRCULARS,
 } from './data/dakshikshaData';
+import { OFFICE_BEARERS } from './data/unionInfo';
 import { TopTimeDateBar } from './components/TopTimeDateBar';
 import { TopAppBar, BottomNavBar } from './components/NavigationBars';
 import { HomePage } from './components/HomePage';
@@ -49,6 +51,7 @@ import {
   getAnnouncementsFromFirestore,
   getImportantDocumentsFromFirestore,
   getNoticeCircularsFromFirestore,
+  getExecutiveMembersFromFirestore,
 } from './services/firebase';
 import {
   getSavedPostIds,
@@ -66,8 +69,28 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(DEFAULT_ANNOUNCEMENTS);
   const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>(DEFAULT_IMPORTANT_DOCUMENTS);
   const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>(DEFAULT_NOTICE_CIRCULARS);
+  const [officeBearers, setOfficeBearers] = useState<OfficeBearer[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_office_bearers');
+      return stored ? JSON.parse(stored) : OFFICE_BEARERS;
+    } catch {
+      return OFFICE_BEARERS;
+    }
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+
+  const loadOfficeBearers = async () => {
+    try {
+      const data = await getExecutiveMembersFromFirestore();
+      if (data && data.length > 0) {
+        setOfficeBearers(data);
+        localStorage.setItem('aipeu_office_bearers', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Could not load executive members from Firestore', err);
+    }
+  };
   const [platformMode, setPlatformMode] = useState<PlatformStyle>('auto');
   const [deviceFrame, setDeviceFrame] = useState<'none' | 'iphone' | 'pixel'>('none');
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -127,9 +150,10 @@ export default function App() {
     // Notifications count
     updateUnreadCount();
 
-    // Fetch live posts, hero slides, news, announcements, docs, and circulars
+    // Fetch live posts, hero slides, news, announcements, docs, circulars, and office bearers
     fetchPosts();
     loadDynamicContent();
+    loadOfficeBearers();
 
     // Online / offline listeners
     const handleOnline = () => setIsOnline(!getSimulatedOffline());
@@ -139,12 +163,14 @@ export default function App() {
       setIsOnline(navigator.onLine && !getSimulatedOffline());
     };
     const handleNotifUpdate = () => updateUnreadCount();
+    const handleBearersUpdated = () => loadOfficeBearers();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('offline-storage-updated', handleStorageUpdate);
     window.addEventListener('online-status-changed', handleStorageUpdate);
     window.addEventListener('notifications-updated', handleNotifUpdate);
+    window.addEventListener('office-bearers-updated', handleBearersUpdated);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -152,6 +178,7 @@ export default function App() {
       window.removeEventListener('offline-storage-updated', handleStorageUpdate);
       window.removeEventListener('online-status-changed', handleStorageUpdate);
       window.removeEventListener('notifications-updated', handleNotifUpdate);
+      window.removeEventListener('office-bearers-updated', handleBearersUpdated);
     };
   }, []);
 
@@ -385,6 +412,13 @@ export default function App() {
                 savedPostIds={savedPostIds}
                 platform={effectivePlatform}
                 isOnline={isOnline}
+                officeBearers={officeBearers}
+                onRefreshOfficeBearers={loadOfficeBearers}
+                onOpenAdmin={() => setIsAdminOpen(true)}
+                onNavigateTab={(tab) => {
+                  setActiveTab(tab);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
               />
             )}
 
@@ -407,7 +441,12 @@ export default function App() {
             )}
 
             {activeTab === 'directory' && (
-              <DirectoryTab platform={effectivePlatform} />
+              <DirectoryTab
+                platform={effectivePlatform}
+                officeBearers={officeBearers}
+                onRefreshOfficeBearers={loadOfficeBearers}
+                onOpenAdmin={() => setIsAdminOpen(true)}
+              />
             )}
 
             {activeTab === 'settings' && (
@@ -470,7 +509,10 @@ export default function App() {
           setPosts((prev) => prev.filter((p) => p.id !== id));
           fetchPosts();
         }}
-        onExecutiveUpdated={() => fetchPosts()}
+        onExecutiveUpdated={() => {
+          loadOfficeBearers();
+          window.dispatchEvent(new CustomEvent('office-bearers-updated'));
+        }}
         onHeroSlidesUpdated={() => loadDynamicContent()}
         onNewsItemsUpdated={() => loadDynamicContent()}
         onAnnouncementsUpdated={() => loadDynamicContent()}
