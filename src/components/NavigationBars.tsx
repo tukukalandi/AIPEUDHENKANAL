@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
   Home,
   Layers,
@@ -10,9 +11,11 @@ import {
   Lock,
   FileText,
   UserCheck,
+  Menu,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle } from '../types';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
+import { HeaderNavMenuModal } from './HeaderNavMenuModal';
 
 interface BottomNavProps {
   activeTab: ActiveTab;
@@ -161,15 +164,15 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   offlineCount = 0,
 }) => {
   const isIOS = platform === 'ios';
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
 
+  // Offline Vault and Settings are accessed via the dedicated Menu button
   const navLinks: { id: ActiveTab; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'user-portal', label: 'User Portal' },
     { id: 'feed', label: 'Circulars & Feed' },
     { id: 'categories', label: 'Union Wings' },
-    { id: 'offline', label: 'Offline Vault' },
     { id: 'directory', label: 'Office Bearers & Docs' },
-    { id: 'settings', label: 'Settings' },
   ];
 
   return (
@@ -228,11 +231,6 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
                   }`}
                 >
                   <span>{link.label}</span>
-                  {link.id === 'offline' && offlineCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-[10px] text-white">
-                      {offlineCount}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -258,6 +256,25 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             </button>
           )}
 
+          {/* 🌟 Menu Button: Opens Photo Gallery, My Apps, Employee Site, Offline Vault, Settings */}
+          <button
+            onClick={() => setIsNavMenuOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer ${
+              isIOS
+                ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25 ring-1 ring-amber-400'
+                : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/30 ring-2 ring-amber-300'
+            }`}
+            title="Open Menu (Photo Gallery, My Apps, Employee Site, Offline Vault, Settings)"
+            aria-label="Open Menu"
+          >
+            <Menu className="w-4 h-4 stroke-[2.5]" />
+            <span>Menu</span>
+            {offlineCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[9px] font-black">
+                {offlineCount}
+              </span>
+            )}
+          </button>
 
           {/* Refresh Posts Button */}
           <button
@@ -305,6 +322,17 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Header Menu Modal for Photo Gallery, My Apps, Employee Site, Offline Vault, Settings */}
+      <HeaderNavMenuModal
+        isOpen={isNavMenuOpen}
+        onClose={() => setIsNavMenuOpen(false)}
+        onSelectTab={(tab) => {
+          if (onSelectTab) onSelectTab(tab);
+        }}
+        offlineCount={offlineCount}
+        platform={platform}
+      />
     </header>
   );
 };

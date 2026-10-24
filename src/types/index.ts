@@ -108,3 +108,34 @@ export interface UnionDocumentRuling {
   order?: number;
   published?: string;
 }
+
+export interface GalleryPhoto {
+  id: string;
+  title: string;
+  imageUrl: string;
+  category: string;
+  date: string;
+}
+
+export interface CustomPortalApp {
+  id: string;
+  name: string;
+  category: string;
+  url: string;
+  description: string;
+}
+
+export interface DownloadableForm {
+  id: string;
+  title: string;
+  formCode: string;
+  category: string;
+  downloadUrl: string;
+}
+
+export interface EmployeeResource {
+  id: string;
+  title: string;
+  category: string;
+  url: string;
+}
