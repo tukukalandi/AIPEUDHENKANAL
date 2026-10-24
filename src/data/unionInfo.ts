@@ -1,4 +1,4 @@
-import { OfficeBearer } from '../types';
+import { OfficeBearer, UnionDocumentRuling } from '../types';
 
 export const UNION_BRANCHES = [
   {
@@ -46,14 +46,16 @@ export const UNION_BRANCHES = [
 ];
 
 export const OFFICE_BEARERS: OfficeBearer[] = [
+  // ================= 1. GROUP 'C' WING =================
+  // 1st: Divisional Secretary
   {
-    name: 'Com. Ramesh Chandra Sahoo',
-    designation: 'Divisional President',
+    name: 'Com. Suryakant Sahoo',
+    designation: 'Divisional Secretary',
     branch: "AIPEU Group 'C', Dhenkanal Division",
-    phone: '+91 94372 45812',
-    location: 'Dhenkanal Head Post Office',
-    roleType: 'president',
-    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+    phone: '+91 98611 84651',
+    location: 'Dhenkanal HO',
+    roleType: 'secretary',
+    photoUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
   },
   {
     name: 'Com. Prasanta Kumar Mohapatra',
@@ -64,6 +66,17 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
     roleType: 'secretary',
     photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
   },
+  // 2nd: Divisional President
+  {
+    name: 'Com. Ramesh Chandra Sahoo',
+    designation: 'Divisional President',
+    branch: "AIPEU Group 'C', Dhenkanal Division",
+    phone: '+91 94372 45812',
+    location: 'Dhenkanal Head Post Office',
+    roleType: 'president',
+    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+  },
+  // 3rd: Other Group 'C' Office Bearers
   {
     name: 'Com. Bijay Kumar Nayak',
     designation: 'Financial Secretary',
@@ -72,33 +85,6 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
     location: 'Hindol SO',
     roleType: 'treasurer',
     photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'Com. Minati Samal',
-    designation: 'Convener, Women Sub-Committee',
-    branch: 'Divisional Women Sub-Committee',
-    phone: '+91 94380 91283',
-    location: 'Bhuban SO',
-    roleType: 'executive',
-    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'Com. Niranjan Barik',
-    designation: 'Divisional Secretary',
-    branch: "AIPEU Postmen, MTS & Group 'D'",
-    phone: '+91 94374 81290',
-    location: 'Dhenkanal HO',
-    roleType: 'secretary',
-    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    name: 'Com. Subash Chandra Rout',
-    designation: 'Divisional Secretary',
-    branch: 'AIGDSU Dhenkanal Division',
-    phone: '+91 99381 22401',
-    location: 'Gondia BO',
-    roleType: 'secretary',
-    photoUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
   },
   {
     name: 'Com. Satyabrata Mishra',
@@ -110,15 +96,6 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
     photoUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
   },
   {
-    name: 'Com. Suryakant Sahoo',
-    designation: 'Divisional Secretary',
-    branch: "AIPEU Group 'C', Dhenkanal Division",
-    phone: '+91 98611 84651',
-    location: 'Dhenkanal HO',
-    roleType: 'secretary',
-    photoUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
-  },
-  {
     name: 'Com. Chandra Sekhar Singh',
     designation: 'Ex-Divisional Secretary & Circle President',
     branch: "AIPEU Group 'C', Odisha Circle",
@@ -126,6 +103,41 @@ export const OFFICE_BEARERS: OfficeBearer[] = [
     location: 'Dhenkanal Division',
     roleType: 'executive',
     photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  },
+
+  // ================= 2. POSTMAN, MTS & GROUP 'D' WING =================
+  // 1st: Divisional Secretary
+  {
+    name: 'Com. Niranjan Barik',
+    designation: 'Divisional Secretary',
+    branch: "AIPEU Postmen, MTS & Group 'D'",
+    phone: '+91 94374 81290',
+    location: 'Dhenkanal HO',
+    roleType: 'secretary',
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+  },
+
+  // ================= 3. ALL INDIA GRAMIN DAK SEVAKS UNION (AIGDSU) WING =================
+  // 1st: Divisional Secretary
+  {
+    name: 'Com. Subash Chandra Rout',
+    designation: 'Divisional Secretary',
+    branch: 'AIGDSU Dhenkanal Division',
+    phone: '+91 99381 22401',
+    location: 'Gondia BO',
+    roleType: 'secretary',
+    photoUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
+  },
+
+  // ================= 4. WOMEN SUB-COMMITTEE & SPECIAL BODIES =================
+  {
+    name: 'Com. Minati Samal',
+    designation: 'Convener, Women Sub-Committee',
+    branch: 'Divisional Women Sub-Committee',
+    phone: '+91 94380 91283',
+    location: 'Bhuban SO',
+    roleType: 'executive',
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
   },
 ];
 
@@ -152,35 +164,45 @@ export const UNION_CONTACT_INFO = {
   affiliatedTo: 'National JCM - Staff Side, Confederation of Central Government Employees and Workers, National Federation of Postal Employees - CHQ - New Delhi',
 };
 
-export const IMPORTANT_DOCUMENTS = [
+export const IMPORTANT_DOCUMENTS: UnionDocumentRuling[] = [
   {
+    id: 'doc-ruling-1',
     title: 'AIPEU Constitution & Trade Union Rulings',
     desc: 'Official constitution, aims, objectives and union conference bylaws.',
     link: 'https://drive.google.com/file/d/0B3b5xv2bvRIbMnVDYzgyUDNoNGc/view',
     type: 'Constitution',
+    order: 1,
   },
   {
+    id: 'doc-ruling-2',
     title: 'Register of Trade Union - Form B',
     desc: 'Official statutory trade union registration records under Trade Unions Act.',
     link: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
     type: 'Legal',
+    order: 2,
   },
   {
+    id: 'doc-ruling-3',
     title: 'Staff Adalat Grievance Submission Form',
     desc: 'Standard representation format for Half-Yearly Staff Adalat at Regional Office & Division.',
     link: 'https://drive.google.com/file/d/1ArNMez75hZPspwG6FDQu6uG4l67-ok_0/view',
     type: 'Grievance',
+    order: 3,
   },
   {
+    id: 'doc-ruling-4',
     title: 'Charter of Demands (8th CPC & GDS Target Pressure)',
     desc: 'Resolution and strike demand charter passed by NFPE and AIGDSU conferences.',
     link: 'https://aipeup3dkl.blogspot.com/2026/06/charter-of-demands-for-coming-gds-strike.html',
     type: 'Resolution',
+    order: 4,
   },
   {
+    id: 'doc-ruling-5',
     title: 'Union Official Letter Pad (Printable)',
     desc: 'Division executive letter pad template for branch correspondence.',
     link: 'https://docs.google.com/file/d/0B3b5xv2bvRIbMnVDYzgyUDNoNGc/edit',
     type: 'Letter Pad',
+    order: 5,
   },
 ];

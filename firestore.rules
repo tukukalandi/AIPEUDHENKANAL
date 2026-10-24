@@ -55,6 +55,13 @@ service cloud.firestore {
       allow create, update: if request.resource.data.title is string;
       allow delete: if true;
     }
+
+    // Union Documents & Rulings section (Executive Bearers)
+    match /unionDocumentsAndRulings/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.title is string;
+      allow delete: if true;
+    }
   }
 }
 

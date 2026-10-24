@@ -101,6 +101,20 @@
         "order": { "type": "number", "description": "Display order" }
       },
       "required": ["title", "category", "published"]
+    },
+    "UnionDocumentRuling": {
+      "title": "UnionDocumentRuling",
+      "description": "Union Constitution, trade union rulings, Form 'B' register entries, and grievance templates",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Document or ruling title" },
+        "desc": { "type": "string", "description": "Brief description of the ruling or document" },
+        "link": { "type": "string", "description": "URL or download link to the document" },
+        "type": { "type": "string", "description": "Category or document type (Legal, Constitution, Grievance, etc.)" },
+        "order": { "type": "number", "description": "Display order index" },
+        "published": { "type": "string", "description": "Publication or entry date" }
+      },
+      "required": ["title", "link", "type"]
     }
   },
   "firestore": {
@@ -131,6 +145,11 @@
     "/noticeCirculars/{ncId}": {
       "schema": "NoticeCircular",
       "description": "Categorized notices and circulars with published date"
+    },
+    "/unionDocumentsAndRulings/{docId}": {
+      "schema": "UnionDocumentRuling",
+      "description": "Trade union rulings, Constitution, Form B, and grievance documents managed in Executive Bearer section"
     }
   }
 }
+

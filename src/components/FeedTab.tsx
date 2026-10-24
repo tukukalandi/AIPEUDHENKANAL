@@ -22,9 +22,10 @@ import {
   CheckCircle,
   UserPlus,
 } from 'lucide-react';
-import { BlogPost, PlatformStyle, ShareData, OfficeBearer, ActiveTab } from '../types';
+import { BlogPost, PlatformStyle, ShareData, OfficeBearer, ActiveTab, HeroSlide } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { NewsSlider } from './NewsSlider';
+import { FeedHeroSlider } from './FeedHeroSlider';
 import {
   UNION_CONTACT_INFO,
   OFFICE_BEARERS,
@@ -32,6 +33,7 @@ import {
 } from '../data/unionInfo';
 import { getExecutiveMembersFromFirestore } from '../services/firebase';
 import { AddOfficeBearerModal } from './AddOfficeBearerModal';
+import { sortOfficeBearers } from '../utils/officeBearerSorting';
 
 interface FeedTabProps {
   posts: BlogPost[];
@@ -45,6 +47,7 @@ interface FeedTabProps {
   onRefreshOfficeBearers?: () => void;
   onOpenAdmin?: () => void;
   onNavigateTab?: (tab: ActiveTab) => void;
+  heroSlides?: HeroSlide[];
 }
 
 const CATEGORIES = [
@@ -68,9 +71,17 @@ export const FeedTab: React.FC<FeedTabProps> = ({
   onRefreshOfficeBearers,
   onOpenAdmin,
   onNavigateTab,
+  heroSlides,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('All Circulars');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 🎯 Circular & Feed Hero Slider items configured from Admin Portal
+  const feedSlides = useMemo(() => {
+    return (heroSlides || []).filter(
+      (s) => (s.targetPage === 'feed' || s.targetPage === 'both') && s.active !== false
+    );
+  }, [heroSlides]);
 
   const isIOS = platform === 'ios';
 
@@ -109,7 +120,8 @@ export const FeedTab: React.FC<FeedTabProps> = ({
   }, [onRefreshOfficeBearers]);
 
   const filteredBearers = useMemo(() => {
-    return bearers.filter((b) => {
+    const sorted = sortOfficeBearers(bearers);
+    return sorted.filter((b) => {
       const q = bearerSearch.trim().toLowerCase();
       const matchesSearch =
         !q ||
@@ -198,9 +210,17 @@ export const FeedTab: React.FC<FeedTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
         {/* Main Content Area (8 Cols on Desktop) */}
         <div className="lg:col-span-8 space-y-4">
-          {/* 🌟 1. MOVING LATEST NEWS SLIDER (Auto-playing and swipeable) */}
+          {/* 🌟 1. CIRCULAR & FEED HERO SLIDER & LATEST UPDATES (Managed via Admin Portal) */}
           {!searchQuery && selectedCategory === 'All Circulars' && (
-            <div className="pt-0.5">
+            <div className="space-y-4 pt-0.5">
+              {feedSlides.length > 0 && (
+                <FeedHeroSlider
+                  slides={feedSlides}
+                  onOpenAdmin={onOpenAdmin}
+                  onNavigateTab={onNavigateTab}
+                />
+              )}
+
               <NewsSlider
                 posts={posts}
                 onSelectPost={onSelectPost}

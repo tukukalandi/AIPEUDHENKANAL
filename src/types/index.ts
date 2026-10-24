@@ -29,6 +29,7 @@ export interface HeroSlide {
   gradient?: string;
   order?: number;
   active?: boolean;
+  targetPage?: 'home' | 'feed' | 'both';
 }
 
 export interface NewsSliderItem {
@@ -95,4 +96,14 @@ export interface ShareData {
   title: string;
   text: string;
   url: string;
+}
+
+export interface UnionDocumentRuling {
+  id: string;
+  title: string;
+  desc?: string;
+  link: string;
+  type: string;
+  order?: number;
+  published?: string;
 }

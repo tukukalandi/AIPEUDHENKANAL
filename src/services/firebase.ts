@@ -13,8 +13,9 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem } from '../types';
-import { OFFICE_BEARERS as DEFAULT_OFFICE_BEARERS } from '../data/unionInfo';
+import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem, UnionDocumentRuling } from '../types';
+import { OFFICE_BEARERS as DEFAULT_OFFICE_BEARERS, IMPORTANT_DOCUMENTS as DEFAULT_UNION_DOCUMENTS_AND_RULINGS } from '../data/unionInfo';
+import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import {
   DEFAULT_HERO_SLIDES,
   DEFAULT_NEWS_ITEMS,
@@ -172,7 +173,7 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
       return DEFAULT_OFFICE_BEARERS;
     }
 
-    return snapshot.docs.map((d) => {
+    const sortedList = snapshot.docs.map((d) => {
       const data = d.data();
       // If photoUrl not stored in Firestore document, check if default seed has a photo for this member
       const matchedDefault = DEFAULT_OFFICE_BEARERS.find(
@@ -190,9 +191,11 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
         photoUrl: data.photoUrl || matchedDefault?.photoUrl || '',
       } as OfficeBearer & { id: string };
     });
+
+    return sortOfficeBearers(sortedList);
   } catch (err) {
     console.error('Error fetching executive members from Firestore:', err);
-    return DEFAULT_OFFICE_BEARERS;
+    return sortOfficeBearers(DEFAULT_OFFICE_BEARERS);
   }
 }
 
@@ -248,6 +251,7 @@ export async function getHeroSlidesFromFirestore(): Promise<HeroSlide[]> {
           gradient: slide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
           order: slide.order || 0,
           active: slide.active !== false,
+          targetPage: slide.targetPage || 'home',
           createdAt: serverTimestamp(),
         });
       }
@@ -267,6 +271,7 @@ export async function getHeroSlidesFromFirestore(): Promise<HeroSlide[]> {
         gradient: data.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
         order: data.order ?? 0,
         active: data.active !== false,
+        targetPage: data.targetPage || 'home',
       };
     });
 
@@ -292,10 +297,11 @@ export async function saveHeroSlideToFirestore(
     gradient: slide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
     order: slide.order ?? 0,
     active: slide.active !== false,
+    targetPage: slide.targetPage || 'home',
     updatedAt: serverTimestamp(),
   };
 
-  if (slide.id && !slide.id.startsWith('slide-') && !slide.id.startsWith('temp-')) {
+  if (slide.id && !slide.id.startsWith('slide-') && !slide.id.startsWith('temp-') && !slide.id.startsWith('feed-slide-')) {
     const slideDoc = doc(db, 'heroSlides', slide.id);
     await updateDoc(slideDoc, slideData);
     return slide.id;
@@ -597,5 +603,83 @@ export async function saveNoticeCircularToFirestore(
 
 export async function deleteNoticeCircularFromFirestore(id: string): Promise<void> {
   await deleteDoc(doc(db, 'noticeCirculars', id));
+}
+
+// ================= UNION DOCUMENTS & RULINGS (EXECUTIVE BODY) =================
+
+export async function getUnionDocumentsAndRulingsFromFirestore(): Promise<UnionDocumentRuling[]> {
+  try {
+    const colRef = collection(db, 'unionDocumentsAndRulings');
+    const snapshot = await getDocs(colRef);
+
+    if (snapshot.empty) {
+      // Seed default union documents and rulings into Firestore
+      try {
+        for (const item of DEFAULT_UNION_DOCUMENTS_AND_RULINGS) {
+          await addDoc(colRef, {
+            title: item.title,
+            desc: item.desc || '',
+            link: item.link || '',
+            type: item.type || 'Legal',
+            order: item.order || 0,
+            published: item.published || new Date().toISOString().split('T')[0],
+            createdAt: serverTimestamp(),
+          });
+        }
+      } catch (seedErr) {
+        console.warn('Could not auto-seed union documents to Firestore (using default list):', seedErr);
+      }
+      return DEFAULT_UNION_DOCUMENTS_AND_RULINGS;
+    }
+
+    const items: UnionDocumentRuling[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title || '',
+        desc: data.desc || '',
+        link: data.link || '',
+        type: data.type || 'Legal',
+        order: data.order ?? 0,
+        published: data.published || '',
+      };
+    });
+
+    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
+  } catch (err) {
+    console.error('Error fetching union documents & rulings from Firestore:', err);
+    return DEFAULT_UNION_DOCUMENTS_AND_RULINGS;
+  }
+}
+
+export async function saveUnionDocumentRulingToFirestore(
+  item: Partial<UnionDocumentRuling> & { id?: string }
+): Promise<string> {
+  const colRef = collection(db, 'unionDocumentsAndRulings');
+  const docData = {
+    title: item.title || '',
+    desc: item.desc || '',
+    link: item.link || '',
+    type: item.type || 'Legal',
+    order: item.order ?? 0,
+    published: item.published || new Date().toISOString().split('T')[0],
+    updatedAt: serverTimestamp(),
+  };
+
+  if (item.id && !item.id.startsWith('doc-ruling-') && !item.id.startsWith('temp-')) {
+    const docItem = doc(db, 'unionDocumentsAndRulings', item.id);
+    await updateDoc(docItem, docData);
+    return item.id;
+  } else {
+    const docRef = await addDoc(colRef, {
+      ...docData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  }
+}
+
+export async function deleteUnionDocumentRulingFromFirestore(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'unionDocumentsAndRulings', id));
 }
 

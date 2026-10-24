@@ -40,6 +40,7 @@ import {
   AnnouncementItem,
   ImportantDocItem,
   NoticeCircularItem,
+  UnionDocumentRuling,
 } from '../types';
 import {
   addCircularToFirestore,
@@ -63,6 +64,9 @@ import {
   getNoticeCircularsFromFirestore,
   saveNoticeCircularToFirestore,
   deleteNoticeCircularFromFirestore,
+  getUnionDocumentsAndRulingsFromFirestore,
+  saveUnionDocumentRulingToFirestore,
+  deleteUnionDocumentRulingFromFirestore,
   NewCircularInput,
 } from '../services/firebase';
 import {
@@ -72,6 +76,7 @@ import {
   DEFAULT_IMPORTANT_DOCUMENTS,
   DEFAULT_NOTICE_CIRCULARS,
 } from '../data/dakshikshaData';
+import { sortOfficeBearers } from '../utils/officeBearerSorting';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -230,7 +235,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     onConfirm: () => Promise<void> | void;
   } | null>(null);
 
-  // ================= 1. HERO SLIDER STATE =================
+  // ================= 1. HERO SLIDER STATE (Supports Home & Circular & Feed Pages) =================
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
   const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null);
   const [heroTitle, setHeroTitle] = useState('');
@@ -240,6 +245,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [heroCtaText, setHeroCtaText] = useState('Explore Syllabus & Materials');
   const [heroCtaLink, setHeroCtaLink] = useState('#departmental-exams');
   const [heroGradient, setHeroGradient] = useState('from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]');
+  const [heroTargetPage, setHeroTargetPage] = useState<'home' | 'feed' | 'both'>('home');
+  const [heroFilterPage, setHeroFilterPage] = useState<'all' | 'home' | 'feed'>('all');
 
   // ================= 2. DOCUMENTS & CIRCULARS STATE =================
   const [circulars, setCirculars] = useState<BlogPost[]>([]);
@@ -309,7 +316,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [newsLink, setNewsLink] = useState('');
   const [newsIsUrgent, setNewsIsUrgent] = useState(false);
 
-  // ================= 11. EXECUTIVE MEMBERS STATE =================
+  // ================= 11. EXECUTIVE MEMBERS & DOCUMENTS/RULINGS STATE =================
+  const [executiveSubSection, setExecutiveSubSection] = useState<'bearers' | 'rulings'>('bearers');
   const [executives, setExecutives] = useState<(OfficeBearer & { id?: string })[]>([]);
   const [editingMember, setEditingMember] = useState<(OfficeBearer & { id?: string }) | null>(null);
   const [execName, setExecName] = useState('');
@@ -320,10 +328,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [execRoleType, setExecRoleType] = useState<'president' | 'secretary' | 'treasurer' | 'executive'>('executive');
   const [execPhotoUrl, setExecPhotoUrl] = useState('');
 
+  // Documents & Rulings (Executive Body)
+  const [unionRulings, setUnionRulings] = useState<UnionDocumentRuling[]>([]);
+  const [editingRuling, setEditingRuling] = useState<UnionDocumentRuling | null>(null);
+  const [rulingTitle, setRulingTitle] = useState('');
+  const [rulingDesc, setRulingDesc] = useState('');
+  const [rulingLink, setRulingLink] = useState('');
+  const [rulingType, setRulingType] = useState('Constitution');
+  const [rulingOrder, setRulingOrder] = useState<number>(1);
+
   // Load all data when modal opens
   const loadAllData = async () => {
     try {
-      const [slides, news, execs, anns, docs, notcs, posts] = await Promise.all([
+      const [slides, news, execs, anns, docs, notcs, posts, rulings] = await Promise.all([
         getHeroSlidesFromFirestore(),
         getNewsItemsFromFirestore(),
         getExecutiveMembersFromFirestore(),
@@ -331,12 +348,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         getImportantDocumentsFromFirestore(),
         getNoticeCircularsFromFirestore(),
         getCircularsFromFirestore(),
+        getUnionDocumentsAndRulingsFromFirestore(),
       ]);
       setHeroSlides(slides);
       setNewsItems(news);
       setExecutives(execs);
       setAnnouncements(anns);
       setImportantDocs(docs);
+      setUnionRulings(rulings);
       const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
       setCirculars(posts.filter((p) => !deletedIds.has(p.id)));
 
@@ -405,21 +424,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setEditingSlide(slide);
     setHeroTitle(slide.title);
     setHeroSubtitle(slide.subtitle);
-    setHeroTag(slide.tag || 'DAKSHIKSHA');
+    setHeroTag(slide.tag || (slide.targetPage === 'feed' ? '📜 CIRCULAR ARCHIVE' : 'DAKSHIKSHA'));
     setHeroImageUrl(slide.imageUrl);
     setHeroCtaText(slide.ctaText || 'Learn More');
     setHeroCtaLink(slide.ctaLink || '#');
     setHeroGradient(slide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]');
+    setHeroTargetPage(slide.targetPage || 'home');
   };
 
   const handleCancelEditSlide = () => {
     setEditingSlide(null);
     setHeroTitle('');
     setHeroSubtitle('');
-    setHeroTag('🎓 DAKSHIKSHA PORTAL');
+    setHeroTag(heroTargetPage === 'feed' ? '📜 CIRCULAR ARCHIVE' : '🎓 DAKSHIKSHA PORTAL');
     setHeroImageUrl('');
     setHeroCtaText('Explore Syllabus & Materials');
     setHeroCtaLink('#departmental-exams');
+    setHeroTargetPage(heroFilterPage === 'feed' ? 'feed' : 'home');
   };
 
   const handleSaveHeroSlide = async (e: React.FormEvent) => {
@@ -435,12 +456,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         id: editingSlide ? editingSlide.id : undefined,
         title: heroTitle.trim() || 'Untitled Slide',
         subtitle: heroSubtitle.trim() || 'AIPEU Dhenkanal Division Official Update',
-        tag: heroTag.trim() || 'DAKSHIKSHA',
+        tag: heroTag.trim() || (heroTargetPage === 'feed' ? '📜 CIRCULAR ARCHIVE' : 'DAKSHIKSHA'),
         imageUrl: heroImageUrl.trim(),
         ctaText: heroCtaText.trim() || 'Explore Now',
-        ctaLink: heroCtaLink.trim() || '#circulars',
+        ctaLink: heroCtaLink.trim() || (heroTargetPage === 'feed' ? '#feed-search' : '#circulars'),
         gradient: heroGradient,
-        active: true,
+        active: editingSlide ? editingSlide.active !== false : true,
+        targetPage: heroTargetPage,
         order: editingSlide?.order ?? heroSlides.length + 1,
       };
 
@@ -450,12 +472,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (onHeroSlidesUpdated) onHeroSlidesUpdated();
 
       handleCancelEditSlide();
-      showNotification('✅ Hero slider photo successfully saved to Firebase!');
+      const pageName = heroTargetPage === 'feed' ? 'Circular & Feed Page' : heroTargetPage === 'both' ? 'Both Pages' : 'Home Page';
+      showNotification(`✅ Slide saved for ${pageName}!`);
     } catch (err) {
       console.error(err);
       showNotification('❌ Failed to save hero slide to Firebase.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleSlideActive = async (slide: HeroSlide) => {
+    try {
+      const newActive = slide.active === false ? true : false;
+      await saveHeroSlideToFirestore({ ...slide, active: newActive });
+      const updatedSlides = await getHeroSlidesFromFirestore();
+      setHeroSlides(updatedSlides);
+      if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+      showNotification(newActive ? '✅ Slide activated' : '⏸️ Slide deactivated');
+    } catch (e) {
+      console.error(e);
+      showNotification('❌ Could not update slide status');
+    }
+  };
+
+  const handleToggleSlideTarget = async (slide: HeroSlide, target: 'home' | 'feed' | 'both') => {
+    try {
+      await saveHeroSlideToFirestore({ ...slide, targetPage: target });
+      const updatedSlides = await getHeroSlidesFromFirestore();
+      setHeroSlides(updatedSlides);
+      if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+      const pageLabel = target === 'feed' ? 'Circulars & Feed' : target === 'both' ? 'Both Pages' : 'Home Page';
+      showNotification(`✅ Assigned to ${pageLabel}`);
+    } catch (err) {
+      console.error(err);
+      showNotification('❌ Could not update slide page');
     }
   };
 
@@ -1027,6 +1078,79 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   };
 
+  // ================= 12. DOCUMENTS & RULINGS HANDLERS =================
+  const handleEditRulingClick = (ruling: UnionDocumentRuling) => {
+    setEditingRuling(ruling);
+    setRulingTitle(ruling.title || '');
+    setRulingDesc(ruling.desc || '');
+    setRulingLink(ruling.link || '');
+    setRulingType(ruling.type || 'Constitution');
+    setRulingOrder(ruling.order ?? (unionRulings.indexOf(ruling) + 1));
+    setExecutiveSubSection('rulings');
+  };
+
+  const handleCancelEditRuling = () => {
+    setEditingRuling(null);
+    setRulingTitle('');
+    setRulingDesc('');
+    setRulingLink('');
+    setRulingType('Constitution');
+    setRulingOrder(unionRulings.length + 1);
+  };
+
+  const handleSaveRuling = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rulingTitle.trim() || !rulingLink.trim()) {
+      showNotification('⚠️ Title and Document URL are required');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const data: Partial<UnionDocumentRuling> & { id?: string } = {
+        id: editingRuling ? editingRuling.id : undefined,
+        title: rulingTitle.trim(),
+        desc: rulingDesc.trim(),
+        link: rulingLink.trim(),
+        type: rulingType.trim() || 'Legal',
+        order: Number(rulingOrder) || (unionRulings.length + 1),
+        published: new Date().toISOString().split('T')[0],
+      };
+      await saveUnionDocumentRulingToFirestore(data);
+      const updated = await getUnionDocumentsAndRulingsFromFirestore();
+      setUnionRulings(updated);
+      handleCancelEditRuling();
+      window.dispatchEvent(new CustomEvent('union-rulings-updated'));
+      showNotification(editingRuling ? '✅ Document & Ruling updated!' : '✅ New Document & Ruling added!');
+    } catch (err) {
+      console.error(err);
+      showNotification('❌ Failed to save Document & Ruling.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteRuling = (id: string) => {
+    const ruling = unionRulings.find((r) => r.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Document & Ruling',
+      id,
+      title: ruling ? ruling.title : 'Selected document',
+      onConfirm: async () => {
+        try {
+          setUnionRulings((prev) => prev.filter((r) => r.id !== id));
+          await deleteUnionDocumentRulingFromFirestore(id);
+          const updated = await getUnionDocumentsAndRulingsFromFirestore();
+          setUnionRulings(updated);
+          window.dispatchEvent(new CustomEvent('union-rulings-updated'));
+          showNotification('✅ Document & Ruling deleted.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete.');
+        }
+      },
+    });
+  };
   // Navigation menu items matching the screenshot
   const menuItems: { id: AdminMenuTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -1306,156 +1430,412 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </p>
             </div>
 
-            {/* TAB CONTENT: HERO SLIDER (matching screenshot layout) */}
+            {/* TAB CONTENT: HERO SLIDER (matching screenshot layout + Circular & Feed management) */}
             {activeTab === 'hero' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Add/Edit Slide Card */}
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingSlide ? 'EDIT SLIDE' : 'ADD NEW SLIDE'}
-                  </h2>
-
-                  <form onSubmit={handleSaveHeroSlide} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PHOTO URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={heroImageUrl}
-                        onChange={(e) => setHeroImageUrl(e.target.value)}
-                        placeholder="https://..."
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
-                      />
+              <div className="space-y-6">
+                {/* Information Header Banner */}
+                <div className="bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border border-red-100 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Sliders className="w-5 h-5" />
                     </div>
-
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        TITLE (OPTIONAL)
-                      </label>
-                      <input
-                        type="text"
-                        value={heroTitle}
-                        onChange={(e) => setHeroTitle(e.target.value)}
-                        placeholder="Enter slide title..."
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
-                      />
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                        Dual Hero Slider Management
+                      </h3>
+                      <p className="text-xs text-slate-600">
+                        Manage slides for <strong className="text-blue-700">Home Page</strong> and{' '}
+                        <strong className="text-rose-700">Circular &amp; Feed Page</strong>. Add, edit, modify, pause, or delete in real time.
+                      </p>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                      Total: {heroSlides.length}
+                    </span>
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        SUBTITLE (OPTIONAL)
-                      </label>
-                      <textarea
-                        value={heroSubtitle}
-                        onChange={(e) => setHeroSubtitle(e.target.value)}
-                        placeholder="Enter slide subtitle..."
-                        rows={3}
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400 resize-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        TAG / BADGE (OPTIONAL)
-                      </label>
-                      <input
-                        type="text"
-                        value={heroTag}
-                        onChange={(e) => setHeroTag(e.target.value)}
-                        placeholder="e.g. 🎓 DAKSHIKSHA PORTAL"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
-                      />
-                    </div>
-
-                    <div className="pt-2 flex flex-col gap-2">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all text-sm"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{editingSlide ? 'Update Slide' : '+ Add Slide'}</span>
-                      </button>
-
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Add/Edit Slide Card */}
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
+                        {editingSlide ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {editingSlide ? 'EDIT SLIDE' : 'ADD NEW SLIDE'}
+                      </h2>
                       {editingSlide && (
                         <button
                           type="button"
                           onClick={handleCancelEditSlide}
-                          className="w-full py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 text-center transition-colors"
+                          className="text-[11px] font-bold text-slate-400 hover:text-slate-700 uppercase"
                         >
-                          Cancel Editing
+                          ✕ Cancel
                         </button>
                       )}
                     </div>
-                  </form>
-                </div>
 
-                {/* Right Column: Current Slides List */}
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT SLIDES ({heroSlides.length})
+                    <form onSubmit={handleSaveHeroSlide} className="space-y-4">
+                      {/* Target Page Selector */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
+                          <span>DISPLAY LOCATION / TARGET PAGE *</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setHeroTargetPage('home')}
+                            className={`py-2 px-1 text-center rounded-lg text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                              heroTargetPage === 'home'
+                                ? 'bg-white text-blue-700 shadow-xs border border-blue-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>🏠</span>
+                            <span className="truncate">Home</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHeroTargetPage('feed')}
+                            className={`py-2 px-1 text-center rounded-lg text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                              heroTargetPage === 'feed'
+                                ? 'bg-white text-rose-700 shadow-xs border border-rose-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>📜</span>
+                            <span className="truncate">Feed</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHeroTargetPage('both')}
+                            className={`py-2 px-1 text-center rounded-lg text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                              heroTargetPage === 'both'
+                                ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <span>🌐</span>
+                            <span className="truncate">Both</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1.5">
+                          {heroTargetPage === 'feed' && '📌 Slide will appear on the Circulars & Feed page header.'}
+                          {heroTargetPage === 'home' && '📌 Slide will appear on the main Home Page hero banner.'}
+                          {heroTargetPage === 'both' && '📌 Slide will appear on both Home and Circular & Feed pages.'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          PHOTO URL *
+                        </label>
+                        <input
+                          type="url"
+                          value={heroImageUrl}
+                          onChange={(e) => setHeroImageUrl(e.target.value)}
+                          placeholder="https://..."
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          TITLE (OPTIONAL)
+                        </label>
+                        <input
+                          type="text"
+                          value={heroTitle}
+                          onChange={(e) => setHeroTitle(e.target.value)}
+                          placeholder={heroTargetPage === 'feed' ? 'e.g. Directorate Orders & Postal Guidelines' : 'Enter slide title...'}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          SUBTITLE (OPTIONAL)
+                        </label>
+                        <textarea
+                          value={heroSubtitle}
+                          onChange={(e) => setHeroSubtitle(e.target.value)}
+                          placeholder={heroTargetPage === 'feed' ? 'e.g. Stay updated with gazette notifications and circle resolutions.' : 'Enter slide subtitle...'}
+                          rows={3}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400 resize-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            TAG / BADGE
+                          </label>
+                          <input
+                            type="text"
+                            value={heroTag}
+                            onChange={(e) => setHeroTag(e.target.value)}
+                            placeholder={heroTargetPage === 'feed' ? '📜 CIRCULAR' : '🎓 DAKSHIKSHA'}
+                            className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none text-slate-800 placeholder-slate-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            CTA BUTTON TEXT
+                          </label>
+                          <input
+                            type="text"
+                            value={heroCtaText}
+                            onChange={(e) => setHeroCtaText(e.target.value)}
+                            placeholder={heroTargetPage === 'feed' ? 'Download Circular' : 'Learn More'}
+                            className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none text-slate-800 placeholder-slate-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex flex-col gap-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all text-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{editingSlide ? 'Update Slide' : '+ Add Slide'}</span>
+                        </button>
+
+                        {editingSlide && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditSlide}
+                            className="w-full py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 text-center transition-colors"
+                          >
+                            Cancel Editing
+                          </button>
+                        )}
+                      </div>
+                    </form>
                   </div>
 
-                  <div className="space-y-4">
-                    {heroSlides.map((slide) => (
-                      <div
-                        key={slide.id}
-                        className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="flex items-center gap-4 min-w-0">
-                          <img
-                            src={slide.imageUrl}
-                            alt={slide.title || 'Slide photo'}
-                            className="w-24 h-16 sm:w-28 sm:h-20 rounded-xl object-cover border border-slate-100 shrink-0 bg-slate-100"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=400&q=80';
-                            }}
-                          />
-                          <div className="min-w-0">
-                            <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">
-                              {slide.title || 'Untitled Slide'}
-                            </h3>
-                            <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
-                              {slide.subtitle || 'Hero slider photograph'}
-                            </p>
-                            <a
-                              href={slide.imageUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
+                  {/* Right Column: Current Slides List with Filter Tabs */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Filter Tabs */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setHeroFilterPage('all')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            heroFilterPage === 'all'
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          All ({heroSlides.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHeroFilterPage('home')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            heroFilterPage === 'home'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-blue-700 bg-blue-50/70 hover:bg-blue-100/70'
+                          }`}
+                        >
+                          <span>🏠 Home</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                            {heroSlides.filter((s) => s.targetPage === 'home' || s.targetPage === 'both' || !s.targetPage).length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHeroFilterPage('feed')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            heroFilterPage === 'feed'
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'text-rose-700 bg-rose-50/70 hover:bg-rose-100/70'
+                          }`}
+                        >
+                          <span>📜 Circular &amp; Feed</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                            {heroSlides.filter((s) => s.targetPage === 'feed' || s.targetPage === 'both').length}
+                          </span>
+                        </button>
+                      </div>
+
+                      <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                        Click badges to switch page
+                      </span>
+                    </div>
+
+                    {/* Slides List */}
+                    <div className="space-y-3">
+                      {heroSlides
+                        .filter((slide) => {
+                          if (heroFilterPage === 'all') return true;
+                          if (heroFilterPage === 'home') {
+                            return slide.targetPage === 'home' || slide.targetPage === 'both' || !slide.targetPage;
+                          }
+                          if (heroFilterPage === 'feed') {
+                            return slide.targetPage === 'feed' || slide.targetPage === 'both';
+                          }
+                          return true;
+                        })
+                        .map((slide) => {
+                          const target = slide.targetPage || 'home';
+                          const isActive = slide.active !== false;
+
+                          return (
+                            <div
+                              key={slide.id}
+                              className={`bg-white rounded-2xl p-4 sm:p-5 shadow-xs border transition-all ${
+                                editingSlide?.id === slide.id
+                                  ? 'border-red-500 ring-2 ring-red-100'
+                                  : 'border-slate-200/80 hover:border-slate-300'
+                              } ${!isActive ? 'opacity-70 bg-slate-50/60' : ''}`}
                             >
-                              <span>🔗 View Image</span>
-                            </a>
-                          </div>
-                        </div>
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
+                                  <div className="relative shrink-0">
+                                    <img
+                                      src={slide.imageUrl}
+                                      alt={slide.title || 'Slide photo'}
+                                      className="w-24 h-16 sm:w-28 sm:h-20 rounded-xl object-cover border border-slate-100 bg-slate-100 shadow-2xs"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src =
+                                          'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=400&q=80';
+                                      }}
+                                    />
+                                    {!isActive && (
+                                      <div className="absolute inset-0 bg-slate-900/60 rounded-xl flex items-center justify-center text-white text-[10px] font-bold">
+                                        PAUSED
+                                      </div>
+                                    )}
+                                  </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => handleEditSlideClick(slide)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Slide"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteHeroSlide(slide.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete Slide"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                                  <div className="min-w-0 flex-1">
+                                    {/* Location Badges & Status */}
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                                      {target === 'feed' && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-rose-50 text-rose-700 border border-rose-200">
+                                          📜 Circular &amp; Feed
+                                        </span>
+                                      )}
+                                      {target === 'home' && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200">
+                                          🏠 Home Page
+                                        </span>
+                                      )}
+                                      {target === 'both' && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          🌐 Both Pages
+                                        </span>
+                                      )}
 
-                    {heroSlides.length === 0 && (
-                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm">
-                        No hero slides configured. Add your first photo using the left form.
-                      </div>
-                    )}
+                                      {slide.tag && (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                          {slide.tag}
+                                        </span>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleSlideActive(slide)}
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                          isActive
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                        }`}
+                                        title="Click to toggle active status"
+                                      >
+                                        {isActive ? '● Active' : '○ Inactive'}
+                                      </button>
+                                    </div>
+
+                                    <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                                      {slide.title || 'Untitled Slide'}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                                      {slide.subtitle || 'AIPEU Dhenkanal Division Official Update'}
+                                    </p>
+
+                                    {/* Target switch quick controls */}
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                                      <span className="text-[10px] font-semibold text-slate-400">Target:</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleSlideTarget(slide, 'home')}
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition-all ${
+                                          target === 'home'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        Home
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleSlideTarget(slide, 'feed')}
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition-all ${
+                                          target === 'feed'
+                                            ? 'bg-rose-600 text-white'
+                                            : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        Feed
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleSlideTarget(slide, 'both')}
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition-all ${
+                                          target === 'both'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        Both
+                                      </button>
+
+                                      <a
+                                        href={slide.imageUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-red-600 hover:text-red-700 text-xs font-semibold ml-auto flex items-center gap-1"
+                                      >
+                                        <span>🔗 View</span>
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                                  <button
+                                    onClick={() => handleEditSlideClick(slide)}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                                    title="Edit Slide"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteHeroSlide(slide.id)}
+                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    title="Delete Slide"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                      {heroSlides.length === 0 && (
+                        <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm">
+                          No hero slides configured. Add your first photo using the left form.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2415,296 +2795,567 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
             )}
 
-            {/* TAB CONTENT: EXECUTIVE MEMBERS */}
+            {/* TAB CONTENT: EXECUTIVE BEARER & DOCUMENTS/RULINGS PAGE */}
             {activeTab === 'executives' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingMember ? 'EDIT OFFICE BEARER & PHOTO' : 'ADD OFFICE BEARER & PHOTO'}
-                    </h2>
-                    {editingMember && (
-                      <button
-                        type="button"
-                        onClick={handleCancelEditExecutive}
-                        className="text-xs font-bold text-slate-500 hover:text-red-600 underline"
-                      >
-                        Cancel Edit
-                      </button>
-                    )}
-                  </div>
-
-                  <form onSubmit={handleSaveExecutive} className="space-y-4">
-                    {/* Photo Upload & Preview Section */}
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                        <span>OFFICE BEARER PHOTO</span>
-                        <span className="text-[10px] text-blue-600 font-semibold">URL or Device Upload</span>
-                      </label>
-
-                      <div className="flex items-center gap-3 mb-2.5">
-                        <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-                          {execPhotoUrl ? (
-                            <img
-                              src={execPhotoUrl}
-                              alt="Preview"
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <ImageIcon className="w-6 h-6 text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <input
-                            type="url"
-                            value={execPhotoUrl}
-                            onChange={(e) => setExecPhotoUrl(e.target.value)}
-                            placeholder="Paste photo URL here..."
-                            className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                          />
-                          <div className="mt-1.5 flex items-center gap-3">
-                            <label className="text-[11px] font-bold text-red-600 hover:text-red-700 cursor-pointer underline flex items-center gap-1">
-                              <span>📁 Choose Image File</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      if (ev.target?.result) {
-                                        setExecPhotoUrl(ev.target.result as string);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              />
-                            </label>
-                            {execPhotoUrl && (
-                              <button
-                                type="button"
-                                onClick={() => setExecPhotoUrl('')}
-                                className="text-[10px] text-slate-400 hover:text-red-600"
-                              >
-                                Clear Photo
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Quick preset avatar selection */}
-                      <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                          Quick Presets:
-                        </span>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {[
-                            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-                            'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
-                          ].map((url, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => setExecPhotoUrl(url)}
-                              className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border-2 border-slate-200 hover:border-red-500 active:scale-95 transition-all shadow-xs"
-                              title="Click to apply photo"
-                            >
-                              <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        COMRADE NAME *
-                      </label>
-                      <input
-                        type="text"
-                        value={execName}
-                        onChange={(e) => setExecName(e.target.value)}
-                        placeholder="e.g. Com. Ramesh Chandra Sahoo"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DESIGNATION / POST *
-                      </label>
-                      <input
-                        type="text"
-                        value={execDesignation}
-                        onChange={(e) => setExecDesignation(e.target.value)}
-                        placeholder="e.g. Divisional President / Divisional Secretary"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          ROLE TYPE
-                        </label>
-                        <select
-                          value={execRoleType}
-                          onChange={(e) => setExecRoleType(e.target.value as any)}
-                          className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none font-semibold text-slate-800"
-                        >
-                          <option value="president">President (Gold / Amber)</option>
-                          <option value="secretary">Secretary (Royal Blue)</option>
-                          <option value="treasurer">Financial Secretary (Emerald)</option>
-                          <option value="executive">Executive / Assistant (Teal / Purple)</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          POSTING LOCATION
-                        </label>
-                        <input
-                          type="text"
-                          value={execLocation}
-                          onChange={(e) => setExecLocation(e.target.value)}
-                          placeholder="e.g. Dhenkanal HO"
-                          className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        BRANCH / CADRE WING
-                      </label>
-                      <input
-                        type="text"
-                        value={execBranch}
-                        onChange={(e) => setExecBranch(e.target.value)}
-                        placeholder="e.g. AIPEU Group 'C', Dhenkanal Division"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PHONE / CONTACT NUMBER
-                      </label>
-                      <input
-                        type="tel"
-                        value={execPhone}
-                        onChange={(e) => setExecPhone(e.target.value)}
-                        placeholder="+91 94371 XXXXX"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
+              <div className="space-y-6">
+                {/* Dual Sub-tab Switcher Bar */}
+                <div className="bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExecutiveSubSection('bearers')}
+                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        executiveSubSection === 'bearers'
+                          ? 'bg-red-600 text-white shadow-sm'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>1. Office Bearers ({executives.length})</span>
+                    </button>
 
                     <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm active:scale-95 transition-all"
+                      type="button"
+                      onClick={() => setExecutiveSubSection('rulings')}
+                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        executiveSubSection === 'rulings'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-blue-700 bg-blue-50/80 hover:bg-blue-100'
+                      }`}
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>{editingMember ? 'Save & Update Bearer' : '+ Add Office Bearer'}</span>
+                      <FileText className="w-4 h-4" />
+                      <span>2. Documents &amp; Rulings ({unionRulings.length})</span>
                     </button>
-                  </form>
-                </div>
-
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      CURRENT EXECUTIVE MEMBERS ({executives.length})
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      Click Edit ✏️ to add or change photo
-                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {executives.map((ex) => (
-                      <div
-                        key={ex.id || ex.name}
-                        className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
-                          editingMember?.id === ex.id
-                            ? 'border-red-500 ring-2 ring-red-500/20'
-                            : 'border-slate-200/80 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Photo Avatar Thumbnail */}
-                          <div className="relative shrink-0">
-                            {ex.photoUrl ? (
-                              <img
-                                src={ex.photoUrl}
-                                alt={ex.name}
-                                className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
+                  <span className="text-[11px] font-semibold text-slate-500 text-center sm:text-right">
+                    {executiveSubSection === 'bearers'
+                      ? '👥 Group C, Postman/MTS & GDS Leadership Team'
+                      : '📜 Constitution, Form B, Grievances, Demands & Resolutions'}
+                  </span>
+                </div>
+
+                {/* Sub-Section 1: Office Bearers */}
+                {executiveSubSection === 'bearers' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                          {editingMember ? 'EDIT OFFICE BEARER & PHOTO' : 'ADD OFFICE BEARER & PHOTO'}
+                        </h2>
+                        {editingMember && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditExecutive}
+                            className="text-xs font-bold text-slate-500 hover:text-red-600 underline"
+                          >
+                            Cancel Edit
+                          </button>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleSaveExecutive} className="space-y-4">
+                        {/* Photo Upload & Preview Section */}
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                            <span>OFFICE BEARER PHOTO</span>
+                            <span className="text-[10px] text-blue-600 font-semibold">URL or Device Upload</span>
+                          </label>
+
+                          <div className="flex items-center gap-3 mb-2.5">
+                            <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                              {execPhotoUrl ? (
+                                <img
+                                  src={execPhotoUrl}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <ImageIcon className="w-6 h-6 text-slate-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <input
+                                type="url"
+                                value={execPhotoUrl}
+                                onChange={(e) => setExecPhotoUrl(e.target.value)}
+                                placeholder="Paste photo URL here..."
+                                className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                               />
-                            ) : null}
-                            <div
-                              style={{ display: ex.photoUrl ? 'none' : 'flex' }}
-                              className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-amber-600 text-white items-center justify-center font-bold text-xs shadow-sm"
-                            >
-                              {ex.name.replace(/^(Com\.|Shri|Sri|Smt\.)\s*/i, '').slice(0, 2).toUpperCase()}
+                              <div className="mt-1.5 flex items-center gap-3">
+                                <label className="text-[11px] font-bold text-red-600 hover:text-red-700 cursor-pointer underline flex items-center gap-1">
+                                  <span>📁 Choose Image File</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => {
+                                          if (ev.target?.result) {
+                                            setExecPhotoUrl(ev.target.result as string);
+                                          }
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                                {execPhotoUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExecPhotoUrl('')}
+                                    className="text-[10px] text-slate-400 hover:text-red-600"
+                                  >
+                                    Clear Photo
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
 
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-red-600 uppercase block truncate">
-                              {ex.branch}
+                          {/* Quick preset avatar selection */}
+                          <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                              Quick Presets:
                             </span>
-                            <h3 className="font-bold text-slate-900 text-sm truncate">
-                              {ex.name}
-                            </h3>
-                            <p className="text-xs text-slate-600 font-medium truncate">
-                              {ex.designation}
-                            </p>
-                            <p className="text-[11px] text-slate-400 mt-1 truncate">
-                              📍 {ex.location} {ex.phone && `· 📞 ${ex.phone}`}
-                            </p>
-                          </div>
-
-                          {/* Action Buttons: Edit and Delete */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleEditExecutiveClick(ex)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                              title="Edit Member & Photo"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteExecutive(ex.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                              title="Delete Bearer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                              {[
+                                'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
+                                'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
+                              ].map((url, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => setExecPhotoUrl(url)}
+                                  className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border-2 border-slate-200 hover:border-red-500 active:scale-95 transition-all shadow-xs"
+                                  title="Click to apply photo"
+                                >
+                                  <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            COMRADE NAME *
+                          </label>
+                          <input
+                            type="text"
+                            value={execName}
+                            onChange={(e) => setExecName(e.target.value)}
+                            placeholder="e.g. Com. Ramesh Chandra Sahoo"
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            DESIGNATION / POST *
+                          </label>
+                          <input
+                            type="text"
+                            value={execDesignation}
+                            onChange={(e) => setExecDesignation(e.target.value)}
+                            placeholder="e.g. Divisional President / Divisional Secretary"
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                              ROLE TYPE
+                            </label>
+                            <select
+                              value={execRoleType}
+                              onChange={(e) => setExecRoleType(e.target.value as any)}
+                              className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none font-semibold text-slate-800"
+                            >
+                              <option value="secretary">1. Divisional Secretary (Royal Blue)</option>
+                              <option value="president">2. Divisional President (Gold / Amber)</option>
+                              <option value="treasurer">3. Financial Secretary (Emerald)</option>
+                              <option value="executive">4. Assistant / Executive Member</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                              POSTING LOCATION
+                            </label>
+                            <input
+                              type="text"
+                              value={execLocation}
+                              onChange={(e) => setExecLocation(e.target.value)}
+                              placeholder="e.g. Dhenkanal HO"
+                              className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            BRANCH / CADRE WING
+                          </label>
+                          <input
+                            type="text"
+                            value={execBranch}
+                            onChange={(e) => setExecBranch(e.target.value)}
+                            placeholder="e.g. AIPEU Group 'C', Dhenkanal Division"
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                          />
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {[
+                              "AIPEU Group 'C', Dhenkanal Division",
+                              "AIPEU Postmen, MTS & Group 'D'",
+                              'AIGDSU Dhenkanal Division',
+                              'Divisional Women Sub-Committee',
+                            ].map((b) => (
+                              <button
+                                key={b}
+                                type="button"
+                                onClick={() => setExecBranch(b)}
+                                className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all truncate max-w-[200px]"
+                              >
+                                {b.split(',')[0]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            PHONE / CONTACT NUMBER
+                          </label>
+                          <input
+                            type="tel"
+                            value={execPhone}
+                            onChange={(e) => setExecPhone(e.target.value)}
+                            placeholder="+91 94371 XXXXX"
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm active:scale-95 transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{editingMember ? 'Save & Update Bearer' : '+ Add Office Bearer'}</span>
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="lg:col-span-7 xl:col-span-8">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          CURRENT EXECUTIVE MEMBERS ({executives.length})
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Ordered: Group C ➔ Postman/MTS ➔ GDS
+                        </span>
                       </div>
-                    ))}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {sortOfficeBearers(executives).map((ex) => (
+                          <div
+                            key={ex.id || ex.name}
+                            className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
+                              editingMember?.id === ex.id
+                                ? 'border-red-500 ring-2 ring-red-500/20'
+                                : 'border-slate-200/80 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {/* Photo Avatar Thumbnail */}
+                              <div className="relative shrink-0">
+                                {ex.photoUrl ? (
+                                  <img
+                                    src={ex.photoUrl}
+                                    alt={ex.name}
+                                    className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  style={{ display: ex.photoUrl ? 'none' : 'flex' }}
+                                  className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-amber-600 text-white items-center justify-center font-bold text-xs shadow-sm"
+                                >
+                                  {ex.name.replace(/^(Com\.|Shri|Sri|Smt\.)\s*/i, '').slice(0, 2).toUpperCase()}
+                                </div>
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[10px] font-bold text-red-600 uppercase block truncate">
+                                  {ex.branch}
+                                </span>
+                                <h3 className="font-bold text-slate-900 text-sm truncate">
+                                  {ex.name}
+                                </h3>
+                                <p className="text-xs text-slate-600 font-medium truncate">
+                                  {ex.designation}
+                                </p>
+                                <p className="text-[11px] text-slate-400 mt-1 truncate">
+                                  📍 {ex.location} {ex.phone && `· 📞 ${ex.phone}`}
+                                </p>
+                              </div>
+
+                              {/* Action Buttons: Edit and Delete */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditExecutiveClick(ex)}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  title="Edit Member & Photo"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExecutive(ex.id)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  title="Delete Bearer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Sub-Section 2: Documents & Rulings (Add, Edit, Modify, Delete) */}
+                {executiveSubSection === 'rulings' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Left Column: Add / Edit Document & Ruling Form */}
+                    <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-blue-600 flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          <span>{editingRuling ? 'EDIT DOCUMENT & RULING' : 'ADD DOCUMENT & RULING'}</span>
+                        </h2>
+                        {editingRuling && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditRuling}
+                            className="text-xs font-bold text-slate-500 hover:text-red-600 underline"
+                          >
+                            Cancel Edit
+                          </button>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleSaveRuling} className="space-y-4">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            DOCUMENT / RULING TITLE *
+                          </label>
+                          <input
+                            type="text"
+                            value={rulingTitle}
+                            onChange={(e) => setRulingTitle(e.target.value)}
+                            placeholder="e.g. AIPEU Constitution & Trade Union Rulings"
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            DESCRIPTION / SUMMARY
+                          </label>
+                          <textarea
+                            value={rulingDesc}
+                            onChange={(e) => setRulingDesc(e.target.value)}
+                            placeholder="Briefly describe what this ruling or statutory document covers..."
+                            rows={3}
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 resize-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                            DOCUMENT / DRIVE LINK URL *
+                          </label>
+                          <input
+                            type="url"
+                            value={rulingLink}
+                            onChange={(e) => setRulingLink(e.target.value)}
+                            placeholder="https://drive.google.com/... or blog link"
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                              DOCUMENT TYPE
+                            </label>
+                            <input
+                              type="text"
+                              value={rulingType}
+                              onChange={(e) => setRulingType(e.target.value)}
+                              placeholder="e.g. Constitution"
+                              className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                            />
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {['Constitution', 'Legal', 'Grievance', 'Resolution', 'Letter Pad'].map((t) => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => setRulingType(t)}
+                                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition-all ${
+                                    rulingType === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                              PRIORITY ORDER
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={rulingOrder}
+                              onChange={(e) => setRulingOrder(parseInt(e.target.value) || 1)}
+                              className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-800"
+                            />
+                            <span className="text-[10px] text-slate-400 mt-1 block">1 = Top of list</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm active:scale-95 transition-all mt-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{editingRuling ? 'Update Document & Ruling' : '+ Add Document & Ruling'}</span>
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Right Column: Current Documents & Rulings List */}
+                    <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          CURRENT DOCUMENTS &amp; RULINGS ({unionRulings.length})
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Appears on Union Directory page
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {unionRulings.map((ruling, idx) => (
+                          <div
+                            key={ruling.id || idx}
+                            className={`bg-white rounded-2xl p-4 sm:p-5 shadow-xs border transition-all ${
+                              editingRuling?.id === ruling.id
+                                ? 'border-blue-500 ring-2 ring-blue-500/20'
+                                : 'border-slate-200/80 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5 border border-blue-100">
+                                  <FileText className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
+                                      {ruling.type || 'Legal'}
+                                    </span>
+                                    {ruling.order && (
+                                      <span className="text-[10px] font-bold text-slate-400">
+                                        #{ruling.order}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">
+                                    {ruling.title}
+                                  </h3>
+                                  {ruling.desc && (
+                                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                      {ruling.desc}
+                                    </p>
+                                  )}
+
+                                  <div className="mt-2.5 flex items-center gap-3">
+                                    <a
+                                      href={ruling.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 w-fit"
+                                    >
+                                      <span>🔗 Open Document / Form</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditRulingClick(ruling)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                                  title="Edit Document"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRuling(ruling.id)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                  title="Delete Document"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {unionRulings.length === 0 && (
+                          <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm">
+                            No documents &amp; rulings added yet. Use the form on the left to add your first entry.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </main>

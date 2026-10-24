@@ -425,6 +425,7 @@ export default function App() {
               <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <FeedTab
                   posts={posts}
+                  heroSlides={heroSlides}
                   onSelectPost={(post) => setSelectedPost(post)}
                   onSharePost={handleOpenShare}
                   onToggleSaveOffline={handleToggleSaveOffline}
