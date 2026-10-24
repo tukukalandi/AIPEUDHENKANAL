@@ -61,6 +61,7 @@ import {
   getSimulatedOffline,
 } from './services/storage';
 import { getStoredNotifications } from './services/notifications';
+import { changeGoogleLanguage } from './services/translator';
 
 export default function App() {
   const [posts, setPosts] = useState<BlogPost[]>(fallbackPosts as BlogPost[]);
@@ -98,7 +99,7 @@ export default function App() {
   const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
 
-  // Multi-Language State (English, Hindi, Odia)
+  // Multi-Language State (English, Hindi, Odia, and Google Languages)
   const [language, setLanguage] = useState<AppLanguage>(() => {
     return (localStorage.getItem('aipeu_lang') as AppLanguage) || 'en';
   });
@@ -106,6 +107,7 @@ export default function App() {
   const handleSetLanguage = (lang: AppLanguage) => {
     setLanguage(lang);
     localStorage.setItem('aipeu_lang', lang);
+    changeGoogleLanguage(lang);
   };
 
   // Modals
@@ -189,15 +191,27 @@ export default function App() {
 
   const applyTheme = (theme: ThemeMode) => {
     const root = document.documentElement;
+    const body = document.body;
     if (theme === 'dark') {
       root.classList.add('dark');
+      body.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
     } else if (theme === 'light') {
       root.classList.remove('dark');
+      body.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
     } else {
       // System
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) root.classList.add('dark');
-      else root.classList.remove('dark');
+      if (prefersDark) {
+        root.classList.add('dark');
+        body.classList.add('dark');
+        root.setAttribute('data-theme', 'dark');
+      } else {
+        root.classList.remove('dark');
+        body.classList.remove('dark');
+        root.setAttribute('data-theme', 'light');
+      }
     }
   };
 
@@ -362,8 +376,8 @@ export default function App() {
             onOpenAdmin={() => setIsAdminOpen(true)}
           />
 
-          {/* Main Tab Content - Full Desktop Width with edge-to-edge layout */}
-          <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 pt-5">
+          {/* Main Tab Content - Full Edge-to-Edge on mobile for Hero Slider, padded on desktop */}
+          <main className="flex-1 w-full px-0 sm:px-6 lg:px-8 xl:px-12 pt-0 sm:pt-5">
             {activeTab === 'home' && (
               <>
                 <HomePage
@@ -382,83 +396,97 @@ export default function App() {
                   platform={effectivePlatform}
                 />
                 {/* 📱 Official Social Media Network & Constituent Wings Showcase */}
-                <SocialAndVisitorSection
-                  language={language}
-                  onSelectWing={() => {
-                    setActiveTab('categories');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
+                <div className="px-3.5 sm:px-0 mt-8">
+                  <SocialAndVisitorSection
+                    language={language}
+                    onSelectWing={() => {
+                      setActiveTab('categories');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                </div>
               </>
             )}
 
             {activeTab === 'user-portal' && (
-              <UserPortal
-                language={language}
-                platform={effectivePlatform}
-                onNavigateTab={(tab) => {
-                  setActiveTab(tab);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <UserPortal
+                  language={language}
+                  platform={effectivePlatform}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                />
+              </div>
             )}
 
             {activeTab === 'feed' && (
-              <FeedTab
-                posts={posts}
-                onSelectPost={(post) => setSelectedPost(post)}
-                onSharePost={handleOpenShare}
-                onToggleSaveOffline={handleToggleSaveOffline}
-                savedPostIds={savedPostIds}
-                platform={effectivePlatform}
-                isOnline={isOnline}
-                officeBearers={officeBearers}
-                onRefreshOfficeBearers={loadOfficeBearers}
-                onOpenAdmin={() => setIsAdminOpen(true)}
-                onNavigateTab={(tab) => {
-                  setActiveTab(tab);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <FeedTab
+                  posts={posts}
+                  onSelectPost={(post) => setSelectedPost(post)}
+                  onSharePost={handleOpenShare}
+                  onToggleSaveOffline={handleToggleSaveOffline}
+                  savedPostIds={savedPostIds}
+                  platform={effectivePlatform}
+                  isOnline={isOnline}
+                  officeBearers={officeBearers}
+                  onRefreshOfficeBearers={loadOfficeBearers}
+                  onOpenAdmin={() => setIsAdminOpen(true)}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                />
+              </div>
             )}
 
             {activeTab === 'categories' && (
-              <CategoriesTab
-                posts={posts}
-                onSelectPost={(post) => setSelectedPost(post)}
-                platform={effectivePlatform}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <CategoriesTab
+                  posts={posts}
+                  onSelectPost={(post) => setSelectedPost(post)}
+                  platform={effectivePlatform}
+                />
+              </div>
             )}
 
             {activeTab === 'offline' && (
-              <OfflineTab
-                allPosts={posts}
-                onSelectPost={(post) => setSelectedPost(post)}
-                onSharePost={handleOpenShare}
-                platform={effectivePlatform}
-                isOnline={isOnline}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <OfflineTab
+                  allPosts={posts}
+                  onSelectPost={(post) => setSelectedPost(post)}
+                  onSharePost={handleOpenShare}
+                  platform={effectivePlatform}
+                  isOnline={isOnline}
+                />
+              </div>
             )}
 
             {activeTab === 'directory' && (
-              <DirectoryTab
-                platform={effectivePlatform}
-                officeBearers={officeBearers}
-                onRefreshOfficeBearers={loadOfficeBearers}
-                onOpenAdmin={() => setIsAdminOpen(true)}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <DirectoryTab
+                  platform={effectivePlatform}
+                  officeBearers={officeBearers}
+                  onRefreshOfficeBearers={loadOfficeBearers}
+                  onOpenAdmin={() => setIsAdminOpen(true)}
+                />
+              </div>
             )}
 
             {activeTab === 'settings' && (
-              <SettingsTab
-                platform={platformMode}
-                onSetPlatform={handleSetPlatform}
-                deviceFrame={deviceFrame}
-                onSetDeviceFrame={handleSetDeviceFrame}
-                theme={themeMode}
-                onSetTheme={handleSetTheme}
-                onOpenShareApp={() => handleOpenShare()}
-              />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <SettingsTab
+                  platform={platformMode}
+                  onSetPlatform={handleSetPlatform}
+                  deviceFrame={deviceFrame}
+                  onSetDeviceFrame={handleSetDeviceFrame}
+                  theme={themeMode}
+                  onSetTheme={handleSetTheme}
+                  onOpenShareApp={() => handleOpenShare()}
+                />
+              </div>
             )}
           </main>
 

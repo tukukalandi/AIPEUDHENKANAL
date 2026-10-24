@@ -79,12 +79,12 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div className="w-full space-y-8 pb-12 animate-fade-in">
-      {/* 🌟 Dynamic Hero Slider (dakshiksha model with Admin Portal editing) */}
-      <section className="relative w-full overflow-hidden rounded-3xl shadow-2xl transition-all border-2 border-indigo-400/50 dark:border-indigo-600/50 hover:border-amber-400">
+      {/* 🌟 Dynamic Hero Slider (dakshiksha model with Admin Portal editing) - Covers each side on mobile */}
+      <section className="relative w-full overflow-hidden rounded-none sm:rounded-3xl shadow-xl transition-all border-y sm:border-2 border-indigo-400/50 dark:border-indigo-600/50 hover:border-amber-400">
         <div
-          className={`relative w-full min-h-[340px] sm:min-h-[400px] md:min-h-[440px] bg-gradient-to-br ${
+          className={`relative w-full min-h-[350px] sm:min-h-[400px] md:min-h-[440px] bg-gradient-to-br ${
             currentSlide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]'
-          } text-white p-6 sm:p-8 md:p-10 flex flex-col justify-between overflow-hidden cursor-pointer select-none`}
+          } text-white p-4 sm:p-8 md:p-10 flex flex-col justify-between overflow-hidden cursor-pointer select-none`}
           onMouseEnter={() => setIsSliderPaused(true)}
           onMouseLeave={() => setIsSliderPaused(false)}
           onTouchStart={(e) => {
@@ -178,12 +178,12 @@ export const HomePage: React.FC<HomePageProps> = ({
               className="flex items-center gap-2"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 max-w-[120px] sm:max-w-xs md:max-w-none overflow-x-auto no-scrollbar py-1">
                 {activeSlides.map((_, idx) => (
                   <button
                     key={idx}
                     onClick={() => setCurrentSlideIndex(idx)}
-                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                    className={`h-2.5 rounded-full transition-all duration-300 shrink-0 ${
                       idx === currentSlideIndex
                         ? 'w-7 bg-white shadow'
                         : 'w-2 bg-white/40 hover:bg-white/70'
@@ -193,17 +193,17 @@ export const HomePage: React.FC<HomePageProps> = ({
                 ))}
               </div>
 
-              <div className="flex items-center gap-1 ml-2">
+              <div className="flex items-center gap-1 ml-1 shrink-0">
                 <button
                   onClick={handlePrevSlide}
-                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white active:scale-90 transition-all"
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white active:scale-90 transition-all cursor-pointer"
                   aria-label="Previous slide"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleNextSlide}
-                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white active:scale-90 transition-all"
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white active:scale-90 transition-all cursor-pointer"
                   aria-label="Next slide"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -225,17 +225,20 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* ⚡ Quick links section (Important Web Portals) matching user design */}
-      <QuickLinksSection onNavigateTab={onNavigateTab} />
+      {/* Container with mobile side padding for sections below the hero slider */}
+      <div className="px-3.5 sm:px-0 space-y-8">
+        {/* ⚡ Quick links section (Important Web Portals) matching user design */}
+        <QuickLinksSection onNavigateTab={onNavigateTab} />
 
-      {/* 📢 Announcements, Important Documents & Notice / Circular matching user design */}
-      <AnnouncementsAndDocsSection
-        announcements={announcements}
-        importantDocs={importantDocs}
-        noticeCirculars={noticeCirculars}
-        onOpenAdmin={onOpenAdmin}
-        onViewAllAnnouncements={() => onNavigateTab('feed')}
-      />
+        {/* 📢 Announcements, Important Documents & Notice / Circular matching user design */}
+        <AnnouncementsAndDocsSection
+          announcements={announcements}
+          importantDocs={importantDocs}
+          noticeCirculars={noticeCirculars}
+          onOpenAdmin={onOpenAdmin}
+          onViewAllAnnouncements={() => onNavigateTab('feed')}
+        />
+      </div>
     </div>
   );
 };

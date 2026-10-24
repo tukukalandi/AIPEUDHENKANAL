@@ -1,10 +1,18 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     font-family: 'Plus Jakarta Sans', 'Noto Sans Oriya', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+  }
+
+  html.dark, body.dark {
+    color-scheme: dark;
+    background-color: #020617;
+    color: #f8fafc;
   }
 }
 
@@ -78,15 +86,50 @@
   }
 }
 
+/* 🐢 Extra slow, comfortable running news ticker marquee so anyone can easily read */
 .animate-marquee-rtl {
   display: flex;
   width: max-content;
-  animation: marquee-rtl 120s linear infinite;
+  animation: marquee-rtl 260s linear infinite;
   will-change: transform;
+}
+
+@media (max-width: 640px) {
+  .animate-marquee-rtl {
+    animation-duration: 320s;
+  }
 }
 
 .animate-marquee-rtl:hover,
 .marquee-paused {
   animation-play-state: paused !important;
+}
+
+/* Clean Google Translate styles - hide default toolbar and tooltip */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+}
+
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.skiptranslate:not(.goog-te-gadget) {
+  display: none !important;
+}
+
+#google_translate_element {
+  display: none !important;
 }
 

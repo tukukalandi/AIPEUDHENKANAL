@@ -28,7 +28,7 @@ export interface Translations {
   userPortalSubtitle: string;
 }
 
-export const TRANSLATIONS: Record<'en' | 'hi' | 'or', Translations> = {
+export const TRANSLATIONS: Record<string, Translations> = {
   en: {
     home: 'Home',
     circulars: 'Circulars & Feed',

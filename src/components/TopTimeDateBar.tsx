@@ -8,10 +8,12 @@ import {
   UserCheck,
   ShieldAlert,
   Sparkles,
+  ChevronDown,
 } from 'lucide-react';
 import { AppLanguage, ThemeMode, ActiveTab } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { UNION_AFFILIATION } from '../data/unionInfo';
+import { SUPPORTED_LANGUAGES, changeGoogleLanguage } from '../services/translator';
 
 interface TopTimeDateBarProps {
   language: AppLanguage;
@@ -97,67 +99,55 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
         </div>
 
         {/* Right Side: Language Switcher, Dark Mode Toggle & User Portal Button */}
-        <div className="flex items-center flex-wrap gap-2.5 ml-auto">
-          {/* Language Selector: English, Hindi, Odia */}
-          <div className="flex items-center bg-black/50 p-0.5 rounded-lg border border-white/15 text-[11px]">
-            <div className="px-1.5 py-0.5 text-slate-400 flex items-center gap-1 hidden xs:flex">
-              <Globe className="w-3 h-3 text-amber-400" />
-              <span className="text-[10px] uppercase font-bold">{t.language}:</span>
-            </div>
-
-            <button
-              onClick={() => onSetLanguage('en')}
-              className={`px-2 py-0.5 rounded-md font-bold transition-all ${
-                language === 'en'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-white/10'
-              }`}
-              title="Switch to English"
+        {/* Right Side: Language Dropdown Selector (connected to Google Translate) & Dark Mode Toggle */}
+        <div className="flex items-center flex-wrap gap-2 ml-auto">
+          {/* Language Dropdown Selector */}
+          <div className="relative flex items-center bg-black/60 hover:bg-black/80 px-2 py-1 rounded-xl border border-white/20 hover:border-amber-400/80 transition-all shadow-sm">
+            <Globe className="w-3.5 h-3.5 text-amber-400 mr-1.5 shrink-0" />
+            <select
+              value={language}
+              onChange={(e) => {
+                const val = e.target.value;
+                onSetLanguage(val);
+                changeGoogleLanguage(val);
+              }}
+              className="bg-transparent text-amber-300 font-bold text-[11px] sm:text-xs cursor-pointer focus:outline-none appearance-none pr-4 select-none"
+              title="Select website language (powered by Google Language)"
+              aria-label="Select website language"
             >
-              English
-            </button>
-
-            <button
-              onClick={() => onSetLanguage('hi')}
-              className={`px-2 py-0.5 rounded-md font-bold transition-all ${
-                language === 'hi'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-white/10'
-              }`}
-              title="हिन्दी में बदलें"
-            >
-              हिन्दी
-            </button>
-
-            <button
-              onClick={() => onSetLanguage('or')}
-              className={`px-2 py-0.5 rounded-md font-bold transition-all ${
-                language === 'or'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-white/10'
-              }`}
-              title="ଓଡ଼ିଆ ଭାଷା ଚୟନ କରନ୍ତୁ"
-            >
-              ଓଡ଼ିଆ
-            </button>
+              {SUPPORTED_LANGUAGES.map((l) => (
+                <option
+                  key={l.code}
+                  value={l.code}
+                  className="bg-slate-900 text-white font-medium py-1"
+                >
+                  {l.nativeName} ({l.name})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3 h-3 text-amber-400 pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2" />
           </div>
 
-          {/* Dark Mode Toggle */}
+          {/* Dark Mode Toggle Button */}
           <button
             onClick={onToggleTheme}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/50 hover:bg-black/70 border border-white/20 text-slate-200 hover:text-yellow-300 text-[11px] font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-black transition-all active:scale-95 cursor-pointer shadow-sm ${
+              theme === 'dark'
+                ? 'bg-amber-400 text-slate-950 border-amber-300 hover:bg-amber-300'
+                : 'bg-black/60 hover:bg-black/80 text-amber-200 border-white/20 hover:border-amber-400'
+            }`}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? (
               <>
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">{t.lightMode}</span>
+                <Sun className="w-3.5 h-3.5 text-slate-950 fill-slate-950 shrink-0" />
+                <span>Light</span>
               </>
             ) : (
               <>
-                <Moon className="w-3.5 h-3.5 text-blue-300" />
-                <span className="hidden sm:inline">{t.darkMode}</span>
+                <Moon className="w-3.5 h-3.5 text-amber-300 fill-amber-300/30 shrink-0" />
+                <span>Dark</span>
               </>
             )}
           </button>
