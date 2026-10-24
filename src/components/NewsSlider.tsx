@@ -69,13 +69,13 @@ export const NewsSlider: React.FC<NewsSliderProps> = ({
   // Take top 5 featured posts
   const featuredPosts = posts.slice(0, 5);
 
-  // Auto-advance slider every 4.5 seconds when not paused
+  // Auto-advance slider every 10 seconds when not paused so readers can comfortably read the news
   useEffect(() => {
     if (isPaused || featuredPosts.length <= 1) return;
 
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % featuredPosts.length);
-    }, 4500);
+    }, 10000);
 
     return () => clearInterval(timer);
   }, [isPaused, featuredPosts.length]);
@@ -272,9 +272,9 @@ export const NewsSlider: React.FC<NewsSliderProps> = ({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 overflow-hidden">
             <div
               key={currentIndex}
-              className="h-full bg-yellow-300 w-full origin-left animate-[progress_4.5s_linear]"
+              className="h-full bg-yellow-300 w-full origin-left"
               style={{
-                animation: 'progress 4.5s linear',
+                animation: 'progress 10s linear',
               }}
             />
           </div>

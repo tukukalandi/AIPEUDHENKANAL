@@ -81,7 +81,7 @@
 .animate-marquee-rtl {
   display: flex;
   width: max-content;
-  animation: marquee-rtl 85s linear infinite;
+  animation: marquee-rtl 120s linear infinite;
   will-change: transform;
 }
 

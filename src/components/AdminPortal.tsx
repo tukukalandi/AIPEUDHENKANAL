@@ -26,6 +26,11 @@ import {
   Search,
   Sparkles,
   Menu,
+  EyeOff,
+  User,
+  ShieldCheck,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 import {
   BlogPost,
@@ -201,9 +206,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onNoticeCircularsUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminMenuTab>('hero');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return sessionStorage.getItem('aipeu_admin_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [userIdInput, setUserIdInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -349,15 +362,37 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   if (!isOpen) return null;
 
-  // PIN check (1234 or empty/demo)
-  const handlePinSubmit = (e: React.FormEvent) => {
+  // Protected Admin Login (User ID: aipeu, Password: Dop@12345)
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === '1234' || pinInput.toLowerCase() === 'admin' || pinInput === '') {
+    const cleanUser = userIdInput.trim().toLowerCase();
+    const cleanPass = passwordInput;
+
+    if (cleanUser === 'aipeu' && cleanPass === 'Dop@12345') {
       setIsAuthenticated(true);
-      setPinError(false);
+      setAuthError('');
+      try {
+        sessionStorage.setItem('aipeu_admin_authenticated', 'true');
+      } catch (err) {
+        console.warn('SessionStorage unavailable', err);
+      }
+      showNotification('✅ Successfully logged in as AIPEU Administrator');
     } else {
-      setPinError(true);
+      setAuthError('Invalid User ID or Password. Access is restricted to authorized union executives.');
     }
+  };
+
+  const handleSignOut = () => {
+    setIsAuthenticated(false);
+    setUserIdInput('');
+    setPasswordInput('');
+    setAuthError('');
+    try {
+      sessionStorage.removeItem('aipeu_admin_authenticated');
+    } catch (err) {
+      console.warn('SessionStorage unavailable', err);
+    }
+    showNotification('Logged out from Admin Portal');
   };
 
   const showNotification = (msg: string) => {
@@ -1037,9 +1072,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
+          {isAuthenticated && (
+            <button
+              onClick={handleSignOut}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+              title="Sign Out from Admin Portal"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          )}
+
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
             <span>Exit Portal</span>
@@ -1057,57 +1103,105 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       {/* Main Container */}
       {!isAuthenticated ? (
-        /* PIN Verification Screen */
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-slate-200/80 text-center relative overflow-hidden">
-            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner">
-              <Lock className="w-8 h-8" />
+        /* Password-Protected Official Admin Login Screen */
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-slate-100/70">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/90 text-center relative overflow-hidden">
+            {/* Red & Gold Postal Ribbon */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />
+
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner ring-4 ring-red-100/50">
+              <ShieldCheck className="w-8 h-8 text-red-600" />
             </div>
-            <span className="text-[11px] font-bold text-red-600 uppercase tracking-widest block mb-1">
-              ADMINISTRATIVE SECURITY
-            </span>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] font-black uppercase tracking-widest mb-1.5">
+              <Lock className="w-3 h-3 text-red-600" />
+              <span>OFFICIAL EXECUTIVE ACCESS</span>
+            </div>
+
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              NFPE AIPEU Unions Admin Login
+              AIPEU Admin Portal
             </h2>
-            <p className="text-xs text-slate-500 mt-2 mb-6">
-              NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division. Contact: aipeup3dhenkanaldivn@gmail.com, Mob - 9861184651.
+            <p className="text-xs text-slate-500 mt-1 mb-6 leading-relaxed">
+              Dhenkanal Postal Division. Restricted access for authorized union office bearers and division administrators.
             </p>
 
-            <form onSubmit={handlePinSubmit} className="space-y-4 text-left">
+            <form onSubmit={handleLoginSubmit} className="space-y-4 text-left">
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  SECURITY PIN (DEFAULT: 1234)
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  User ID
                 </label>
-                <input
-                  type="password"
-                  value={pinInput}
-                  onChange={(e) => {
-                    setPinInput(e.target.value);
-                    setPinError(false);
-                  }}
-                  placeholder="Enter 4-digit PIN..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg tracking-widest font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"
-                  autoFocus
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={userIdInput}
+                    onChange={(e) => {
+                      setUserIdInput(e.target.value);
+                      setAuthError('');
+                    }}
+                    placeholder="Enter User ID (e.g. aipeu)"
+                    autoComplete="username"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all shadow-sm"
+                    autoFocus
+                  />
+                </div>
               </div>
 
-              {pinError && (
-                <p className="text-xs text-red-600 font-semibold text-center">
-                  ⚠️ Invalid PIN. Please use 1234 for demo administrator access.
-                </p>
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      setAuthError('');
+                    }}
+                    placeholder="Enter Password"
+                    autoComplete="current-password"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-11 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all shadow-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-2 text-xs text-red-700 animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <span className="font-medium">{authError}</span>
+                </div>
               )}
 
               <button
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg hover:shadow-xl transition-all text-sm flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer mt-2"
               >
-                <span>Unlock Admin Portal</span>
+                <Lock className="w-4 h-4" />
+                <span>Sign In to Admin Portal</span>
               </button>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 text-center transition-colors"
+                className="w-full py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 text-center transition-colors cursor-pointer"
               >
                 Return to Website
               </button>

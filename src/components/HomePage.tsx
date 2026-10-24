@@ -63,7 +63,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     if (isSliderPaused || activeSlides.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % activeSlides.length);
-    }, 5000);
+    }, 9000);
     return () => clearInterval(interval);
   }, [isSliderPaused, activeSlides.length]);
 
@@ -217,8 +217,8 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/20 overflow-hidden">
               <div
                 key={currentSlideIndex}
-                className="h-full bg-amber-400 w-full origin-left animate-[progress_5s_linear]"
-                style={{ animation: 'progress 5s linear' }}
+                className="h-full bg-amber-400 w-full origin-left"
+                style={{ animation: 'progress 9s linear' }}
               />
             </div>
           )}

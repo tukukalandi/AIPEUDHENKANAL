@@ -258,16 +258,6 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             </button>
           )}
 
-          {/* Admin Portal Button */}
-          <button
-            onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer"
-            title="Open Union Admin Portal (Add Circulars, News, Modify Executives)"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Admin Portal</span>
-            <span className="sm:hidden">Admin</span>
-          </button>
 
           {/* Refresh Posts Button */}
           <button
