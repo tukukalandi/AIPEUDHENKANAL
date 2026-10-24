@@ -25,6 +25,7 @@ import {
   Mail,
   Send,
   ExternalLink,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { UNION_CONTACT_INFO } from '../data/unionInfo';
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
@@ -409,14 +410,33 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
                 <span>Holiday List 2026</span>
               </a>
             </li>
-            {/* Admin Panel button matching image row */}
-            <li className="pt-2">
+            <li>
+              <button
+                onClick={() => onNavigateSection && onNavigateSection('settings')}
+                className="flex items-center gap-2 hover:text-amber-300 transition-colors text-xs text-slate-300 cursor-pointer"
+              >
+                <SettingsIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Settings & Preferences</span>
+              </button>
+            </li>
+            {/* Admin Panel & Settings buttons row */}
+            <li className="pt-2 flex flex-wrap items-center gap-2">
               <button
                 onClick={onOpenAdmin}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                title="Open Union Admin Panel"
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span>Admin Panel</span>
+              </button>
+
+              <button
+                onClick={() => onNavigateSection && onNavigateSection('settings')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/90 text-amber-300 hover:text-white border border-amber-400/40 text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+                title="Open Application Settings"
+              >
+                <SettingsIcon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Settings</span>
               </button>
             </li>
           </ul>
@@ -465,6 +485,15 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
             <span className="px-2.5 py-1 rounded-md bg-amber-400/20 text-amber-300 text-[11px] font-semibold border border-amber-400/30">
               🇮🇳 Department of Posts · Odisha Circle
             </span>
+            <span>·</span>
+            <button
+              onClick={() => onNavigateSection && onNavigateSection('settings')}
+              className="hover:text-amber-300 transition-colors flex items-center gap-1 font-bold text-amber-200 cursor-pointer"
+              title="Open App Settings"
+            >
+              <SettingsIcon className="w-3 h-3 text-amber-400" />
+              <span>Settings</span>
+            </button>
             <span>·</span>
             <a
               href="https://aipeup3dkl.blogspot.com/"
