@@ -11,6 +11,7 @@ export interface BlogPost {
   images: string[];
   driveLinks: string[];
   isSavedOffline?: boolean;
+  urgent?: boolean;
 }
 
 export type PlatformStyle = 'ios' | 'android' | 'auto';

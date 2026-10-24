@@ -44,6 +44,7 @@ import {
 } from '../types';
 import {
   addCircularToFirestore,
+  updateCircularInFirestore,
   getCircularsFromFirestore,
   deleteCircularFromFirestore,
   getExecutiveMembersFromFirestore,
@@ -297,6 +298,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // ================= 8. FORMS STATE =================
   const [formsList, setFormsList] = useState<DownloadableForm[]>(DEFAULT_FORMS);
+  const [editingForm, setEditingForm] = useState<DownloadableForm | null>(null);
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState('');
   const [formCat, setFormCat] = useState('Service Matters');
@@ -546,6 +548,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
+  const handleEditCircularClick = (circ: BlogPost) => {
+    setEditingCircular(circ);
+    setDocPostTitle(circ.title || '');
+    setDocPostCategory(circ.categories?.[0] || "GROUP - 'C' AGENDA");
+    setDocPostSnippet(circ.snippet || '');
+    setDocPostFileUrl(circ.driveLinks?.[0] || '');
+    setDocPostImageUrl(circ.images?.[0] || '');
+    setDocPostAuthor(circ.author || 'Divisional Secretary, AIPEU Dhenkanal');
+    setDocPostUrgent(!!circ.urgent);
+  };
+
+  const handleCancelEditCircular = () => {
+    setEditingCircular(null);
+    setDocPostTitle('');
+    setDocPostCategory("GROUP - 'C' AGENDA");
+    setDocPostSnippet('');
+    setDocPostFileUrl('');
+    setDocPostImageUrl('');
+    setDocPostAuthor('Divisional Secretary, AIPEU Dhenkanal');
+    setDocPostUrgent(false);
+  };
+
   const handleSaveCircular = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docPostTitle.trim() || !docPostSnippet.trim()) {
@@ -555,7 +579,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const newCircular: NewCircularInput = {
+      const circularInput: NewCircularInput = {
         title: docPostTitle.trim(),
         category: docPostCategory,
         snippet: docPostSnippet.trim(),
@@ -566,32 +590,36 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         urgent: docPostUrgent,
       };
 
-      const docId = await addCircularToFirestore(newCircular);
-      const updated = await getCircularsFromFirestore();
-      setCirculars(updated);
+      if (editingCircular) {
+        await updateCircularInFirestore(editingCircular.id, circularInput);
+        const updated = await getCircularsFromFirestore();
+        setCirculars(updated);
+        showNotification('✅ Document / Circular successfully updated!');
+      } else {
+        const docId = await addCircularToFirestore(circularInput);
+        const updated = await getCircularsFromFirestore();
+        setCirculars(updated);
 
-      onCircularAdded({
-        id: docId,
-        title: newCircular.title,
-        published: new Date().toISOString(),
-        updated: new Date().toISOString(),
-        author: newCircular.author || 'Divisional Secretary, AIPEU Dhenkanal',
-        url: '',
-        categories: [newCircular.category],
-        snippet: newCircular.snippet,
-        contentHtml: newCircular.contentHtml || '',
-        images: newCircular.imageUrls || [],
-        driveLinks: newCircular.fileLinks || [],
-      });
+        onCircularAdded({
+          id: docId,
+          title: circularInput.title,
+          published: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          author: circularInput.author || 'Divisional Secretary, AIPEU Dhenkanal',
+          url: '',
+          categories: [circularInput.category],
+          snippet: circularInput.snippet,
+          contentHtml: circularInput.contentHtml || '',
+          images: circularInput.imageUrls || [],
+          driveLinks: circularInput.fileLinks || [],
+        });
+        showNotification('✅ Document / Circular successfully published to Firebase!');
+      }
 
-      setDocPostTitle('');
-      setDocPostSnippet('');
-      setDocPostFileUrl('');
-      setDocPostImageUrl('');
-      showNotification('✅ Document / Circular successfully published to Firebase!');
+      handleCancelEditCircular();
     } catch (err) {
       console.error(err);
-      showNotification('❌ Failed to publish document.');
+      showNotification('❌ Failed to save document.');
     } finally {
       setIsSubmitting(false);
     }
@@ -620,6 +648,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 3. HOMEPAGE DOCS HANDLERS =================
+  const handleEditImportantDocClick = (docItem: ImportantDocItem) => {
+    setEditingDoc(docItem);
+    setDocTitle(docItem.title || '');
+    setDocUrl(docItem.url || '');
+    setDocCategory(docItem.category || 'General');
+  };
+
+  const handleCancelEditImportantDoc = () => {
+    setEditingDoc(null);
+    setDocTitle('');
+    setDocUrl('');
+    setDocCategory('General');
+  };
+
   const handleSaveImportantDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docTitle.trim() || !docUrl.trim()) {
@@ -641,10 +683,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setImportantDocs(updated);
       if (onDocsUpdated) onDocsUpdated();
 
-      setEditingDoc(null);
-      setDocTitle('');
-      setDocUrl('');
-      setDocCategory('General');
+      handleCancelEditImportantDoc();
       showNotification('✅ Homepage Document saved successfully!');
     } catch (err) {
       console.error(err);
@@ -678,6 +717,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 4. NOTICES & CIRCULARS HANDLERS =================
+  const handleEditNoticeClick = (nc: NoticeCircularItem) => {
+    setEditingNotice(nc);
+    setNoticeTitle(nc.title || '');
+    setNoticeCategory(nc.category || 'NOTICE');
+    setNoticePublished(nc.published || new Date().toISOString().split('T')[0]);
+    setNoticeUrl(nc.url || '');
+  };
+
+  const handleCancelEditNotice = () => {
+    setEditingNotice(null);
+    setNoticeTitle('');
+    setNoticeCategory('NOTICE');
+    setNoticePublished('');
+    setNoticeUrl('');
+  };
+
   const handleSaveNoticeCircular = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noticeTitle.trim() || !noticeUrl.trim()) {
@@ -700,10 +755,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setNoticeCirculars(updated);
       if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
 
-      setEditingNotice(null);
-      setNoticeTitle('');
-      setNoticeUrl('');
-      setNoticePublished('');
+      handleCancelEditNotice();
       showNotification('✅ Notice / Circular updated successfully in Firebase!');
     } catch (err) {
       console.error(err);
@@ -737,6 +789,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 5. ANNOUNCEMENTS HANDLERS =================
+  const handleEditAnnouncementClick = (ann: AnnouncementItem) => {
+    setEditingAnn(ann);
+    setAnnTitle(ann.title || '');
+    setAnnLink(ann.link || '');
+    setAnnPublished(ann.published || new Date().toISOString().split('T')[0]);
+  };
+
+  const handleCancelEditAnnouncement = () => {
+    setEditingAnn(null);
+    setAnnTitle('');
+    setAnnLink('');
+    setAnnPublished('');
+  };
+
   const handleSaveAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle.trim()) {
@@ -759,10 +825,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setAnnouncements(updated);
       if (onAnnouncementsUpdated) onAnnouncementsUpdated();
 
-      setEditingAnn(null);
-      setAnnTitle('');
-      setAnnLink('');
-      setAnnPublished('');
+      handleCancelEditAnnouncement();
       showNotification('✅ Announcement published to banner ticker!');
     } catch (err) {
       console.error(err);
@@ -873,30 +936,60 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 8. FORMS HANDLERS =================
+  const handleEditFormClick = (form: DownloadableForm) => {
+    setEditingForm(form);
+    setFormName(form.title || '');
+    setFormCode(form.formCode || '');
+    setFormCat(form.category || 'Service Matters');
+    setFormDownloadUrl(form.downloadUrl || '');
+  };
+
+  const handleCancelEditForm = () => {
+    setEditingForm(null);
+    setFormName('');
+    setFormCode('');
+    setFormCat('Service Matters');
+    setFormDownloadUrl('');
+  };
+
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formDownloadUrl.trim()) {
       showNotification('⚠️ Form Name and Download URL are required');
       return;
     }
-    const newForm: DownloadableForm = {
-      id: `form-${Date.now()}`,
-      title: formName.trim(),
-      formCode: formCode.trim() || 'DoP-FORM',
-      category: formCat.trim() || 'Service Matters',
-      downloadUrl: formDownloadUrl.trim(),
-    };
-    const updated = [...formsList, newForm];
+    let updated: DownloadableForm[];
+    if (editingForm) {
+      updated = formsList.map((f) =>
+        f.id === editingForm.id
+          ? {
+              ...f,
+              title: formName.trim(),
+              formCode: formCode.trim() || 'DoP-FORM',
+              category: formCat.trim() || 'Service Matters',
+              downloadUrl: formDownloadUrl.trim(),
+            }
+          : f
+      );
+      showNotification('✅ Downloadable Form updated!');
+    } else {
+      const newForm: DownloadableForm = {
+        id: `form-${Date.now()}`,
+        title: formName.trim(),
+        formCode: formCode.trim() || 'DoP-FORM',
+        category: formCat.trim() || 'Service Matters',
+        downloadUrl: formDownloadUrl.trim(),
+      };
+      updated = [...formsList, newForm];
+      showNotification('✅ Downloadable Form added!');
+    }
     setFormsList(updated);
     localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
-    setFormName('');
-    setFormCode('');
-    setFormDownloadUrl('');
-    showNotification('✅ Downloadable Form added!');
+    handleCancelEditForm();
   };
 
   const handleDeleteForm = (id: string) => {
-    const f = formsList.find((item) => item.id !== id);
+    const f = formsList.find((item) => item.id === id);
     setDeleteConfirm({
       isOpen: true,
       type: 'Downloadable Form',
@@ -949,6 +1042,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 10. NEWS TICKER HANDLERS =================
+  const handleEditNewsClick = (item: NewsSliderItem) => {
+    setEditingNews(item);
+    setNewsTitle(item.title || '');
+    setNewsCategory(item.category || 'LATEST NEWS');
+    setNewsLink(item.link || '');
+    setNewsIsUrgent(!!item.isUrgent);
+  };
+
+  const handleCancelEditNews = () => {
+    setEditingNews(null);
+    setNewsTitle('');
+    setNewsCategory('LATEST NEWS');
+    setNewsLink('');
+    setNewsIsUrgent(false);
+  };
+
   const handleSaveNews = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newsTitle.trim()) {
@@ -967,9 +1076,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = await getNewsItemsFromFirestore();
       setNewsItems(updated);
       if (onNewsItemsUpdated) onNewsItemsUpdated();
-      setEditingNews(null);
-      setNewsTitle('');
-      setNewsLink('');
+      handleCancelEditNews();
       showNotification('✅ News headline saved!');
     } catch (e) {
       showNotification('❌ Failed to save news item.');
@@ -1906,9 +2013,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'documents' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    ADD NEW DOCUMENT
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingCircular ? 'EDIT DOCUMENT / CIRCULAR' : 'ADD NEW DOCUMENT'}
+                    </h2>
+                    {editingCircular && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveCircular} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -1976,14 +2090,37 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Add Document</span>
-                    </button>
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="docUrgent"
+                        checked={docPostUrgent}
+                        onChange={(e) => setDocPostUrgent(e.target.checked)}
+                        className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                      />
+                      <label htmlFor="docUrgent" className="text-xs font-medium text-slate-700">
+                        Mark as Urgent / Red Flash
+                      </label>
+                    </div>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingCircular ? 'Update Document' : '+ Add Document'}</span>
+                      </button>
+                      {editingCircular && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditCircular}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2016,13 +2153,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </a>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleDeleteCircular(circ.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Document"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditCircularClick(circ)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Document"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCircular(circ.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete Document"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2034,9 +2182,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'importantDocs' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingDoc ? 'EDIT HOMEPAGE DOC' : 'ADD HOMEPAGE DOC'}
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingDoc ? 'EDIT HOMEPAGE DOC' : 'ADD HOMEPAGE DOC'}
+                    </h2>
+                    {editingDoc && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveImportantDoc} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -2076,14 +2231,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{editingDoc ? 'Update Document' : '+ Add Document'}</span>
-                    </button>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingDoc ? 'Update Document' : '+ Add Document'}</span>
+                      </button>
+                      {editingDoc && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditImportantDoc}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2113,13 +2279,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <span>🔗 View Document</span>
                           </a>
                         </div>
-                        <button
-                          onClick={() => handleDeleteImportantDoc(docItem.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Doc"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditImportantDocClick(docItem)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Document"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteImportantDoc(docItem.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Doc"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2131,9 +2308,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'notices' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingNotice ? 'EDIT NOTICE' : 'ADD NOTICE / CIRCULAR'}
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingNotice ? 'EDIT NOTICE' : 'ADD NOTICE / CIRCULAR'}
+                    </h2>
+                    {editingNotice && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveNoticeCircular} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -2177,14 +2361,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{editingNotice ? 'Update Notice' : '+ Add Notice'}</span>
-                    </button>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingNotice ? 'Update Notice' : '+ Add Notice'}</span>
+                      </button>
+                      {editingNotice && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditNotice}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2214,13 +2409,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <span>🔗 View Document</span>
                           </a>
                         </div>
-                        <button
-                          onClick={() => handleDeleteNoticeCircular(nc.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Notice"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditNoticeClick(nc)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Notice"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNoticeCircular(nc.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Notice"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2232,9 +2438,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'announcements' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingAnn ? 'EDIT ANNOUNCEMENT' : 'ADD ANNOUNCEMENT'}
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingAnn ? 'EDIT ANNOUNCEMENT' : 'ADD ANNOUNCEMENT'}
+                    </h2>
+                    {editingAnn && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveAnnouncement} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -2261,14 +2474,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{editingAnn ? 'Update Announcement' : '+ Add Announcement'}</span>
-                    </button>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingAnn ? 'Update Announcement' : '+ Add Announcement'}</span>
+                      </button>
+                      {editingAnn && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditAnnouncement}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2297,13 +2521,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </a>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleDeleteAnnouncement(ann.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Announcement"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditAnnouncementClick(ann)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Announcement"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAnnouncement(ann.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Announcement"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2515,9 +2750,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'forms' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    ADD DOWNLOADABLE FORM
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingForm ? 'EDIT DOWNLOADABLE FORM' : 'ADD DOWNLOADABLE FORM'}
+                    </h2>
+                    {editingForm && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveForm} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -2557,13 +2799,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Add Form</span>
-                    </button>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingForm ? 'Update Form' : '+ Add Form'}</span>
+                      </button>
+                      {editingForm && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditForm}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2593,13 +2846,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <span>🔗 Download Form</span>
                           </a>
                         </div>
-                        <button
-                          onClick={() => handleDeleteForm(f.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Form"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditFormClick(f)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Form"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteForm(f.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Form"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2707,9 +2971,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {activeTab === 'news' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    {editingNews ? 'EDIT HEADLINE' : 'ADD NEWS TICKER ITEM'}
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                      {editingNews ? 'EDIT HEADLINE' : 'ADD NEWS TICKER ITEM'}
+                    </h2>
+                    {editingNews && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <form onSubmit={handleSaveNews} className="space-y-4">
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
@@ -2748,14 +3019,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         Mark as Urgent / Red Flash
                       </label>
                     </div>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>{editingNews ? 'Update Headline' : '+ Add Headline'}</span>
-                    </button>
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{editingNews ? 'Update Headline' : '+ Add Headline'}</span>
+                      </button>
+                      {editingNews && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditNews}
+                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -2781,13 +3063,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             {n.title}
                           </h3>
                         </div>
-                        <button
-                          onClick={() => handleDeleteNews(n.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete Headline"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleEditNewsClick(n)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Headline"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNews(n.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Headline"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

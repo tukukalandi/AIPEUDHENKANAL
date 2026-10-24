@@ -84,6 +84,26 @@ export async function addCircularToFirestore(input: NewCircularInput): Promise<s
   return docRef.id;
 }
 
+export async function updateCircularInFirestore(id: string, input: Partial<NewCircularInput>): Promise<void> {
+  const docRef = doc(db, 'circulars', id);
+  const updateData: Record<string, any> = {
+    updated: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+  };
+  if (input.title !== undefined) updateData.title = input.title;
+  if (input.category !== undefined) updateData.category = input.category;
+  if (input.snippet !== undefined) {
+    updateData.snippet = input.snippet;
+    updateData.contentHtml = input.contentHtml || `<p>${input.snippet}</p>`;
+  }
+  if (input.fileLinks !== undefined) updateData.driveLinks = input.fileLinks;
+  if (input.imageUrls !== undefined) updateData.images = input.imageUrls;
+  if (input.author !== undefined) updateData.author = input.author;
+  if (input.urgent !== undefined) updateData.urgent = input.urgent;
+
+  await updateDoc(docRef, updateData);
+}
+
 export async function getCircularsFromFirestore(): Promise<BlogPost[]> {
   try {
     const colRef = collection(db, 'circulars');
