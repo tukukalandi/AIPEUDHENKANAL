@@ -31,6 +31,15 @@ import {
   ShieldCheck,
   LogOut,
   KeyRound,
+  Upload,
+  Save,
+  Play,
+  FileCode,
+  Globe,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  Code,
 } from 'lucide-react';
 import {
   BlogPost,
@@ -41,6 +50,7 @@ import {
   ImportantDocItem,
   NoticeCircularItem,
   UnionDocumentRuling,
+  CustomPortalApp,
 } from '../types';
 import {
   addCircularToFirestore,
@@ -77,6 +87,7 @@ import {
   DEFAULT_IMPORTANT_DOCUMENTS,
   DEFAULT_NOTICE_CIRCULARS,
 } from '../data/dakshikshaData';
+import { DEFAULT_MY_APPS, TARGET_CALCULATOR_HTML } from '../data/portalMenuData';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 
 interface AdminPortalProps {
@@ -112,14 +123,6 @@ interface GalleryPhoto {
   imageUrl: string;
   category: string;
   date: string;
-}
-
-interface CustomPortalApp {
-  id: string;
-  name: string;
-  category: string;
-  url: string;
-  description: string;
 }
 
 interface DownloadableForm {
@@ -166,21 +169,6 @@ const DEFAULT_GALLERY: GalleryPhoto[] = [
     category: 'Philately',
     date: '2026-03-05',
   },
-];
-
-const DEFAULT_MY_APPS: CustomPortalApp[] = [
-  { id: 'app-1', name: 'India Post Official Portal', category: 'Official Portal', url: 'https://www.indiapost.gov.in', description: 'Central India Post portal for tracking, rules, and circulars' },
-  { id: 'app-2', name: 'Meghdoot / SAP ERP Portal', category: 'Operations', url: 'https://sapep.indiapost.gov.in', description: 'Postal Enterprise Resource Planning and daily operations' },
-  { id: 'app-3', name: 'Dak Karmayogi E-Learning', category: 'Training', url: 'https://dakkarmayogi.gov.in', description: 'Mandatory online training modules for GDS and Postal Assistants' },
-  { id: 'app-4', name: 'CEPT Web Services Hub', category: 'IT & Technology', url: 'https://cept.gov.in', description: 'Centre for Excellence in Postal Technology utilities' },
-  { id: 'app-5', name: 'Finacle Core Banking System (CBS)', category: 'Banking', url: 'https://cbs.indiapost.gov.in', description: 'POSB Core Banking and ATM transaction portal' },
-  { id: 'app-6', name: 'Postal Life Insurance (PLI)', category: 'Insurance', url: 'https://pli.indiapost.gov.in', description: 'PLI and RPLI customer portal and quotation tools' },
-  { id: 'app-7', name: 'Speed Post Tracking Tool', category: 'Tracking', url: 'https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx', description: 'Consignment track and trace service' },
-  { id: 'app-8', name: 'Central Govt Health Scheme (CGHS)', category: 'Medical', url: 'https://cghs.nic.in', description: 'CGHS empanelled hospitals, plastic card and claims' },
-  { id: 'app-9', name: 'Bhavishya Pension Portal', category: 'Pension', url: 'https://bhavishya.nic.in', description: 'Civil servants pension sanction and payment tracking' },
-  { id: 'app-10', name: 'CPENGRAMS Grievance Portal', category: 'Grievance', url: 'https://pgportal.gov.in/pension', description: 'Online pension grievances redressal system' },
-  { id: 'app-11', name: 'Odisha Postal Circle Cuttack', category: 'Circle Office', url: 'https://odishapost.gov.in', description: 'Odisha Circle administrative notifications & transfers' },
-  { id: 'app-12', name: 'NFPE National Confederation', category: 'Union Portal', url: 'http://confederationhq.blogspot.com', description: 'National Federation of Postal Employees updates' },
 ];
 
 const DEFAULT_FORMS: DownloadableForm[] = [
@@ -290,11 +278,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [galDate, setGalDate] = useState(new Date().toISOString().split('T')[0]);
 
   // ================= 7. MY APPS STATE =================
-  const [myApps, setMyApps] = useState<CustomPortalApp[]>(DEFAULT_MY_APPS);
+  const [myApps, setMyApps] = useState<CustomPortalApp[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_admin_apps');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_MY_APPS;
+  });
+  const [showAddAppModal, setShowAddAppModal] = useState(false);
+  const [editingApp, setEditingApp] = useState<CustomPortalApp | null>(null);
   const [appName, setAppName] = useState('');
-  const [appCategory, setAppCategory] = useState('Operations');
+  const [appCategory, setAppCategory] = useState('Others');
+  const [appSourceType, setAppSourceType] = useState<'code' | 'url'>('code');
+  const [appCodeSnippet, setAppCodeSnippet] = useState('');
   const [appUrl, setAppUrl] = useState('');
   const [appDescription, setAppDescription] = useState('');
+  const [runningApp, setRunningApp] = useState<CustomPortalApp | null>(null);
+  const [iframeKey, setIframeKey] = useState(0);
+  const [appsCategoryFilter, setAppsCategoryFilter] = useState<string>('all');
+  const [appsSearchQuery, setAppsSearchQuery] = useState('');
+  const appFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // ================= 8. FORMS STATE =================
   const [formsList, setFormsList] = useState<DownloadableForm[]>(DEFAULT_FORMS);
@@ -897,42 +900,161 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   // ================= 7. MY APPS HANDLERS =================
-  const handleSaveApp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!appName.trim() || !appUrl.trim()) {
-      showNotification('⚠️ App Name and URL are required');
-      return;
+  const handleAppFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Auto set app title from file name if empty
+    if (!appName.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+      setAppName(cleanName);
     }
-    const newApp: CustomPortalApp = {
-      id: `app-${Date.now()}`,
-      name: appName.trim(),
-      category: appCategory.trim() || 'Operations',
-      url: appUrl.trim(),
-      description: appDescription.trim() || 'Official postal employee quick access portal',
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setAppCodeSnippet(content);
+        showNotification(`✅ Loaded file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+      }
     };
-    const updated = [...myApps, newApp];
-    setMyApps(updated);
-    localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
+    reader.onerror = () => {
+      showNotification('❌ Failed to read HTML file');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleEditAppClick = (app: CustomPortalApp) => {
+    setEditingApp(app);
+    setAppName(app.name);
+    setAppCategory(app.category || 'Others');
+    setAppSourceType(app.sourceType || (app.codeSnippet ? 'code' : 'url'));
+    setAppCodeSnippet(app.codeSnippet || '');
+    setAppUrl(app.url || '');
+    setAppDescription(app.description || '');
+    setShowAddAppModal(true);
+  };
+
+  const handleCancelApp = () => {
+    setShowAddAppModal(false);
+    setEditingApp(null);
     setAppName('');
+    setAppCategory('Others');
+    setAppSourceType('code');
+    setAppCodeSnippet('');
     setAppUrl('');
     setAppDescription('');
-    showNotification('✅ Portal App shortcut added!');
+  };
+
+  const handleSaveApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appName.trim()) {
+      showNotification('⚠️ App Title is required');
+      return;
+    }
+    if (appSourceType === 'code' && !appCodeSnippet.trim()) {
+      showNotification('⚠️ Please paste your HTML code or upload an HTML file');
+      return;
+    }
+    if (appSourceType === 'url' && !appUrl.trim()) {
+      showNotification('⚠️ Website Link is required');
+      return;
+    }
+
+    const sizeInKb = appCodeSnippet.trim()
+      ? `${(new Blob([appCodeSnippet]).size / 1024).toFixed(1)} KB`
+      : undefined;
+
+    let updated: CustomPortalApp[];
+    if (editingApp) {
+      updated = myApps.map((a) =>
+        a.id === editingApp.id
+          ? {
+              ...a,
+              name: appName.trim(),
+              category: appCategory || 'Others',
+              sourceType: appSourceType,
+              codeSnippet: appSourceType === 'code' ? appCodeSnippet : undefined,
+              url: appSourceType === 'url' ? appUrl.trim() : undefined,
+              description: appDescription.trim() || (appSourceType === 'code' ? 'Custom HTML Application' : 'Website Link'),
+              fileSize: sizeInKb,
+            }
+          : a
+      );
+      showNotification('✅ App card updated successfully!');
+    } else {
+      const newApp: CustomPortalApp = {
+        id: `app-${Date.now()}`,
+        name: appName.trim(),
+        category: appCategory || 'Others',
+        sourceType: appSourceType,
+        codeSnippet: appSourceType === 'code' ? appCodeSnippet : undefined,
+        url: appSourceType === 'url' ? appUrl.trim() : undefined,
+        description: appDescription.trim() || (appSourceType === 'code' ? 'Custom HTML Application' : 'Website Link'),
+        fileSize: sizeInKb,
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+      // Place newly added card at the very top!
+      updated = [newApp, ...myApps];
+      showNotification('✅ New HTML App card added!');
+    }
+
+    setMyApps(updated);
+    try {
+      localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('LocalStorage error:', err);
+    }
+    handleCancelApp();
   };
 
   const handleDeleteApp = (id: string) => {
-    const app = myApps.find((a) => a.id !== id);
+    const app = myApps.find((a) => a.id === id);
     setDeleteConfirm({
       isOpen: true,
-      type: 'Portal App Shortcut',
+      type: 'App Card',
       id,
-      title: app?.name || 'Selected app',
+      title: app?.name || 'Selected app card',
       onConfirm: () => {
         const updated = myApps.filter((a) => a.id !== id);
         setMyApps(updated);
-        localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
-        showNotification('✅ App shortcut removed.');
+        try {
+          localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
+        } catch (err) {
+          console.warn('LocalStorage error:', err);
+        }
+        showNotification('✅ App card removed.');
       },
     });
+  };
+
+  const handleRemoveAllPreviousCards = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Previous App Cards',
+      id: 'all_apps',
+      title: 'Remove all previous cards',
+      onConfirm: () => {
+        setMyApps([]);
+        try {
+          localStorage.setItem('aipeu_admin_apps', JSON.stringify([]));
+        } catch (err) {
+          console.warn('LocalStorage error:', err);
+        }
+        showNotification('✅ All previous cards removed. You can now add your own HTML files.');
+      },
+    });
+  };
+
+  const handleResetDefaultApps = () => {
+    setMyApps(DEFAULT_MY_APPS);
+    try {
+      localStorage.setItem('aipeu_admin_apps', JSON.stringify(DEFAULT_MY_APPS));
+    } catch (err) {
+      console.warn('LocalStorage error:', err);
+    }
+    showNotification('✅ Reset to default portal app cards.');
   };
 
   // ================= 8. FORMS HANDLERS =================
@@ -1273,6 +1395,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     { id: 'news', label: 'News Ticker', icon: Radio },
     { id: 'executives', label: 'Executive Bearers', icon: Users },
   ];
+
+  // Filtered list of custom apps & HTML tools for card display
+  const filteredMyApps = myApps.filter((app) => {
+    const matchesCat =
+      appsCategoryFilter === 'all' ||
+      app.category.toLowerCase() === appsCategoryFilter.toLowerCase();
+    const q = appsSearchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      app.name.toLowerCase().includes(q) ||
+      (app.description && app.description.toLowerCase().includes(q)) ||
+      (app.category && app.category.toLowerCase().includes(q));
+    return matchesCat && matchesSearch;
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-[#f8fafc] text-slate-800 flex flex-col overflow-y-auto selection:bg-red-500 selection:text-white">
@@ -2651,97 +2787,385 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             {/* TAB CONTENT: MY APPS */}
             {activeTab === 'myApps' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-6">
-                    ADD QUICK APP SHORTCUT
-                  </h2>
-                  <form onSubmit={handleSaveApp} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        APP / PORTAL NAME *
-                      </label>
-                      <input
-                        type="text"
-                        value={appName}
-                        onChange={(e) => setAppName(e.target.value)}
-                        placeholder="e.g. India Post Central Portal"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PORTAL URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={appUrl}
-                        onChange={(e) => setAppUrl(e.target.value)}
-                        placeholder="https://..."
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        CATEGORY
-                      </label>
-                      <input
-                        type="text"
-                        value={appCategory}
-                        onChange={(e) => setAppCategory(e.target.value)}
-                        placeholder="e.g. Operations / Banking / Training"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Add App</span>
-                    </button>
-                  </form>
+              <div className="space-y-6">
+                {/* 1. Header matching user screenshot */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">My Apps</h1>
+                    <p className="text-sm text-slate-500 mt-0.5">Manage custom HTML applications</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showAddAppModal) {
+                        handleCancelApp();
+                      } else {
+                        setShowAddAppModal(true);
+                      }
+                    }}
+                    className="bg-[#DC2626] hover:bg-[#B91C1C] text-white font-medium py-2.5 px-5 rounded-xl flex items-center justify-center gap-2 shadow-xs text-sm transition-all shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add App</span>
+                  </button>
                 </div>
 
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT APPS ({myApps.length})
-                  </div>
-                  <div className="space-y-4">
-                    {myApps.map((app) => (
-                      <div
-                        key={app.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
+                {/* 2. Add New App Card / Form matching the screenshot exactly */}
+                {showAddAppModal && (
+                  <div className="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-slate-200/90 transition-all">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-5">
+                      <h2 className="text-base font-bold text-slate-900">
+                        {editingApp ? 'Edit App' : 'Add New App'}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={handleCancelApp}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                       >
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 uppercase">
-                            {app.category}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 truncate">
-                            {app.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{app.description}</p>
-                          <a
-                            href={app.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
-                          >
-                            <span>🔗 Open Portal</span>
-                          </a>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteApp(app.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                          title="Delete App"
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveApp} className="space-y-5">
+                      {/* App Title */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          App Title
+                        </label>
+                        <input
+                          type="text"
+                          value={appName}
+                          onChange={(e) => setAppName(e.target.value)}
+                          placeholder="e.g., Target Calculator"
+                          required
+                          className="w-full bg-slate-50/70 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none placeholder:text-slate-400"
+                        />
+                      </div>
+
+                      {/* Category */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Category
+                        </label>
+                        <select
+                          value={appCategory}
+                          onChange={(e) => setAppCategory(e.target.value)}
+                          className="w-full bg-white border border-slate-200 text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-slate-800"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <option value="Others">Others</option>
+                          <option value="Calculators">Calculators</option>
+                          <option value="Departmental Tools">Departmental Tools</option>
+                          <option value="Leave & Pension">Leave & Pension</option>
+                          <option value="Operations">Operations</option>
+                          <option value="Banking & CBS">Banking & CBS</option>
+                          <option value="PLI / RPLI">PLI / RPLI</option>
+                          <option value="Official Portal">Official Portal</option>
+                        </select>
+                      </div>
+
+                      {/* App Source Radio Buttons */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-2">
+                          App Source
+                        </label>
+                        <div className="flex items-center gap-6">
+                          <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-800">
+                            <input
+                              type="radio"
+                              name="appSource"
+                              checked={appSourceType === 'code'}
+                              onChange={() => setAppSourceType('code')}
+                              className="w-4 h-4 text-red-600 focus:ring-red-500 accent-red-600"
+                            />
+                            <span className="flex items-center gap-1.5">
+                              📄 Code/File
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-800">
+                            <input
+                              type="radio"
+                              name="appSource"
+                              checked={appSourceType === 'url'}
+                              onChange={() => setAppSourceType('url')}
+                              className="w-4 h-4 text-red-600 focus:ring-red-500 accent-red-600"
+                            />
+                            <span className="flex items-center gap-1.5">
+                              🔗 Website Link
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Code Snippet (if Code/File) */}
+                      {appSourceType === 'code' ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-bold text-slate-700">
+                              Code Snippet
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="file"
+                                ref={appFileInputRef}
+                                accept=".html,.htm,.txt,.js,.svg"
+                                onChange={handleAppFileUpload}
+                                className="hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => appFileInputRef.current?.click()}
+                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>Upload File</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <textarea
+                            value={appCodeSnippet}
+                            onChange={(e) => setAppCodeSnippet(e.target.value)}
+                            placeholder="Paste your code here or upload a file..."
+                            rows={12}
+                            className="w-full font-mono text-xs bg-white border border-red-500 focus:border-red-600 focus:ring-1 focus:ring-red-500 rounded-xl p-4 outline-none resize-y placeholder:text-slate-400"
+                          />
+                          {appCodeSnippet && (
+                            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
+                              <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Ready to save ({(new Blob([appCodeSnippet]).size / 1024).toFixed(1)} KB)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAppCodeSnippet('')}
+                                className="text-slate-400 hover:text-red-600 cursor-pointer"
+                              >
+                                Clear code
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Website / Portal URL *
+                          </label>
+                          <input
+                            type="url"
+                            value={appUrl}
+                            onChange={(e) => setAppUrl(e.target.value)}
+                            placeholder="https://example.com/app"
+                            required={appSourceType === 'url'}
+                            className="w-full bg-slate-50/70 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none placeholder:text-slate-400"
+                          />
+                        </div>
+                      )}
+
+                      {/* Form Actions */}
+                      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={handleCancelApp}
+                          className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="bg-[#DC2626] hover:bg-[#B91C1C] text-white font-medium py-2.5 px-6 rounded-xl flex items-center gap-2 shadow-xs text-sm transition-all cursor-pointer"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>Save App</span>
                         </button>
                       </div>
-                    ))}
+                    </form>
                   </div>
+                )}
+
+                {/* 3. Cards Section ("The files will show card type. Previous cards may be removed.") */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        APP CARDS ({filteredMyApps.length})
+                      </div>
+                      {myApps.length > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">
+                          {myApps.filter((a) => a.sourceType === 'code' || a.codeSnippet).length} HTML Tools
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Category Filter Pills */}
+                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+                        {['all', 'Calculators', 'Operations', 'Others'].map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setAppsCategoryFilter(cat)}
+                            className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                              appsCategoryFilter === cat
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {cat === 'all' ? 'All' : cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Previous cards removal options */}
+                      {myApps.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAllPreviousCards}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition-colors ml-auto flex items-center gap-1 cursor-pointer"
+                          title="Remove all previous cards"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove All Previous Cards</span>
+                        </button>
+                      )}
+
+                      {myApps.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={handleResetDefaultApps}
+                          className="text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Reset Default Cards
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Grid of Cards */}
+                  {filteredMyApps.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 text-slate-400">
+                      <FileCode className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                      <p className="text-base font-bold text-slate-700 mb-1">No app cards found</p>
+                      <p className="text-xs text-slate-500 mb-4">Click "+ Add App" above to upload HTML files or add custom tool cards.</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddAppModal(true)}
+                        className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add HTML Application</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredMyApps.map((app) => {
+                        const isCodeApp = app.sourceType === 'code' || !!app.codeSnippet;
+                        return (
+                          <div
+                            key={app.id}
+                            className="bg-white rounded-2xl p-5 shadow-2xs border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between group"
+                          >
+                            <div>
+                              {/* Top badges & remove button */}
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase tracking-wider truncate">
+                                  {app.category || 'Others'}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {isCodeApp ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                      <FileCode className="w-3 h-3 text-amber-600" /> HTML App
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
+                                      <Globe className="w-3 h-3 text-blue-600" /> Web Link
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditAppClick(app)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                    title="Edit App"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteApp(app.id)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                    title="Remove this card"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* App Title */}
+                              <h3 className="font-bold text-slate-900 text-base mt-3 group-hover:text-red-600 transition-colors line-clamp-1">
+                                {app.name}
+                              </h3>
+
+                              {/* Meta / Description */}
+                              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                {app.description || (isCodeApp ? 'Interactive custom HTML tool' : app.url)}
+                              </p>
+
+                              {/* Snippet / Size badge */}
+                              {isCodeApp ? (
+                                <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                                  <Code className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>{app.fileSize || 'HTML/JS File'}</span>
+                                  {app.createdAt && (
+                                    <span className="ml-auto text-[10px] text-slate-400">{app.createdAt}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 truncate">
+                                  <ExternalLink className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                  <span className="truncate">{app.url}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Action Button & Remove Card option */}
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                              {isCodeApp ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRunningApp(app);
+                                    setIframeKey((k) => k + 1);
+                                  }}
+                                  className="flex-1 bg-slate-900 hover:bg-red-600 text-white font-medium py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-2xs transition-colors cursor-pointer"
+                                >
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span>Launch / Run App</span>
+                                </button>
+                              ) : (
+                                <a
+                                  href={app.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-2xs transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Open Website</span>
+                                </a>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteApp(app.id)}
+                                className="px-2.5 py-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
+                                title="Remove this card"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3679,6 +4103,92 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <Home className="w-5 h-5" />
             </button>
           </div>
+          {/* Sandboxed HTML Application Runner Modal */}
+          {runningApp && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-3xl w-full max-w-5xl h-[88vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+                {/* Modal Top Bar */}
+                <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-red-600 text-white shrink-0 shadow-sm">
+                      <Play className="w-4 h-4 fill-current" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sm sm:text-base truncate">{runningApp.name}</h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
+                          {runningApp.category || 'Others'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        Sandboxed HTML5 / JavaScript Execution Environment
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIframeKey((k) => k + 1)}
+                      title="Reload App"
+                      className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                    {runningApp.codeSnippet && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
+                          const blobUrl = URL.createObjectURL(blob);
+                          window.open(blobUrl, '_blank');
+                        }}
+                        title="Open in New Tab"
+                        className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setRunningApp(null)}
+                      title="Close"
+                      className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sandboxed iframe */}
+                <div className="flex-1 bg-slate-50 relative overflow-hidden">
+                  {runningApp.codeSnippet ? (
+                    <iframe
+                      key={iframeKey}
+                      title={runningApp.name}
+                      sandbox="allow-scripts allow-forms allow-modals"
+                      srcDoc={runningApp.codeSnippet}
+                      className="w-full h-full border-0 bg-white"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                      <p className="text-sm text-slate-600 mb-3">This card points to an external website URL.</p>
+                      <a
+                        href={runningApp.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open External URL</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* In-App Deletion Confirmation Modal Dialog (immune to iframe sandbox restrictions) */}
           {deleteConfirm?.isOpen && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">

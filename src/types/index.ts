@@ -121,8 +121,13 @@ export interface CustomPortalApp {
   id: string;
   name: string;
   category: string;
-  url: string;
-  description: string;
+  url?: string;
+  description?: string;
+  sourceType?: 'code' | 'url';
+  codeSnippet?: string;
+  fileName?: string;
+  fileSize?: string;
+  createdAt?: string;
 }
 
 export interface DownloadableForm {
