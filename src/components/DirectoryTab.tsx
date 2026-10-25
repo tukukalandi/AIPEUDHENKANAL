@@ -16,6 +16,8 @@ import {
   Plus,
   BookOpen,
   Filter,
+  Clock,
+  X,
 } from 'lucide-react';
 import { PlatformStyle, OfficeBearer, UnionDocumentRuling } from '../types';
 import {
@@ -104,6 +106,65 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
   const [docSearchQuery, setDocSearchQuery] = useState('');
   const [selectedDocType, setSelectedDocType] = useState<string>('all');
 
+  // 🔍 Top Search Bar & Recent Searches for Directory (stores & shows last 5 searched terms)
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [recentDirectorySearches, setRecentDirectorySearches] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_recent_searches_directory');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const commitRecentDirectorySearch = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setRecentDirectorySearches((prev) => {
+      const filtered = prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem('aipeu_recent_searches_directory', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Could not save recent directory searches', err);
+      }
+      return updated;
+    });
+  };
+
+  const removeRecentDirectorySearch = (termToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRecentDirectorySearches((prev) => {
+      const updated = prev.filter((s) => s !== termToRemove);
+      try {
+        localStorage.setItem('aipeu_recent_searches_directory', JSON.stringify(updated));
+      } catch (err) {
+        console.warn(err);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllRecentDirectorySearches = () => {
+    setRecentDirectorySearches([]);
+    try {
+      localStorage.removeItem('aipeu_recent_searches_directory');
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  // Debounce auto-save to recent searches
+  useEffect(() => {
+    const q = directorySearch.trim();
+    if (q.length >= 3) {
+      const timer = setTimeout(() => {
+        commitRecentDirectorySearch(q);
+      }, 900);
+      return () => clearTimeout(timer);
+    }
+  }, [directorySearch]);
+
   // Available document types for filter pills
   const availableDocTypes = React.useMemo(() => {
     const types = new Set<string>();
@@ -119,7 +180,7 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
       .filter((doc) => {
         if (doc.published === 'false') return false;
         const matchesType = selectedDocType === 'all' || doc.type === selectedDocType;
-        const q = docSearchQuery.trim().toLowerCase();
+        const q = (directorySearch || docSearchQuery).trim().toLowerCase();
         const matchesQuery =
           !q ||
           doc.title.toLowerCase().includes(q) ||
@@ -128,13 +189,27 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
         return matchesType && matchesQuery;
       })
       .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  }, [unionRulings, selectedDocType, docSearchQuery]);
+  }, [unionRulings, selectedDocType, docSearchQuery, directorySearch]);
 
   // Master sorted bearers according to union protocol:
   // 1. Group C -> 2. Postman & MTS -> 3. GDS -> 4. Other wings
   // Within each wing: Divisional Secretary -> Divisional President -> Other members
-  const sortedAllBearers = React.useMemo(() => sortOfficeBearers(bearers), [bearers]);
-  const wingGroups = React.useMemo(() => groupOfficeBearersByWing(bearers), [bearers]);
+  const filteredBearersForSearch = React.useMemo(() => {
+    const q = directorySearch.trim().toLowerCase();
+    if (!q) return bearers;
+    return bearers.filter((b) => {
+      return (
+        b.name.toLowerCase().includes(q) ||
+        b.designation.toLowerCase().includes(q) ||
+        b.branch.toLowerCase().includes(q) ||
+        b.location.toLowerCase().includes(q) ||
+        (b.phone && b.phone.includes(q))
+      );
+    });
+  }, [bearers, directorySearch]);
+
+  const sortedAllBearers = React.useMemo(() => sortOfficeBearers(filteredBearersForSearch), [filteredBearersForSearch]);
+  const wingGroups = React.useMemo(() => groupOfficeBearersByWing(filteredBearersForSearch), [filteredBearersForSearch]);
 
   const displayedGroups = React.useMemo(() => {
     if (selectedWingFilter === 'all') {
@@ -398,6 +473,84 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
         </p>
       </div>
 
+      {/* 🔍 Top Search Bar & Recent Searches for Directory & Bearers */}
+      <div className="space-y-2 bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <Search className="w-4 h-4 text-red-600 dark:text-red-400" />
+          </div>
+          <input
+            type="text"
+            value={directorySearch}
+            onChange={(e) => setDirectorySearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitRecentDirectorySearch(directorySearch);
+              }
+            }}
+            placeholder="Search office bearers by name, phone, designation, branch, or rulings..."
+            className={`w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none transition-all shadow-inner ${
+              isIOS
+                ? 'rounded-2xl border-slate-200/80 dark:border-slate-700 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                : 'rounded-xl border-slate-300 dark:border-slate-700 focus:border-red-600 focus:ring-2 focus:ring-red-600/20'
+            }`}
+          />
+          {directorySearch && (
+            <button
+              onClick={() => setDirectorySearch('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* 🕒 Recent Searches (Stores and shows last 5 searched terms in localStorage) */}
+        {recentDirectorySearches.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-xs">
+            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+              <Clock className="w-3 h-3 text-amber-500" />
+              <span>Recent Searches:</span>
+            </div>
+            {recentDirectorySearches.map((term) => (
+              <div
+                key={term}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 hover:bg-red-50 dark:bg-slate-800 dark:hover:bg-red-950/60 text-slate-700 hover:text-red-600 dark:text-slate-300 dark:hover:text-red-300 border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs group cursor-pointer"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDirectorySearch(term);
+                    commitRecentDirectorySearch(term);
+                  }}
+                  className="cursor-pointer"
+                  title={`Search for "${term}"`}
+                >
+                  {term}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => removeRecentDirectorySearch(term, e)}
+                  className="text-slate-400 hover:text-red-500 text-[11px] ml-0.5 leading-none transition-colors"
+                  title="Remove from history"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={clearAllRecentDirectorySearches}
+              className="text-[10px] font-bold text-slate-400 hover:text-red-500 underline ml-1 cursor-pointer transition-colors"
+              title="Clear search history"
+            >
+              Clear History
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Segmented Control Bar */}
       <div className="flex p-1 bg-slate-200/70 dark:bg-slate-800 rounded-2xl">
         <button
@@ -453,7 +606,9 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
                 <span>+ Add Office Bearer</span>
               </button>
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm whitespace-nowrap">
-                {bearers.length} Office Bearers
+                {directorySearch
+                  ? `${filteredBearersForSearch.length} of ${bearers.length} Officers`
+                  : `${bearers.length} Office Bearers`}
               </span>
             </div>
           </div>
@@ -470,7 +625,7 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
             >
               <span>🌐 All Cadres</span>
               <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-white/20 dark:bg-black/20">
-                {bearers.length}
+                {filteredBearersForSearch.length}
               </span>
             </button>
 
@@ -571,9 +726,21 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
               );
             })}
 
-            {displayedGroups.length === 0 && (
-              <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 text-slate-500 text-sm">
-                No office bearers found in this category.
+            {(displayedGroups.length === 0 || displayedGroups.every((g) => g.members.length === 0)) && (
+              <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 text-slate-500 text-sm space-y-3">
+                <p className="font-bold text-slate-700 dark:text-slate-300">
+                  {directorySearch
+                    ? `No office bearers found matching "${directorySearch}"`
+                    : 'No office bearers found in this category.'}
+                </p>
+                {directorySearch && (
+                  <button
+                    onClick={() => setDirectorySearch('')}
+                    className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-500 transition-colors cursor-pointer"
+                  >
+                    Clear Search Filter
+                  </button>
+                )}
               </div>
             )}
           </div>

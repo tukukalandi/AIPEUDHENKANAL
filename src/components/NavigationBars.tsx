@@ -239,24 +239,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* User Portal Button */}
-          {onSelectTab && (
-            <button
-              onClick={() => onSelectTab('user-portal')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer ${
-                activeTab === 'user-portal'
-                  ? 'bg-emerald-400 text-slate-950 ring-2 ring-emerald-300'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              }`}
-              title="Open Postal Staff & Members Self-Service Portal"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">User Portal</span>
-              <span className="sm:hidden">Portal</span>
-            </button>
-          )}
-
-          {/* 🌟 Menu Button: Opens Photo Gallery, My Apps, Employee Site, Offline Vault, Settings */}
+          {/* 🌟 Menu Button: Opens User Portal, Photo Gallery, My Apps, Employee Site, Offline Vault, Settings */}
           <button
             onClick={() => setIsNavMenuOpen(true)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer ${
@@ -264,7 +247,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
                 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25 ring-1 ring-amber-400'
                 : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/30 ring-2 ring-amber-300'
             }`}
-            title="Open Menu (Photo Gallery, My Apps, Employee Site, Offline Vault, Settings)"
+            title="Open Menu (User Portal, Photo Gallery, My Apps, Employee Site, Offline Vault, Settings)"
             aria-label="Open Menu"
           >
             <Menu className="w-4 h-4 stroke-[2.5]" />

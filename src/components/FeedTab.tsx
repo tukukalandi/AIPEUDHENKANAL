@@ -21,6 +21,8 @@ import {
   Users,
   CheckCircle,
   UserPlus,
+  Clock,
+  X,
 } from 'lucide-react';
 import { BlogPost, PlatformStyle, ShareData, OfficeBearer, ActiveTab, HeroSlide } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -75,6 +77,64 @@ export const FeedTab: React.FC<FeedTabProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('All Circulars');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 🔍 Recent Searches: Stores and shows the last 5 searched terms in localStorage
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_recent_searches_feed');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const commitRecentSearch = (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem('aipeu_recent_searches_feed', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Could not save recent feed searches to localStorage', err);
+      }
+      return updated;
+    });
+  };
+
+  const removeRecentSearch = (termToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRecentSearches((prev) => {
+      const updated = prev.filter((s) => s !== termToRemove);
+      try {
+        localStorage.setItem('aipeu_recent_searches_feed', JSON.stringify(updated));
+      } catch (err) {
+        console.warn(err);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllRecentSearches = () => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem('aipeu_recent_searches_feed');
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  // Debounced auto-save of active search query to recent searches
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length >= 3) {
+      const timer = setTimeout(() => {
+        commitRecentSearch(q);
+      }, 900);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery]);
 
   // 🎯 Circular & Feed Hero Slider items configured from Admin Portal
   const feedSlides = useMemo(() => {
@@ -210,6 +270,84 @@ export const FeedTab: React.FC<FeedTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
         {/* Main Content Area (8 Cols on Desktop) */}
         <div className="lg:col-span-8 space-y-4">
+          {/* 🔍 Top Search Bar & Recent Searches for Circulars & Notices */}
+          <div className="space-y-2 bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitRecentSearch(searchQuery);
+                  }
+                }}
+                placeholder="Search circulars, orders, DA/DR, 8th CPC, GDS, rules, Dhenkanal..."
+                className={`w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 border text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none transition-all shadow-inner ${
+                  isIOS
+                    ? 'rounded-2xl border-slate-200/80 dark:border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                    : 'rounded-xl border-slate-300 dark:border-slate-700 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
+                }`}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* 🕒 Recent Searches (Stores and shows the last 5 searched terms using localStorage) */}
+            {recentSearches.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-xs">
+                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                  <Clock className="w-3 h-3 text-amber-500" />
+                  <span>Recent Searches:</span>
+                </div>
+                {recentSearches.map((term) => (
+                  <div
+                    key={term}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-950/60 text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-300 border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs group cursor-pointer"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(term);
+                        commitRecentSearch(term);
+                      }}
+                      className="cursor-pointer"
+                      title={`Search for "${term}"`}
+                    >
+                      {term}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => removeRecentSearch(term, e)}
+                      className="text-slate-400 hover:text-red-500 text-[11px] ml-0.5 leading-none transition-colors"
+                      title="Remove from history"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearAllRecentSearches}
+                  className="text-[10px] font-bold text-slate-400 hover:text-red-500 underline ml-1 cursor-pointer transition-colors"
+                  title="Clear search history"
+                >
+                  Clear History
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* 🌟 1. CIRCULAR & FEED HERO SLIDER & LATEST UPDATES (Managed via Admin Portal) */}
           {!searchQuery && selectedCategory === 'All Circulars' && (
             <div className="space-y-4 pt-0.5">
@@ -269,7 +407,7 @@ export const FeedTab: React.FC<FeedTabProps> = ({
 
             <button
               onClick={() => setSelectedCategory("GROUP - 'C' AGENDA")}
-              className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-sm hover:shadow-md active:scale-95 transition-all text-left"
+              className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-sm hover:shadow-md active:scale-95 transition-all text-left cursor-pointer"
             >
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                 <FileText className="w-4 h-4" />
@@ -284,7 +422,7 @@ export const FeedTab: React.FC<FeedTabProps> = ({
 
             <button
               onClick={() => setSelectedCategory('GDS / ED AGENDA')}
-              className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm hover:shadow-md active:scale-95 transition-all text-left"
+              className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm hover:shadow-md active:scale-95 transition-all text-left cursor-pointer"
             >
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                 <Sparkles className="w-4 h-4" />
@@ -296,32 +434,6 @@ export const FeedTab: React.FC<FeedTabProps> = ({
                 <span className="text-xs font-bold truncate block">AIGDSU</span>
               </div>
             </button>
-          </div>
-
-          {/* Search Input Bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search circulars, orders, DA/DR, 8th CPC, GDS, Dhenkanal..."
-              className={`w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-white dark:bg-slate-900 border text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none transition-all shadow-sm ${
-                isIOS
-                  ? 'rounded-2xl border-slate-200/80 dark:border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                  : 'rounded-xl border-slate-300 dark:border-slate-700 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
-              }`}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
-              >
-                Clear
-              </button>
-            )}
           </div>
 
           {/* Category Filter bar */}

@@ -16,6 +16,7 @@ import {
   Shield,
   FileText,
   ChevronRight,
+  UserCheck,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle, GalleryPhoto, CustomPortalApp, EmployeeResource } from '../types';
 import {
@@ -67,6 +68,19 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
   const isIOS = platform === 'ios';
 
   const menuItems = [
+    {
+      id: 'user-portal',
+      title: 'User Portal (Self-Service)',
+      desc: 'Member Grievances, Executive Directory & Contacts, ID Cards, Forms',
+      count: 'Portal',
+      icon: UserCheck,
+      gradient: 'from-emerald-600 to-teal-600',
+      badgeBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300',
+      action: () => {
+        onSelectTab('user-portal');
+        onClose();
+      },
+    },
     {
       id: 'gallery',
       title: 'Photo Gallery',

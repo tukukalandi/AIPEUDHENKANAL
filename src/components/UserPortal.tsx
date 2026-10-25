@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   UserCheck,
   FileText,
@@ -17,16 +17,24 @@ import {
   ExternalLink,
   Copy,
   Clock,
+  Search,
+  RotateCw,
+  MessageSquare,
+  CheckCircle,
 } from 'lucide-react';
-import { AppLanguage, PlatformStyle } from '../types';
+import { AppLanguage, PlatformStyle, OfficeBearer } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { UNION_CONTACT_INFO, UNION_BRANCHES, OFFICE_BEARERS } from '../data/unionInfo';
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
+import { getExecutiveMembersFromFirestore } from '../services/firebase';
+import { sortOfficeBearers } from '../utils/officeBearerSorting';
 
 interface UserPortalProps {
   language?: AppLanguage;
   platform?: PlatformStyle;
   onNavigateTab?: (tab: any) => void;
+  officeBearers?: OfficeBearer[];
+  onRefreshOfficeBearers?: () => void;
 }
 
 interface GrievanceTicket {
@@ -47,10 +55,95 @@ export const UserPortal: React.FC<UserPortalProps> = ({
   language = 'en',
   platform = 'android',
   onNavigateTab,
+  officeBearers,
+  onRefreshOfficeBearers,
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
   const [activeSubTab, setActiveSubTab] = useState<'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('grievance');
+
+  // 🏛️ Dynamic Office Bearers state (auto-synced with changes in Office Bearers / Admin)
+  const [bearers, setBearers] = useState<OfficeBearer[]>(() => {
+    if (officeBearers && officeBearers.length > 0) return officeBearers;
+    try {
+      const stored = localStorage.getItem('aipeu_office_bearers');
+      return stored ? JSON.parse(stored) : OFFICE_BEARERS;
+    } catch {
+      return OFFICE_BEARERS;
+    }
+  });
+
+  const [helplineSearch, setHelplineSearch] = useState('');
+  const [helplineWingFilter, setHelplineWingFilter] = useState('All');
+  const [isRefreshingBearers, setIsRefreshingBearers] = useState(false);
+
+  // Sync when prop changes
+  useEffect(() => {
+    if (officeBearers && officeBearers.length > 0) {
+      setBearers(officeBearers);
+    }
+  }, [officeBearers]);
+
+  // Live listener: Automatically updates when Office Bearers are edited, added, or deleted
+  useEffect(() => {
+    const fetchLatestBearers = async () => {
+      try {
+        setIsRefreshingBearers(true);
+        const data = await getExecutiveMembersFromFirestore();
+        if (data && data.length > 0) {
+          setBearers(data);
+          localStorage.setItem('aipeu_office_bearers', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn('Could not sync office bearers in UserPortal', err);
+      } finally {
+        setIsRefreshingBearers(false);
+      }
+    };
+
+    fetchLatestBearers();
+
+    const handleUpdate = () => {
+      fetchLatestBearers();
+      if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+    };
+
+    window.addEventListener('office-bearers-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('office-bearers-updated', handleUpdate);
+    };
+  }, [onRefreshOfficeBearers]);
+
+  // Filter and sort bearers according to union protocol
+  const filteredHelplineBearers = useMemo(() => {
+    const sorted = sortOfficeBearers(bearers);
+    return sorted.filter((b) => {
+      const q = helplineSearch.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        b.name.toLowerCase().includes(q) ||
+        b.designation.toLowerCase().includes(q) ||
+        b.branch.toLowerCase().includes(q) ||
+        b.location.toLowerCase().includes(q) ||
+        (b.phone && b.phone.includes(q));
+
+      const branchLower = (b.branch || '').toLowerCase();
+      const matchesWing =
+        helplineWingFilter === 'All'
+          ? true
+          : helplineWingFilter === "Group 'C'"
+          ? branchLower.includes('group') && branchLower.includes('c')
+          : helplineWingFilter === 'Postman/MTS'
+          ? branchLower.includes('postm') || branchLower.includes('mts')
+          : helplineWingFilter === 'AIGDSU'
+          ? branchLower.includes('gds') || branchLower.includes('aigdsu')
+          : helplineWingFilter === 'Other'
+          ? branchLower.includes('women') || branchLower.includes('pensioner')
+          : true;
+
+      return matchesSearch && matchesWing;
+    });
+  }, [bearers, helplineSearch, helplineWingFilter]);
 
   // Grievance Form State
   const [formData, setFormData] = useState({
@@ -681,57 +774,191 @@ export const UserPortal: React.FC<UserPortalProps> = ({
       {/* ================= 4. EXECUTIVE DIRECTORY & HELPLINE ================= */}
       {activeSubTab === 'helpline' && (
         <div className="space-y-4">
-          <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              <Phone className="w-5 h-5 text-emerald-600" />
-              <span>Divisional Union Officers & Helplines</span>
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-              Reach out for immediate guidance regarding division postings, transfers, or adalat representations.
-            </p>
+          <div className="pb-3 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Executive Directory & Contacts
+                </h3>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                Reach out to divisional union officers for postings, transfers, staff adalat, or welfare support.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Auto-synced ({filteredHelplineBearers.length} Officers)</span>
+              </span>
+
+              <button
+                onClick={() => {
+                  if (onRefreshOfficeBearers) onRefreshOfficeBearers();
+                  getExecutiveMembersFromFirestore().then((data) => {
+                    if (data && data.length > 0) setBearers(data);
+                  });
+                }}
+                disabled={isRefreshingBearers}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 transition-colors"
+                title="Refresh latest office bearers"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isRefreshingBearers ? 'animate-spin text-emerald-600' : ''}`} />
+              </button>
+            </div>
           </div>
 
+          {/* Quick Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                value={helplineSearch}
+                onChange={(e) => setHelplineSearch(e.target.value)}
+                placeholder="Search by officer name, designation, phone, branch..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-xs"
+              />
+              {helplineSearch && (
+                <button
+                  onClick={() => setHelplineSearch('')}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {['All', "Group 'C'", 'Postman/MTS', 'AIGDSU', 'Other'].map((wing) => {
+                const isActive = helplineWingFilter === wing;
+                return (
+                  <button
+                    key={wing}
+                    onClick={() => setHelplineWingFilter(wing)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {wing}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Directory Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {OFFICE_BEARERS.slice(0, 6).map((bearer, idx) => (
-              <div
-                key={idx}
-                className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 shadow-md transition-all flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={bearer.photoUrl}
-                      alt={bearer.name}
-                      className="w-12 h-12 rounded-2xl object-cover ring-2 ring-amber-400/50 shrink-0"
-                    />
-                    <div>
-                      <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                        {bearer.name}
-                      </h4>
-                      <p className="text-xs font-bold text-red-600 dark:text-red-400">
-                        {bearer.designation}
-                      </p>
+            {filteredHelplineBearers.map((bearer, idx) => {
+              const initials = bearer.name
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0]?.toUpperCase())
+                .join('');
+              const cleanPhone = (bearer.phone || '').replace(/[^0-9+]/g, '');
+
+              return (
+                <div
+                  key={bearer.id || idx}
+                  className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 shadow-md transition-all flex flex-col justify-between group"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3.5">
+                      <div className="relative shrink-0">
+                        {bearer.photoUrl ? (
+                          <img
+                            src={bearer.photoUrl}
+                            alt={bearer.name}
+                            className="w-13 h-13 rounded-2xl object-cover ring-2 ring-amber-400/60 shadow-sm"
+                            onError={(e) => {
+                              const target = e.target as HTMLElement;
+                              target.style.display = 'none';
+                              const next = target.nextElementSibling as HTMLElement;
+                              if (next) next.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          style={{ display: bearer.photoUrl ? 'none' : 'flex' }}
+                          className="w-13 h-13 rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-amber-600 text-white flex-col items-center justify-center font-black ring-2 ring-amber-400/60 shadow-sm"
+                        >
+                          <span className="text-sm font-black">{initials || 'NFPE'}</span>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-white dark:bg-slate-900 shadow">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight group-hover:text-emerald-600 transition-colors">
+                          {bearer.name}
+                        </h4>
+                        <div className="mt-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-100 text-red-800 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900">
+                            {bearer.designation}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
+                          {bearer.branch}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl">
+                      <Building className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span className="truncate">{bearer.location}</span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    {bearer.branch} · {bearer.location}
-                  </p>
-                </div>
+                  {bearer.phone && (
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <a
+                        href={`tel:${cleanPhone}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs active:scale-95 transition-all"
+                        title={`Call ${bearer.name}`}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call</span>
+                      </a>
 
-                {bearer.phone && (
-                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <a
-                      href={`tel:${bearer.phone.replace(/[^0-9+]/g, '')}`}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{bearer.phone}</span>
-                    </a>
-                  </div>
-                )}
+                      <a
+                        href={`https://wa.me/${cleanPhone.replace('+', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs active:scale-95 transition-all"
+                        title={`WhatsApp message to ${bearer.name}`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredHelplineBearers.length === 0 && (
+              <div className="col-span-full p-8 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  No office bearers found matching "{helplineSearch}"
+                </p>
+                <button
+                  onClick={() => {
+                    setHelplineSearch('');
+                    setHelplineWingFilter('All');
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs"
+                >
+                  Clear Filters
+                </button>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}

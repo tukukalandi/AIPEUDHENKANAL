@@ -413,6 +413,8 @@ export default function App() {
                 <UserPortal
                   language={language}
                   platform={effectivePlatform}
+                  officeBearers={officeBearers}
+                  onRefreshOfficeBearers={loadOfficeBearers}
                   onNavigateTab={(tab) => {
                     setActiveTab(tab);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
