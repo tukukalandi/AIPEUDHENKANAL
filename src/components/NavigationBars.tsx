@@ -12,6 +12,7 @@ import {
   FileText,
   UserCheck,
   Menu,
+  LayoutGrid,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle } from '../types';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
@@ -165,6 +166,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 }) => {
   const isIOS = platform === 'ios';
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const [navMenuInitialSubView, setNavMenuInitialSubView] = useState<'menu' | 'apps'>('menu');
 
   // Offline Vault and Settings are accessed via the dedicated Menu button
   const navLinks: { id: ActiveTab; label: string }[] = [
@@ -183,10 +185,108 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           : 'bg-[#022A61] dark:bg-slate-900 text-white shadow-md'
       }`}
     >
-      {/* Decorative India Post Gold & Red accent hairline */}
-      <div className="h-0.5 w-full bg-gradient-to-r from-red-500 via-yellow-400 to-red-500" />
-      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-[62px] py-2 flex items-center justify-between gap-4">
-        {/* Left: Brand / Logo (Single Website Logo, Clean Title, No Phone/Email in Header) */}
+      {/* Decorative India Post Gold & Red accent hairline matching reference screenshot */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />
+
+      {/* 📱 MOBILE VIEW (< md): Exact 2-row layout matching reference screenshot image_df0433dd.png */}
+      <div className="md:hidden px-3.5 pt-3 pb-2.5 flex flex-col gap-2.5 bg-[#022A61] dark:bg-slate-900 text-white">
+        {/* Row 1: Logo on Left + Full Website Name taking entire remaining width on Right */}
+        <div
+          className="flex items-center gap-3 cursor-pointer"
+          onClick={() => onSelectTab && onSelectTab('home')}
+        >
+          {/* Emblem / Logo */}
+          <div className="w-12 h-12 rounded-full bg-white p-1 shadow-md ring-2 ring-amber-400 overflow-hidden shrink-0 flex items-center justify-center">
+            <img
+              src={PRIMARY_BRAND_LOGO}
+              alt="NFPE Official Website Logo"
+              className="w-full h-full object-contain rounded-full"
+            />
+          </div>
+
+          {/* Full Website Name: Crisp, prominent, completely readable */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-black text-white leading-snug tracking-tight">
+              NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF – Dhenkanal Division
+            </h1>
+          </div>
+        </div>
+
+        {/* Row 2: Centered Action Bar (Grid [Apps], Menu [Yellow Pill], Refresh, Share, Bell with red dot) */}
+        <div className="flex items-center justify-center gap-3 pt-1">
+          {/* 1. Grid Button (Quick Apps Launcher) */}
+          <button
+            type="button"
+            onClick={() => {
+              setNavMenuInitialSubView('apps');
+              setIsNavMenuOpen(true);
+            }}
+            className="w-10 h-10 rounded-2xl bg-white/15 hover:bg-white/25 active:bg-white/30 text-white flex items-center justify-center border border-white/10 shadow-xs transition-all active:scale-95 cursor-pointer"
+            title="My Apps & Online Tools"
+            aria-label="My Apps"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+
+          {/* 2. Menu Button (Prominent Yellow Pill matching screenshot) */}
+          <button
+            type="button"
+            onClick={() => {
+              setNavMenuInitialSubView('menu');
+              setIsNavMenuOpen(true);
+            }}
+            className="bg-[#F59E0B] hover:bg-[#EAB308] text-slate-950 font-black text-sm px-6 py-2 rounded-full shadow-md flex items-center gap-2 active:scale-95 transition-all cursor-pointer ring-1 ring-amber-300"
+            title="Open Portal Menu"
+            aria-label="Open Menu"
+          >
+            <Menu className="w-4 h-4 stroke-[2.8]" />
+            <span>Menu</span>
+            {offlineCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[9px] font-black">
+                {offlineCount}
+              </span>
+            )}
+          </button>
+
+          {/* 3. Refresh Posts Button */}
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="w-10 h-10 rounded-2xl hover:bg-white/15 text-white/90 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+            title="Refresh circulars from blog"
+            aria-label="Refresh feed"
+          >
+            <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-300' : ''}`} />
+          </button>
+
+          {/* 4. Quick Share App Button */}
+          <button
+            type="button"
+            onClick={onOpenShareModal}
+            className="w-10 h-10 rounded-2xl hover:bg-white/15 text-white/90 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+            title="Share Portal with Comrades"
+            aria-label="Share App"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+
+          {/* 5. Push Notification Center Trigger with Red Indicator Dot */}
+          <button
+            type="button"
+            onClick={onOpenNotifications}
+            className="relative w-10 h-10 rounded-2xl hover:bg-white/15 text-white/90 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+            title="Postal Circular Notifications"
+            aria-label="View notifications"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
+          </button>
+        </div>
+      </div>
+
+      {/* 💻 DESKTOP VIEW (hidden on mobile, flex on md+) */}
+      <div className="hidden md:flex w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-[62px] py-2 items-center justify-between gap-4">
+        {/* Left: Brand / Logo */}
         <div
           className="flex items-center gap-3 cursor-pointer min-w-0"
           onClick={() => onSelectTab && onSelectTab('home')}
@@ -211,9 +311,9 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           </div>
         </div>
 
-        {/* Center: Desktop Navigation Bar (Direct Full Desktop View) */}
+        {/* Center: Desktop Navigation Bar */}
         {onSelectTab && (
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-xs font-bold">
+          <nav className="flex items-center gap-1.5 lg:gap-2.5 text-xs font-bold">
             {navLinks.map((link) => {
               const isActive = activeTab === link.id;
               return (
@@ -239,15 +339,18 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* 🌟 Menu Button: Opens User Portal, Photo Gallery, My Apps, Employee Site, Offline Vault, Settings */}
+          {/* Menu Button */}
           <button
-            onClick={() => setIsNavMenuOpen(true)}
+            onClick={() => {
+              setNavMenuInitialSubView('menu');
+              setIsNavMenuOpen(true);
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs shadow-sm active:scale-95 transition-all cursor-pointer ${
               isIOS
                 ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25 ring-1 ring-amber-400'
                 : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/30 ring-2 ring-amber-300'
             }`}
-            title="Open Menu (User Portal, Photo Gallery, My Apps, Employee Site, Offline Vault, Settings)"
+            title="Open Menu"
             aria-label="Open Menu"
           >
             <Menu className="w-4 h-4 stroke-[2.5]" />
@@ -315,6 +418,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
         }}
         offlineCount={offlineCount}
         platform={platform}
+        initialSubView={navMenuInitialSubView}
       />
     </header>
   );

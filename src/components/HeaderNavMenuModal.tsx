@@ -533,47 +533,84 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
         </div>
       )}
 
-      {/* Running HTML Application Modal */}
+      {/* Full View HTML Application Runner matching reference screenshot */}
       {runningApp && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fade-in">
-          <div className="relative w-full max-w-4xl h-[85vh] bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col">
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 rounded-lg bg-red-600 text-white shadow-xs">
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm sm:text-base truncate">{runningApp.name}</h3>
-                  <span className="text-[10px] text-slate-400">{runningApp.category} • HTML Application</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIframeKey((k) => k + 1)}
-                  title="Reload App"
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRunningApp(null)}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        <div className="fixed inset-0 z-[120] bg-[#f1f3f6] flex flex-col overflow-hidden animate-fade-in">
+          {/* Floating Top Left Back Button matching screenshot */}
+          <div className="fixed top-3.5 left-4 z-50">
+            <button
+              type="button"
+              onClick={() => setRunningApp(null)}
+              className="bg-white hover:bg-slate-50 text-slate-800 font-semibold px-4 py-2 rounded-xl border border-slate-300 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 text-sm"
+              title="Back to My Apps"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700" />
+              <span>Back</span>
+            </button>
+          </div>
+
+          {/* Floating Top Right Controls */}
+          <div className="fixed top-3.5 right-4 z-50 flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs text-xs font-semibold text-slate-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="truncate max-w-[200px]">{runningApp.name}</span>
             </div>
-            <div className="flex-1 bg-white relative">
+            <button
+              type="button"
+              onClick={() => setIframeKey((k) => k + 1)}
+              title="Reload Tool"
+              className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+            {runningApp.codeSnippet && (
+              <button
+                type="button"
+                onClick={() => {
+                  const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
+                  const blobUrl = URL.createObjectURL(blob);
+                  window.open(blobUrl, '_blank');
+                }}
+                title="Open in Full Browser Tab"
+                className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setRunningApp(null)}
+              title="Close Full View"
+              className="bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Sandboxed Full View iframe */}
+          <div className="flex-1 w-full h-full bg-[#f1f3f6] overflow-auto">
+            {runningApp.codeSnippet ? (
               <iframe
                 key={iframeKey}
                 title={runningApp.name}
                 sandbox="allow-scripts allow-forms allow-modals"
                 srcDoc={runningApp.codeSnippet}
-                className="w-full h-full border-0 bg-white"
+                className="w-full h-full min-h-screen border-0 bg-[#f1f3f6]"
               />
-            </div>
+            ) : (
+              <div className="w-full min-h-screen flex flex-col items-center justify-center p-6 text-center">
+                <p className="text-sm font-semibold text-slate-700 mb-3">This card points to an external website URL.</p>
+                <a
+                  href={runningApp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold inline-flex items-center gap-2 shadow-sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open External Website</span>
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

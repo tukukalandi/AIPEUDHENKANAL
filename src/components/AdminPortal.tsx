@@ -4103,88 +4103,84 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <Home className="w-5 h-5" />
             </button>
           </div>
-          {/* Sandboxed HTML Application Runner Modal */}
+          {/* Full View HTML Application Runner matching reference screenshot */}
           {runningApp && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-3xl w-full max-w-5xl h-[88vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-                {/* Modal Top Bar */}
-                <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between gap-3 shrink-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 rounded-xl bg-red-600 text-white shrink-0 shadow-sm">
-                      <Play className="w-4 h-4 fill-current" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm sm:text-base truncate">{runningApp.name}</h3>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
-                          {runningApp.category || 'Others'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 truncate">
-                        Sandboxed HTML5 / JavaScript Execution Environment
-                      </p>
-                    </div>
-                  </div>
+            <div className="fixed inset-0 z-[120] bg-[#f1f3f6] flex flex-col overflow-hidden animate-fade-in">
+              {/* Floating Top Left Back Button matching screenshot */}
+              <div className="fixed top-3.5 left-4 z-50">
+                <button
+                  type="button"
+                  onClick={() => setRunningApp(null)}
+                  className="bg-white hover:bg-slate-50 text-slate-800 font-semibold px-4 py-2 rounded-xl border border-slate-300 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 text-sm"
+                  title="Back to My Apps"
+                >
+                  <ArrowLeft className="w-4 h-4 text-slate-700" />
+                  <span>Back</span>
+                </button>
+              </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setIframeKey((k) => k + 1)}
-                      title="Reload App"
-                      className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                    {runningApp.codeSnippet && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
-                          const blobUrl = URL.createObjectURL(blob);
-                          window.open(blobUrl, '_blank');
-                        }}
-                        title="Open in New Tab"
-                        className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setRunningApp(null)}
-                      title="Close"
-                      className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+              {/* Floating Top Right Controls */}
+              <div className="fixed top-3.5 right-4 z-50 flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs text-xs font-semibold text-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="truncate max-w-[200px]">{runningApp.name}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIframeKey((k) => k + 1)}
+                  title="Reload Tool"
+                  className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                {runningApp.codeSnippet && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
+                      const blobUrl = URL.createObjectURL(blob);
+                      window.open(blobUrl, '_blank');
+                    }}
+                    title="Open in Full Browser Tab"
+                    className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRunningApp(null)}
+                  title="Close Full View"
+                  className="bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-                {/* Sandboxed iframe */}
-                <div className="flex-1 bg-slate-50 relative overflow-hidden">
-                  {runningApp.codeSnippet ? (
-                    <iframe
-                      key={iframeKey}
-                      title={runningApp.name}
-                      sandbox="allow-scripts allow-forms allow-modals"
-                      srcDoc={runningApp.codeSnippet}
-                      className="w-full h-full border-0 bg-white"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                      <p className="text-sm text-slate-600 mb-3">This card points to an external website URL.</p>
-                      <a
-                        href={runningApp.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Open External URL</span>
-                      </a>
-                    </div>
-                  )}
-                </div>
+              {/* Sandboxed Full View iframe */}
+              <div className="flex-1 w-full h-full bg-[#f1f3f6] overflow-auto">
+                {runningApp.codeSnippet ? (
+                  <iframe
+                    key={iframeKey}
+                    title={runningApp.name}
+                    sandbox="allow-scripts allow-forms allow-modals"
+                    srcDoc={runningApp.codeSnippet}
+                    className="w-full h-full min-h-screen border-0 bg-[#f1f3f6]"
+                  />
+                ) : (
+                  <div className="w-full min-h-screen flex flex-col items-center justify-center p-6 text-center">
+                    <p className="text-sm font-semibold text-slate-700 mb-3">This card points to an external website URL.</p>
+                    <a
+                      href={runningApp.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold inline-flex items-center gap-2 shadow-sm"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Open External Website</span>
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           )}
