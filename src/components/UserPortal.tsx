@@ -21,12 +21,16 @@ import {
   RotateCw,
   MessageSquare,
   CheckCircle,
+  Users,
+  MapPin,
+  BadgeCheck,
 } from 'lucide-react';
-import { AppLanguage, PlatformStyle, OfficeBearer } from '../types';
+import { AppLanguage, PlatformStyle, OfficeBearer, MemberProfile } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { UNION_CONTACT_INFO, UNION_BRANCHES, OFFICE_BEARERS } from '../data/unionInfo';
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
 import { getExecutiveMembersFromFirestore } from '../services/firebase';
+import { getMembersFromFirestore } from '../services/memberService';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberArea } from './MemberArea';
 
@@ -61,7 +65,62 @@ export const UserPortal: React.FC<UserPortalProps> = ({
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
-  const [activeSubTab, setActiveSubTab] = useState<'member-area' | 'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('member-area');
+  const [activeSubTab, setActiveSubTab] = useState<'member-area' | 'member-list' | 'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('member-area');
+
+  // 👥 Members directory state
+  const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [memberCadreFilter, setMemberCadreFilter] = useState('All');
+  const [memberStatusFilter, setMemberStatusFilter] = useState('All');
+
+  const fetchPortalMembers = async () => {
+    try {
+      setIsLoadingMembers(true);
+      const data = await getMembersFromFirestore();
+      setMembers(data);
+    } catch (err) {
+      console.warn('Error fetching members in UserPortal:', err);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPortalMembers();
+    const handleMembersUpdated = () => {
+      fetchPortalMembers();
+    };
+    window.addEventListener('members-updated', handleMembersUpdated);
+    return () => window.removeEventListener('members-updated', handleMembersUpdated);
+  }, []);
+
+  const memberCadres = useMemo(() => {
+    const list = Array.from(new Set(members.map((m) => m.cadre?.trim()).filter(Boolean)));
+    return ['All', ...list];
+  }, [members]);
+
+  const filteredMembers = useMemo(() => {
+    const q = memberSearchQuery.toLowerCase().trim();
+    return members.filter((m) => {
+      const matchesSearch =
+        !q ||
+        (m.name && m.name.toLowerCase().includes(q)) ||
+        (m.fullName && m.fullName.toLowerCase().includes(q)) ||
+        (m.membershipId && m.membershipId.toLowerCase().includes(q)) ||
+        (m.cadre && m.cadre.toLowerCase().includes(q)) ||
+        (m.office && m.office.toLowerCase().includes(q)) ||
+        (m.division && m.division.toLowerCase().includes(q));
+
+      const matchesCadre =
+        memberCadreFilter === 'All' || m.cadre?.trim().toLowerCase() === memberCadreFilter.toLowerCase();
+
+      const matchesStatus =
+        memberStatusFilter === 'All' || m.status?.toLowerCase() === memberStatusFilter.toLowerCase();
+
+      return matchesSearch && matchesCadre && matchesStatus;
+    });
+  }, [members, memberSearchQuery, memberCadreFilter, memberStatusFilter]);
 
   // 🏛️ Dynamic Office Bearers state (auto-synced with changes in Office Bearers / Admin)
   const [bearers, setBearers] = useState<OfficeBearer[]>(() => {
@@ -366,6 +425,18 @@ export const UserPortal: React.FC<UserPortalProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveSubTab('member-list')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
+            activeSubTab === 'member-list'
+              ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Members Directory ({members.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('grievance')}
           className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
             activeSubTab === 'grievance'
@@ -431,6 +502,267 @@ export const UserPortal: React.FC<UserPortalProps> = ({
       {/* ================= 0. MEMBER AREA (LOGIN, PROFILE, ID CARD) ================= */}
       {activeSubTab === 'member-area' && (
         <MemberArea />
+      )}
+
+      {/* ================= 0.5. MEMBERS DIRECTORY / LIST ================= */}
+      {activeSubTab === 'member-list' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header Banner */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 dark:border-slate-800 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Union Members Directory
+                </h3>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                Official register of enrolled comrades across Dhenkanal Head Post Office, sub-post offices, and branch offices.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-200 dark:border-blue-900">
+                {members.length} Enrolled Members
+              </span>
+              <button
+                onClick={fetchPortalMembers}
+                disabled={isLoadingMembers}
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                title="Refresh Member List"
+              >
+                <RotateCw className={`w-4 h-4 ${isLoadingMembers ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Search & Filter Controls */}
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                placeholder="Search member by Comrade name, Membership ID (e.g. AIPEU-DKL-1001), Cadre, or Office..."
+                className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+              {memberSearchQuery && (
+                <button
+                  onClick={() => setMemberSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Cadre Filter Pills */}
+            <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <span>Filter by Cadre:</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+                {memberCadres.map((cadre) => {
+                  const isActive = memberCadreFilter === cadre;
+                  return (
+                    <button
+                      key={cadre}
+                      onClick={() => setMemberCadreFilter(cadre)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {cadre === 'All' ? 'All Cadres' : cadre}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Status:</span>
+              {['All', 'Active', 'Pending', 'Expired'].map((status) => {
+                const isActive = memberStatusFilter === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setMemberStatusFilter(status)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? status === 'Active'
+                          ? 'bg-emerald-600 text-white'
+                          : status === 'Pending'
+                          ? 'bg-amber-600 text-white'
+                          : status === 'Expired'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-slate-800 text-white dark:bg-white dark:text-slate-900'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Members Cards Grid */}
+          {isLoadingMembers ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <div
+                  key={n}
+                  className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 animate-pulse space-y-3"
+                >
+                  <div className="w-12 h-12 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+                  <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded-md w-3/4"></div>
+                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-md w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          ) : filteredMembers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
+              {filteredMembers.map((member) => {
+                const initials = (member.name || member.fullName || 'Member')
+                  .replace(/Comrade|Com\./gi, '')
+                  .trim()
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0]?.toUpperCase())
+                  .join('');
+
+                const isStatusActive = member.status === 'Active';
+                const isStatusPending = member.status === 'Pending';
+
+                return (
+                  <div
+                    key={member.id}
+                    className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-blue-500/80 shadow-md hover:shadow-xl transition-all duration-200 flex flex-col justify-between group"
+                  >
+                    <div className="space-y-3.5">
+                      {/* Top: Avatar & Identifiers */}
+                      <div className="flex items-start gap-3.5">
+                        <div className="relative shrink-0">
+                          {member.photoUrl ? (
+                            <img
+                              src={member.photoUrl}
+                              alt={member.name}
+                              className="w-13 h-13 rounded-2xl object-cover ring-2 ring-amber-400 shadow-sm"
+                              onError={(e) => {
+                                const target = e.target as HTMLElement;
+                                target.style.display = 'none';
+                                const next = target.nextElementSibling as HTMLElement;
+                                if (next) next.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: member.photoUrl ? 'none' : 'flex' }}
+                            className="w-13 h-13 rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-amber-600 text-white flex items-center justify-center font-black ring-2 ring-amber-400 shadow-sm"
+                          >
+                            <span className="text-sm font-black">{initials || 'AIPEU'}</span>
+                          </div>
+
+                          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-white dark:bg-slate-900 shadow">
+                            <BadgeCheck
+                              className={`w-4 h-4 ${
+                                isStatusActive
+                                  ? 'text-emerald-500'
+                                  : isStatusPending
+                                  ? 'text-amber-500'
+                                  : 'text-slate-400'
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono text-[10px] font-black tracking-wider uppercase text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/70 px-2 py-0.5 rounded-md">
+                              {member.membershipId}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                isStatusActive
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : isStatusPending
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                              }`}
+                            >
+                              {member.status}
+                            </span>
+                          </div>
+
+                          <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white mt-1 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                            {member.name || member.fullName}
+                          </h4>
+
+                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                            {member.cadre}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Details Box */}
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{member.office || 'Dhenkanal HO'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{member.division || 'Dhenkanal'} Division</span>
+                        </div>
+                        {member.dateOfJoining && (
+                          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px]">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>Joined: {member.dateOfJoining}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Valid: {member.validTo ? `${member.validFrom?.split('-')[0] || '2026'}-${member.validTo?.split('-')[0] || '2027'}` : 'Annual Regular'}</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span>AIPEU Comrade</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+                <Users className="w-6 h-6" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800 dark:text-white">
+                No Members Found
+              </h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No registered union members matched "{memberSearchQuery}".
+              </p>
+              <button
+                onClick={() => {
+                  setMemberSearchQuery('');
+                  setMemberCadreFilter('All');
+                  setMemberStatusFilter('All');
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors cursor-pointer"
+              >
+                Reset Search Filters
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ================= 1. SUBMIT GRIEVANCE SECTION ================= */}

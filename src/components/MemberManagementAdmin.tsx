@@ -36,6 +36,7 @@ import {
   getMembersFromFirestore,
   addMemberToFirestore,
   updateMemberInFirestore,
+  deleteMemberFromFirestore,
   changeMemberStatus,
   adminResetMemberPassword,
   getProfileUpdateRequests,
@@ -45,6 +46,8 @@ import {
   getMemberAuditLogs,
   getMemberCards,
   NewMemberInput,
+  INITIAL_SAMPLE_MEMBERS,
+  seedInitialMembersIfEmpty,
 } from '../services/memberService';
 
 interface MemberManagementAdminProps {
@@ -68,6 +71,32 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
   const [editingMember, setEditingMember] = useState<MemberProfile | null>(null);
   const [resetPassMember, setResetPassMember] = useState<MemberProfile | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
+
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    memberId: string;
+    membershipId: string;
+    memberName: string;
+  } | null>(null);
+
+  const [statusConfirmModal, setStatusConfirmModal] = useState<{
+    isOpen: boolean;
+    member: MemberProfile;
+    newStatus: MemberStatus;
+  } | null>(null);
+
+  const [cardIssueModal, setCardIssueModal] = useState<{
+    isOpen: boolean;
+    member: MemberProfile;
+    action: 'Generate' | 'Reissue';
+  } | null>(null);
+
+  const [reviewModal, setReviewModal] = useState<{
+    isOpen: boolean;
+    req: ProfileUpdateRequest;
+    decision: 'Approved' | 'Rejected';
+    remarks: string;
+  } | null>(null);
 
   const [revokeCardModal, setRevokeCardModal] = useState<{
     isOpen: boolean;
@@ -194,36 +223,52 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
         editingMember,
         'Admin Portal (Divisional Secretary)'
       );
-      onNotify(`✅ Updated record for ${editingMember.name} (${editingMember.membershipId})`);
+      onNotify(`✅ Successfully updated record for ${editingMember.name} (${editingMember.membershipId})`);
       setEditingMember(null);
-      loadData();
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update member.');
+      onNotify(`❌ Failed to update member: ${err.message || 'Error saving changes'}`);
     }
   };
 
-  // Handle Quick Status Change
-  const handleStatusChange = async (member: MemberProfile, newStatus: MemberStatus) => {
-    if (!window.confirm(`Are you sure you want to change status of ${member.name} to ${newStatus}?`)) return;
+  // Handle Quick Status Change confirmation
+  const handleConfirmStatusChange = async () => {
+    if (!statusConfirmModal) return;
+    const { member, newStatus } = statusConfirmModal;
     try {
       await changeMemberStatus(member.id, newStatus, 'Divisional admin update', 'Divisional Secretary');
       onNotify(`✅ Status changed to ${newStatus} for ${member.name}`);
-      loadData();
+      setStatusConfirmModal(null);
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update status.');
+      onNotify(`❌ Failed to update status: ${err.message}`);
     }
   };
 
-  // Handle Card Issue / Reissue
-  const handleIssueOrReissueCard = async (member: MemberProfile) => {
-    const actionName = member.activeCardToken ? 'Reissue' : 'Generate';
-    if (!window.confirm(`Confirm: ${actionName} Digital Membership Card for ${member.name}? Previous card QR tokens will be invalidated.`)) return;
+  // Handle Card Issue / Reissue confirmation
+  const handleConfirmCardIssue = async () => {
+    if (!cardIssueModal) return;
+    const { member, action } = cardIssueModal;
     try {
-      await generateOrReissueMembershipCard(member, 'Divisional Secretary', `${actionName} requested via Admin`);
-      onNotify(`✅ Digital Card successfully ${actionName.toLowerCase()}d with a live verification token!`);
-      loadData();
+      await generateOrReissueMembershipCard(member, 'Divisional Secretary', `${action} requested via Admin`);
+      onNotify(`✅ Digital Card successfully ${action.toLowerCase()}d with a live verification token!`);
+      setCardIssueModal(null);
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to generate card.');
+      onNotify(`❌ Failed to generate card: ${err.message}`);
+    }
+  };
+
+  // Handle Delete Member Confirmation
+  const handleConfirmDeleteMember = async () => {
+    if (!deleteConfirmModal) return;
+    try {
+      await deleteMemberFromFirestore(deleteConfirmModal.memberId, 'Divisional Secretary');
+      onNotify(`🗑️ Member ${deleteConfirmModal.memberName} (${deleteConfirmModal.membershipId}) removed from register.`);
+      setDeleteConfirmModal(null);
+      await loadData();
+    } catch (err: any) {
+      onNotify(`❌ Failed to delete member: ${err.message}`);
     }
   };
 
@@ -239,22 +284,27 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       onNotify(`🚫 Card for ${revokeCardModal.membershipId} revoked and QR verification invalidated.`);
       setRevokeCardModal(null);
       setRevokeReason('');
-      loadData();
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to revoke card.');
+      onNotify(`❌ Failed to revoke card: ${err.message}`);
     }
   };
 
   // Handle Review Profile Update Request
-  const handleReviewRequest = async (req: ProfileUpdateRequest, decision: 'Approved' | 'Rejected') => {
-    const remarks = window.prompt(`Enter remarks for ${decision} of update request #${req.id.slice(0, 8)}:`, '');
-    if (remarks === null) return;
+  const handleConfirmReviewRequest = async () => {
+    if (!reviewModal) return;
     try {
-      await reviewProfileUpdateRequest(req.id, decision, remarks, 'Divisional Secretary');
-      onNotify(`✅ Request #${req.id.slice(0, 8)} marked as ${decision}.`);
-      loadData();
+      await reviewProfileUpdateRequest(
+        reviewModal.req.id,
+        reviewModal.decision,
+        reviewModal.remarks || `${reviewModal.decision} by Divisional Secretary`,
+        'Divisional Secretary'
+      );
+      onNotify(`✅ Request #${reviewModal.req.id.slice(0, 8)} marked as ${reviewModal.decision}.`);
+      setReviewModal(null);
+      await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to process request.');
+      onNotify(`❌ Failed to process request: ${err.message}`);
     }
   };
 
@@ -272,7 +322,21 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       setResetPassMember(null);
       setNewPasswordInput('');
     } catch (err: any) {
-      alert(err.message || 'Failed to reset password.');
+      onNotify(`❌ Failed to reset password: ${err.message}`);
+    }
+  };
+
+  // Restore sample members
+  const handleRestoreSampleMembers = async () => {
+    setLoading(true);
+    try {
+      await seedInitialMembersIfEmpty();
+      await loadData();
+      onNotify('✅ Initial Dhenkanal Union members loaded successfully!');
+    } catch (err: any) {
+      onNotify(`❌ Error loading members: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -457,7 +521,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
         <div className="space-y-4">
           {/* Search & Filter Controls */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -468,6 +532,16 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                   className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#022A61]"
                 />
               </div>
+
+              {/* + Add Member button directly accessible */}
+              <button
+                type="button"
+                onClick={() => setSubTab('add')}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-all"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add Member</span>
+              </button>
 
               {/* Status filter */}
               <div className="flex items-center gap-1 shrink-0 overflow-x-auto py-1">
@@ -547,8 +621,41 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                 <tbody className="divide-y divide-slate-100">
                   {filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                        No members found matching your search criteria.
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
+                            <Users className="w-6 h-6" />
+                          </div>
+                          <p className="font-bold text-slate-800 text-sm">
+                            {members.length === 0
+                              ? 'No union members found in the Dhenkanal Division database.'
+                              : 'No members match your search or filter criteria.'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {members.length === 0
+                              ? 'You can initialize the directory with verified Dhenkanal Division members or enroll a new member.'
+                              : 'Try adjusting your search query, cadre, or status filter.'}
+                          </p>
+                          <div className="flex items-center justify-center gap-2 pt-2">
+                            {members.length === 0 && (
+                              <button
+                                type="button"
+                                onClick={handleRestoreSampleMembers}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-all"
+                              >
+                                Load Sample Members
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setSubTab('add')}
+                              className="px-4 py-2 bg-[#022A61] hover:bg-[#0A3D80] text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>+ Add Member</span>
+                            </button>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -586,27 +693,55 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                         </td>
 
                         <td className="px-4 py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block ${
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextStatus: MemberStatus =
+                                m.status === 'Active' ? 'Pending' : m.status === 'Pending' ? 'Active' : 'Active';
+                              setStatusConfirmModal({
+                                isOpen: true,
+                                member: m,
+                                newStatus: nextStatus,
+                              });
+                            }}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block cursor-pointer hover:opacity-80 transition-opacity ${
                               m.status === 'Active'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : m.status === 'Pending'
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-red-100 text-red-800'
                             }`}
+                            title="Click to toggle status"
                           >
-                            {m.status}
-                          </span>
+                            {m.status} ▾
+                          </button>
                         </td>
 
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {/* Edit Member Details */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingMember({ ...m })}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-[#022A61] hover:text-white text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Edit Member Information"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+
                             {/* Card Generation / Reissue */}
                             {m.status === 'Active' && (
                               <button
                                 type="button"
-                                onClick={() => handleIssueOrReissueCard(m)}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                onClick={() =>
+                                  setCardIssueModal({
+                                    isOpen: true,
+                                    member: m,
+                                    action: m.activeCardToken ? 'Reissue' : 'Generate',
+                                  })
+                                }
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
                                 title={m.activeCardToken ? 'Reissue Digital Card' : 'Generate Digital Card'}
                               >
                                 <CreditCard className="w-4 h-4" />
@@ -625,22 +760,12 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                                     memberName: m.name,
                                   })
                                 }
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                                 title="Revoke Digital Card"
                               >
                                 <ShieldAlert className="w-4 h-4" />
                               </button>
                             )}
-
-                            {/* Edit Member Details */}
-                            <button
-                              type="button"
-                              onClick={() => setEditingMember(m)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-                              title="Edit Member Information"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
 
                             {/* Reset Password */}
                             <button
@@ -649,23 +774,28 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                                 setResetPassMember(m);
                                 setNewPasswordInput('Member@1234');
                               }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
                               title="Reset Password"
                             >
                               <KeyRound className="w-4 h-4" />
                             </button>
 
-                            {/* Quick Status toggle: Pending -> Approve */}
-                            {m.status === 'Pending' && (
-                              <button
-                                type="button"
-                                onClick={() => handleStatusChange(m, 'Active')}
-                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px]"
-                                title="Approve Pending Application"
-                              >
-                                Approve
-                              </button>
-                            )}
+                            {/* Delete Member */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteConfirmModal({
+                                  isOpen: true,
+                                  memberId: m.id,
+                                  membershipId: m.membershipId,
+                                  memberName: m.name,
+                                })
+                              }
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Delete Member"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -759,15 +889,29 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                       <button
                         type="button"
-                        onClick={() => handleReviewRequest(req, 'Rejected')}
-                        className="px-4 py-1.5 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 font-bold text-xs"
+                        onClick={() =>
+                          setReviewModal({
+                            isOpen: true,
+                            req,
+                            decision: 'Rejected',
+                            remarks: 'Rejected by Divisional Secretary',
+                          })
+                        }
+                        className="px-4 py-1.5 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 font-bold text-xs cursor-pointer"
                       >
                         Reject Request
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleReviewRequest(req, 'Approved')}
-                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
+                        onClick={() =>
+                          setReviewModal({
+                            isOpen: true,
+                            req,
+                            decision: 'Approved',
+                            remarks: 'Approved by Divisional Secretary',
+                          })
+                        }
+                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer"
                       >
                         Approve &amp; Update Record
                       </button>
@@ -1234,6 +1378,151 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                 className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs"
               >
                 Confirm Revocation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE MEMBER MODAL ================= */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-3">
+              <Trash2 className="w-6 h-6 stroke-[2.2]" />
+            </div>
+            <h4 className="font-black text-base text-slate-900 mb-1">
+              Delete Member Record?
+            </h4>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Are you sure you want to remove <strong className="text-slate-900">{deleteConfirmModal.memberName}</strong> (<span className="font-mono text-red-600 font-bold">{deleteConfirmModal.membershipId}</span>) from the official union register?
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteMember}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs cursor-pointer"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= STATUS CHANGE MODAL ================= */}
+      {statusConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-3">
+              <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
+            </div>
+            <h4 className="font-black text-base text-slate-900 mb-1">
+              Change Membership Status?
+            </h4>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              Update status of <strong className="text-slate-900">{statusConfirmModal.member.name}</strong> from <span className="font-bold">{statusConfirmModal.member.status}</span> to <span className="font-black text-blue-900">{statusConfirmModal.newStatus}</span>?
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmStatusChange}
+                className="flex-1 py-2.5 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold shadow-xs cursor-pointer"
+              >
+                Confirm Change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DIGITAL CARD ISSUE / REISSUE MODAL ================= */}
+      {cardIssueModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 text-[#022A61] flex items-center justify-center mb-3">
+              <CreditCard className="w-6 h-6 stroke-[2.2]" />
+            </div>
+            <h4 className="font-black text-base text-slate-900 mb-1">
+              {cardIssueModal.action} Digital Membership Card
+            </h4>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              {cardIssueModal.action === 'Reissue'
+                ? `Reissuing this digital card for ${cardIssueModal.member.name} will generate a new verification token and invalidate previous card tokens.`
+                : `Generate a new digital membership card with a verified QR token for ${cardIssueModal.member.name}.`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCardIssueModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCardIssue}
+                className="flex-1 py-2.5 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold shadow-xs cursor-pointer"
+              >
+                {cardIssueModal.action} Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= UPDATE REQUEST REVIEW MODAL ================= */}
+      {reviewModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl">
+            <h4 className="font-black text-base text-slate-900 mb-1">
+              {reviewModal.decision} Profile Update Request
+            </h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Member: <strong className="text-slate-800">{reviewModal.req.memberName}</strong> ({reviewModal.req.membershipId})
+            </p>
+            <div className="mb-4">
+              <label className="font-bold text-slate-700 block mb-1 text-xs">
+                Administrative Remarks
+              </label>
+              <input
+                type="text"
+                value={reviewModal.remarks}
+                onChange={(e) => setReviewModal({ ...reviewModal, remarks: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
+                placeholder="Enter remarks..."
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setReviewModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-700 cursor-pointer text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReviewRequest}
+                className={`flex-1 py-2.5 rounded-xl font-bold shadow-xs cursor-pointer text-xs text-white ${
+                  reviewModal.decision === 'Approved' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                Confirm {reviewModal.decision}
               </button>
             </div>
           </div>

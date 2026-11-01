@@ -116,13 +116,28 @@
       },
       "required": ["title", "link", "type"]
     },
+    "OrderRulingGuide": {
+      "title": "OrderRulingGuide",
+      "description": "Uploaded postal department orders, union rulings, and cadre guides in card view",
+      "type": "object",
+      "properties": {
+        "fileName": { "type": "string", "description": "Display name of the uploaded document or order file" },
+        "folderName": { "type": "string", "description": "Folder grouping name (e.g. Postal Manuals, Rule 38 Transfers)" },
+        "category": { "type": "string", "description": "Category badge (Orders, Rulings, Guide, Manuals, etc.)" },
+        "documentUrl": { "type": "string", "description": "Direct URL or Google Drive link to document" },
+        "published": { "type": "string", "description": "Date published (YYYY-MM-DD)" },
+        "order": { "type": "number", "description": "Display order index" },
+        "notes": { "type": "string", "description": "Optional notes or details" }
+      },
+      "required": ["fileName", "folderName", "category", "documentUrl"]
+    },
     "MemberProfile": {
       "title": "MemberProfile",
       "description": "Official union member profile record in Dhenkanal Division",
       "type": "object",
       "properties": {
         "membershipId": { "type": "string", "description": "Unique format AIPEU-DKL-XXXX" },
-        "fullName": { "type": "string", "description": "Member's full name" },
+        "name": { "type": "string", "description": "Member's full name" },
         "mobile": { "type": "string", "description": "10-digit registered mobile number" },
         "email": { "type": "string", "description": "Member email" },
         "cadre": { "type": "string", "description": "Designation/Cadre" },
@@ -136,7 +151,7 @@
         "photoUrl": { "type": "string", "description": "Member photo" },
         "activeCardId": { "type": "string", "description": "ID of current issued membership card" }
       },
-      "required": ["membershipId", "fullName", "mobile", "cadre", "office", "division", "status"]
+      "required": ["membershipId", "name", "mobile", "cadre", "office", "division", "status"]
     },
     "MemberCredential": {
       "title": "MemberCredential",
@@ -238,6 +253,10 @@
     "/unionDocumentsAndRulings/{docId}": {
       "schema": "UnionDocumentRuling",
       "description": "Trade union rulings, Constitution, Form B, and grievance documents managed in Executive Bearer section"
+    },
+    "/ordersRulingsGuides/{docId}": {
+      "schema": "OrderRulingGuide",
+      "description": "Uploaded postal department orders, union rulings, and cadre guides in card view"
     },
     "/members/{memberId}": {
       "schema": "MemberProfile",

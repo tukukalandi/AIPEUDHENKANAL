@@ -20,6 +20,7 @@ import {
   Play,
   FileCode,
   RotateCcw,
+  BookOpen,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle, GalleryPhoto, CustomPortalApp, EmployeeResource } from '../types';
 import {
@@ -84,6 +85,19 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       badgeBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300',
       action: () => {
         onSelectTab('user-portal');
+        onClose();
+      },
+    },
+    {
+      id: 'orders-rulings-guide',
+      title: 'Orders/Rullings/Guide',
+      desc: 'Postal department orders, union rulings, guidelines and handbooks in card view',
+      count: 'Official Docs',
+      icon: BookOpen,
+      gradient: 'from-rose-600 to-red-700',
+      badgeBg: 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300',
+      action: () => {
+        onSelectTab('orders-rulings-guide');
         onClose();
       },
     },

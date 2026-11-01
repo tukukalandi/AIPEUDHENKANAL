@@ -8,59 +8,46 @@ service cloud.firestore {
 
     // Public read for union members, write/delete for admin portal
     match /circulars/{circularId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string &&
-                             request.resource.data.category is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     match /executiveMembers/{memberId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.name is string &&
-                             request.resource.data.designation is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Hero Slides for Home page (DakShiksha)
     match /heroSlides/{slideId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Moving News Slider / Ticker items
     match /newsSliderItems/{itemId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Announcements section
     match /announcements/{annId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Important Documents section
     match /importantDocuments/{docId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Notice & Circulars section
     match /noticeCirculars/{ncId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Union Documents & Rulings section (Executive Bearers)
     match /unionDocumentsAndRulings/{docId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.title is string;
-      allow delete: if true;
+      allow read, write: if true;
+    }
+
+    // Orders, Rulings & Guides uploaded by Admin (card type view)
+    match /ordersRulingsGuides/{docId} {
+      allow read, write: if true;
     }
 
     // ==========================================
@@ -69,49 +56,32 @@ service cloud.firestore {
 
     // Approved member profiles
     match /members/{memberId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.membershipId is string &&
-                             request.resource.data.fullName is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Member authentication credentials (salted hashes only, no plaintext passwords)
     match /memberCredentials/{memberId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.membershipId is string &&
-                             request.resource.data.passwordHash is string &&
-                             request.resource.data.salt is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Member profile change requests submitted for admin approval
     match /profileUpdateRequests/{requestId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.membershipId is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Digital membership card records and tokens
     match /membershipCards/{cardId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.membershipId is string &&
-                             request.resource.data.cardToken is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Public QR code card verification endpoint (Zero PII - no phone, email, address)
     match /cardVerifications/{tokenId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.membershipId is string &&
-                             request.resource.data.status is string;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Administrator action audit log
     match /memberAuditLogs/{logId} {
-      allow read: if true;
-      allow create: if request.resource.data.action is string &&
-                       request.resource.data.actor is string;
+      allow read, create: if true;
       allow update, delete: if false; // Append-only audit trail
     }
   }

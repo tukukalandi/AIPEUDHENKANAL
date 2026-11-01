@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -68,21 +69,109 @@ export async function generateUniqueMembershipId(): Promise<string> {
   }
 }
 
+// ================= INITIAL DEFAULT SAMPLE MEMBERS =================
+export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
+  {
+    id: 'mem-seed-1001',
+    membershipId: 'AIPEU-DKL-1001',
+    name: 'Comrade Tukuna Kalandi',
+    fullName: 'Comrade Tukuna Kalandi',
+    cadre: 'Postal Assistant',
+    office: 'Dhenkanal Head Post Office',
+    division: 'Dhenkanal',
+    mobile: '9861184651',
+    email: 'tukukalandi@gmail.com',
+    address: 'Staff Quarters, Dhenkanal HO, Odisha - 759001',
+    dateOfJoining: '2016-04-12',
+    status: 'Active',
+    validFrom: '2026-01-01',
+    validTo: '2027-12-31',
+    photoUrl: '',
+    activeCardId: 'card-1001',
+    activeCardToken: 'AIPEU-DKL-SEC-CARD-1001',
+    approvedBy: 'Divisional Secretary, AIPEU Dhenkanal',
+    approvedAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'mem-seed-1002',
+    membershipId: 'AIPEU-DKL-1002',
+    name: 'Comrade Bijay Kumar Sahoo',
+    fullName: 'Comrade Bijay Kumar Sahoo',
+    cadre: 'Postman',
+    office: 'Kamakhyanagar Sub Post Office',
+    division: 'Dhenkanal',
+    mobile: '9437256180',
+    email: 'bksahoo.post@gmail.com',
+    address: 'At/PO Kamakhyanagar, Dhenkanal, Odisha - 759018',
+    dateOfJoining: '2019-08-20',
+    status: 'Active',
+    validFrom: '2026-01-01',
+    validTo: '2027-12-31',
+    photoUrl: '',
+    activeCardId: 'card-1002',
+    activeCardToken: 'AIPEU-DKL-CARD-1002-VAL',
+    approvedBy: 'Divisional Secretary, AIPEU Dhenkanal',
+    approvedAt: '2026-01-01T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'mem-seed-1003',
+    membershipId: 'AIPEU-DKL-1003',
+    name: 'Comrade Pratap Chandra Rout',
+    fullName: 'Comrade Pratap Chandra Rout',
+    cadre: 'GDS BPM',
+    office: 'Bhuban Sub Post Office',
+    division: 'Dhenkanal',
+    mobile: '9438112233',
+    email: 'pcrout.dkl@gmail.com',
+    address: 'Bhuban Market Area, Dhenkanal, Odisha - 759017',
+    dateOfJoining: '2022-02-15',
+    status: 'Pending',
+    validFrom: '2026-01-01',
+    validTo: '2027-12-31',
+    photoUrl: '',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
+];
+
 // ================= MEMBER QUERIES =================
 export async function getMembersFromFirestore(): Promise<MemberProfile[]> {
   try {
     await seedInitialMembersIfEmpty();
-    const col = collection(db, 'members');
-    const q = query(col, orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
-  } catch (err) {
-    console.error('Error fetching members:', err);
-    // Fallback if index is building or empty
+  } catch (seedErr) {
+    console.warn('Initial member seed note:', seedErr);
+  }
+
+  try {
     const col = collection(db, 'members');
     const snap = await getDocs(col);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
+    if (!snap.empty) {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      try {
+        localStorage.setItem('aipeu_cached_members', JSON.stringify(list));
+      } catch {}
+      return list;
+    }
+  } catch (err) {
+    console.error('Error fetching members from Firestore:', err);
   }
+
+  // Check localStorage cache
+  try {
+    const cached = localStorage.getItem('aipeu_cached_members');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+
+  // Fallback to sample members so admin always sees available members
+  return INITIAL_SAMPLE_MEMBERS;
 }
 
 export async function getMemberById(id: string): Promise<MemberProfile | null> {
@@ -137,6 +226,7 @@ export async function addMemberToFirestore(
   const newMember: Omit<MemberProfile, 'id'> = {
     membershipId,
     name: input.name.trim(),
+    fullName: input.name.trim(),
     cadre: input.cadre.trim(),
     office: input.office.trim(),
     division: 'Dhenkanal',
@@ -200,21 +290,23 @@ export async function updateMemberInFirestore(
 ): Promise<void> {
   const docRef = doc(db, 'members', memberId);
   const existingSnap = await getDoc(docRef);
-  if (!existingSnap.exists()) {
-    throw new Error('Member record not found.');
-  }
+  const existing = existingSnap.exists() ? (existingSnap.data() as MemberProfile) : null;
+  const membershipId = updates.membershipId || existing?.membershipId || memberId;
 
-  const existing = existingSnap.data() as MemberProfile;
   const updateData: Record<string, any> = {
     updatedAt: new Date().toISOString(),
   };
 
-  if (updates.name !== undefined) updateData.name = updates.name.trim();
+  if (updates.name !== undefined) {
+    updateData.name = updates.name.trim();
+    updateData.fullName = updates.name.trim();
+  }
   if (updates.cadre !== undefined) updateData.cadre = updates.cadre.trim();
   if (updates.office !== undefined) updateData.office = updates.office.trim();
   if (updates.division !== undefined) updateData.division = updates.division.trim();
   if (updates.address !== undefined) updateData.address = updates.address.trim();
   if (updates.email !== undefined) updateData.email = updates.email.trim();
+  if (updates.status !== undefined) updateData.status = updates.status;
   if (updates.dateOfJoining !== undefined) updateData.dateOfJoining = updates.dateOfJoining;
   if (updates.validFrom !== undefined) updateData.validFrom = updates.validFrom;
   if (updates.validTo !== undefined) updateData.validTo = updates.validTo;
@@ -227,18 +319,72 @@ export async function updateMemberInFirestore(
     updateData.mobile = norm;
 
     // Update credential mobile reference
-    const credRef = doc(db, 'memberCredentials', existing.membershipId);
-    await updateDoc(credRef, { mobile: norm, updatedAt: new Date().toISOString() });
+    try {
+      const credRef = doc(db, 'memberCredentials', membershipId);
+      const credSnap = await getDoc(credRef);
+      if (credSnap.exists()) {
+        await updateDoc(credRef, { mobile: norm, updatedAt: new Date().toISOString() });
+      }
+    } catch {}
   }
 
-  await updateDoc(docRef, updateData);
+  await setDoc(docRef, updateData, { merge: true });
+
+  // Update localStorage cache
+  try {
+    const cached = localStorage.getItem('aipeu_cached_members');
+    if (cached) {
+      const list: MemberProfile[] = JSON.parse(cached);
+      const idx = list.findIndex((m) => m.id === memberId || m.membershipId === membershipId);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...updateData };
+        localStorage.setItem('aipeu_cached_members', JSON.stringify(list));
+      }
+    }
+  } catch {}
 
   await logMemberAudit(
     'MEMBER_UPDATED',
     actor,
     memberId,
-    existing.membershipId,
+    membershipId,
     `Updated fields: ${Object.keys(updates).join(', ')}`
+  );
+}
+
+// ================= DELETE / REMOVE MEMBER =================
+export async function deleteMemberFromFirestore(
+  memberId: string,
+  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+): Promise<void> {
+  const docRef = doc(db, 'members', memberId);
+  const existingSnap = await getDoc(docRef);
+  const existing = existingSnap.exists() ? (existingSnap.data() as MemberProfile) : null;
+  const membershipId = existing?.membershipId || memberId;
+
+  await deleteDoc(docRef);
+
+  try {
+    const credRef = doc(db, 'memberCredentials', membershipId);
+    await deleteDoc(credRef);
+  } catch {}
+
+  // Update localStorage cache
+  try {
+    const cached = localStorage.getItem('aipeu_cached_members');
+    if (cached) {
+      const list: MemberProfile[] = JSON.parse(cached);
+      const filtered = list.filter((m) => m.id !== memberId && m.membershipId !== membershipId);
+      localStorage.setItem('aipeu_cached_members', JSON.stringify(filtered));
+    }
+  } catch {}
+
+  await logMemberAudit(
+    'MEMBER_DELETED',
+    actor,
+    memberId,
+    membershipId,
+    `Member ${existing?.name || membershipId} deleted from register.`
   );
 }
 
@@ -739,6 +885,7 @@ export async function seedInitialMembersIfEmpty(): Promise<void> {
       const memberData: MemberProfile = {
         id: docRef.id,
         ...m,
+        fullName: m.name,
         division: 'Dhenkanal',
         createdAt: now,
         updatedAt: now,

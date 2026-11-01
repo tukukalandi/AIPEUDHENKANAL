@@ -16,7 +16,7 @@ export interface BlogPost {
 
 export type PlatformStyle = 'ios' | 'android' | 'auto';
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type ActiveTab = 'home' | 'feed' | 'categories' | 'offline' | 'directory' | 'settings' | 'user-portal';
+export type ActiveTab = 'home' | 'feed' | 'categories' | 'offline' | 'directory' | 'settings' | 'user-portal' | 'orders-rulings-guide';
 export type AppLanguage = 'en' | 'hi' | 'or' | string;
 
 export interface HeroSlide {
@@ -154,6 +154,7 @@ export interface MemberProfile {
   id: string;
   membershipId: string;
   name: string;
+  fullName?: string;
   cadre: string;
   office: string;
   division: string;
@@ -276,4 +277,18 @@ export interface MemberSession {
   token: string;
   loginAt: string;
   expiresAt: number;
+}
+
+export interface OrderRulingGuideItem {
+  id: string;
+  fileName: string;
+  folderName: string;
+  category: string;
+  documentUrl: string;
+  published?: string;
+  createdAt?: string;
+  order?: number;
+  uploadedBy?: string;
+  fileSize?: string;
+  notes?: string;
 }

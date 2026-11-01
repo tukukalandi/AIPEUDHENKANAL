@@ -40,6 +40,8 @@ import {
   Maximize2,
   Minimize2,
   Code,
+  BookOpen,
+  Folder,
 } from 'lucide-react';
 import {
   BlogPost,
@@ -51,6 +53,7 @@ import {
   NoticeCircularItem,
   UnionDocumentRuling,
   CustomPortalApp,
+  OrderRulingGuideItem,
 } from '../types';
 import {
   addCircularToFirestore,
@@ -78,6 +81,9 @@ import {
   getUnionDocumentsAndRulingsFromFirestore,
   saveUnionDocumentRulingToFirestore,
   deleteUnionDocumentRulingFromFirestore,
+  getOrdersRulingsGuidesFromFirestore,
+  saveOrderRulingGuideToFirestore,
+  deleteOrderRulingGuideFromFirestore,
   NewCircularInput,
 } from '../services/firebase';
 import {
@@ -107,6 +113,7 @@ interface AdminPortalProps {
 export type AdminMenuTab =
   | 'dashboard'
   | 'members'
+  | 'ordersRulingsGuide'
   | 'documents'
   | 'importantDocs'
   | 'notices'
@@ -344,10 +351,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [rulingType, setRulingType] = useState('Constitution');
   const [rulingOrder, setRulingOrder] = useState<number>(1);
 
+  // ================= 10. ORDERS / RULLINGS / GUIDE STATE =================
+  const [ordersRulingsGuides, setOrdersRulingsGuides] = useState<OrderRulingGuideItem[]>([]);
+  const [editingOrgItem, setEditingOrgItem] = useState<OrderRulingGuideItem | null>(null);
+  const [orgFileName, setOrgFileName] = useState('');
+  const [orgFolderName, setOrgFolderName] = useState('Postal Manuals');
+  const [orgCategory, setOrgCategory] = useState('Orders');
+  const [orgDocumentUrl, setOrgDocumentUrl] = useState('');
+  const [orgPublished, setOrgPublished] = useState('');
+  const [orgNotes, setOrgNotes] = useState('');
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [orgFolderFilter, setOrgFolderFilter] = useState('All');
+
   // Load all data when modal opens
   const loadAllData = async () => {
     try {
-      const [slides, news, execs, anns, docs, notcs, posts, rulings] = await Promise.all([
+      const [slides, news, execs, anns, docs, notcs, posts, rulings, orgs] = await Promise.all([
         getHeroSlidesFromFirestore(),
         getNewsItemsFromFirestore(),
         getExecutiveMembersFromFirestore(),
@@ -356,6 +375,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         getNoticeCircularsFromFirestore(),
         getCircularsFromFirestore(),
         getUnionDocumentsAndRulingsFromFirestore(),
+        getOrdersRulingsGuidesFromFirestore(),
       ]);
       setHeroSlides(slides);
       setNewsItems(news);
@@ -363,6 +383,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setAnnouncements(anns);
       setImportantDocs(docs);
       setUnionRulings(rulings);
+      setOrdersRulingsGuides(orgs);
       const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
       setCirculars(posts.filter((p) => !deletedIds.has(p.id)));
 
@@ -1382,10 +1403,101 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       },
     });
   };
+
+  // ================= ORDERS/RULLINGS/GUIDE HANDLERS =================
+  const handleEditOrgClick = (item: OrderRulingGuideItem) => {
+    setEditingOrgItem(item);
+    setOrgFileName(item.fileName);
+    setOrgFolderName(item.folderName || 'Postal Manuals');
+    setOrgCategory(item.category || 'Orders');
+    setOrgDocumentUrl(item.documentUrl || '');
+    setOrgPublished(item.published || '');
+    setOrgNotes(item.notes || '');
+  };
+
+  const handleCancelEditOrg = () => {
+    setEditingOrgItem(null);
+    setOrgFileName('');
+    setOrgFolderName('Postal Manuals');
+    setOrgCategory('Orders');
+    setOrgDocumentUrl('');
+    setOrgPublished('');
+    setOrgNotes('');
+  };
+
+  const handleSaveOrgDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgFileName.trim()) {
+      showNotification('⚠️ Please fill File name');
+      return;
+    }
+    if (!orgFolderName.trim()) {
+      showNotification('⚠️ Please fill folder name');
+      return;
+    }
+    if (!orgCategory.trim()) {
+      showNotification('⚠️ Please fill category');
+      return;
+    }
+    if (!orgDocumentUrl.trim()) {
+      showNotification('⚠️ Please fill Document URL');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const dataToSave: Partial<OrderRulingGuideItem> & { id?: string } = {
+        id: editingOrgItem ? editingOrgItem.id : undefined,
+        fileName: orgFileName.trim(),
+        folderName: orgFolderName.trim(),
+        category: orgCategory.trim(),
+        documentUrl: orgDocumentUrl.trim(),
+        published: orgPublished.trim() || new Date().toISOString().split('T')[0],
+        notes: orgNotes.trim(),
+        order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
+      };
+
+      await saveOrderRulingGuideToFirestore(dataToSave);
+      const updated = await getOrdersRulingsGuidesFromFirestore();
+      setOrdersRulingsGuides(updated);
+      handleCancelEditOrg();
+      window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
+      showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
+    } catch (err) {
+      console.error(err);
+      showNotification('❌ Failed to save document to Orders/Rullings/Guide.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteOrgItem = (id: string) => {
+    const item = ordersRulingsGuides.find((r) => r.id === id);
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'Orders/Rullings/Guide',
+      id,
+      title: item ? item.fileName : 'Selected document',
+      onConfirm: async () => {
+        try {
+          setOrdersRulingsGuides((prev) => prev.filter((r) => r.id !== id));
+          await deleteOrderRulingGuideFromFirestore(id);
+          const updated = await getOrdersRulingsGuidesFromFirestore();
+          setOrdersRulingsGuides(updated);
+          window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
+          showNotification('✅ Document deleted from Orders/Rullings/Guide.');
+        } catch (e) {
+          console.error(e);
+          showNotification('❌ Could not delete document.');
+        }
+      },
+    });
+  };
   // Navigation menu items matching the screenshot
   const menuItems: { id: AdminMenuTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'members', label: 'Member Management', icon: ShieldCheck },
+    { id: 'ordersRulingsGuide', label: 'Orders/Rullings/Guide', icon: BookOpen },
     { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'importantDocs', label: 'Homepage Docs', icon: FileCheck },
     { id: 'notices', label: 'Notices & Circulars', icon: Bookmark },
@@ -1650,6 +1762,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {activeTab === 'hero' && 'HERO SLIDER'}
                 {activeTab === 'dashboard' && 'DASHBOARD'}
                 {activeTab === 'members' && 'MEMBER MANAGEMENT'}
+                {activeTab === 'ordersRulingsGuide' && 'ORDERS / RULLINGS / GUIDE'}
                 {activeTab === 'documents' && 'DOCUMENTS'}
                 {activeTab === 'importantDocs' && 'HOMEPAGE DOCS'}
                 {activeTab === 'notices' && 'NOTICES & CIRCULARS'}
@@ -1665,6 +1778,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {activeTab === 'hero' && 'UPLOAD PHOTOS FOR THE HOMEPAGE HERO SLIDER.'}
                 {activeTab === 'dashboard' && 'OVERVIEW AND STATISTICS OF WEBSITE ASSETS.'}
                 {activeTab === 'members' && 'MANAGE UNION MEMBERS, VERIFICATION, ID CARDS & PROFILE UPDATES.'}
+                {activeTab === 'ordersRulingsGuide' && 'UPLOAD AND MANAGE OFFICIAL DOCUMENTS DISPLAYED IN CARD VIEW.'}
                 {activeTab === 'documents' && 'UPLOAD DIVISIONAL CIRCULARS AND ORDERS.'}
                 {activeTab === 'importantDocs' && 'PIN CRUCIAL DOCUMENTS TO HOMEPAGE.'}
                 {activeTab === 'notices' && 'MANAGE NOTICE BOARD, CGHS & PENSION CIRCULARS.'}
@@ -2096,13 +2210,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {[
                     { label: 'Hero Slides', count: heroSlides.length, tab: 'hero' as AdminMenuTab, icon: Sliders },
+                    { label: 'Orders/Rullings/Guide', count: ordersRulingsGuides.length, tab: 'ordersRulingsGuide' as AdminMenuTab, icon: BookOpen },
+                    { label: 'Member Register', count: 'Members', tab: 'members' as AdminMenuTab, icon: ShieldCheck },
                     { label: 'Documents', count: circulars.length, tab: 'documents' as AdminMenuTab, icon: FileText },
                     { label: 'Homepage Docs', count: importantDocs.length, tab: 'importantDocs' as AdminMenuTab, icon: FileCheck },
                     { label: 'Notices / Circulars', count: noticeCirculars.length, tab: 'notices' as AdminMenuTab, icon: Bookmark },
                     { label: 'Announcements', count: announcements.length, tab: 'announcements' as AdminMenuTab, icon: Megaphone },
                     { label: 'Photo Gallery', count: galleryPhotos.length, tab: 'gallery' as AdminMenuTab, icon: ImageIcon },
                     { label: 'Quick Apps', count: myApps.length, tab: 'myApps' as AdminMenuTab, icon: LayoutGrid },
-                    { label: 'Member Register', count: 'Members', tab: 'members' as AdminMenuTab, icon: ShieldCheck },
                     { label: 'Executive Bearers', count: executives.length, tab: 'executives' as AdminMenuTab, icon: Users },
                   ].map((stat, idx) => {
                     const StatIcon = stat.icon;
@@ -2154,6 +2269,325 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {/* TAB CONTENT: MEMBER MANAGEMENT (ADMINISTRATION) */}
             {activeTab === 'members' && (
               <MemberManagementAdmin onNotify={showNotification} />
+            )}
+
+            {/* TAB CONTENT: ORDERS / RULLINGS / GUIDE (UPLOAD & CARD MANAGEMENT) */}
+            {activeTab === 'ordersRulingsGuide' && (
+              <div className="space-y-6">
+                {/* Information Header Banner */}
+                <div className="bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border border-red-100 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                        Orders / Rullings / Guide Management
+                      </h3>
+                      <p className="text-xs text-slate-600 max-w-2xl mt-0.5 leading-relaxed">
+                        Upload official documents with <strong>File name</strong>, <strong>folder name</strong>, <strong>category</strong>, and <strong>Document URL</strong>. These documents are instantly published in <strong>card type</strong> in the website’s Orders/Rullings/Guide menu view.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                    <span className="text-xs font-bold text-slate-600 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+                      {ordersRulingsGuides.length} Total Cards
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Upload / Fill-up Form matching user request */}
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
+                        {editingOrgItem ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {editingOrgItem ? 'EDIT DOCUMENT' : 'UPLOAD DOCUMENT'}
+                      </h2>
+                      {editingOrgItem && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditOrg}
+                          className="text-[11px] font-bold text-slate-400 hover:text-slate-700 uppercase"
+                        >
+                          ✕ Cancel
+                        </button>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleSaveOrgDocument} className="space-y-4">
+                      {/* 1. File Name */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
+                          FILE NAME *
+                        </label>
+                        <input
+                          type="text"
+                          value={orgFileName}
+                          onChange={(e) => setOrgFileName(e.target.value)}
+                          placeholder="e.g. Rule 38 Transfer Guidelines & Waiting List 2026"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-1 block">
+                          Main document title displayed on the front of the card.
+                        </span>
+                      </div>
+
+                      {/* 2. Folder Name */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
+                          FOLDER NAME *
+                        </label>
+                        <input
+                          type="text"
+                          value={orgFolderName}
+                          onChange={(e) => setOrgFolderName(e.target.value)}
+                          placeholder="e.g. Postal Manuals, Rule 38 Transfers, Pay Fixation"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                        {/* Quick suggestions pills */}
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {['Postal Manuals', 'Rule 38 Transfers', 'Conduct & Service Rules', 'Pay & Allowances', 'Union Affairs', 'GDS Regulations'].map(
+                            (f) => (
+                              <button
+                                key={f}
+                                type="button"
+                                onClick={() => setOrgFolderName(f)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all ${
+                                  orgFolderName === f
+                                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
+                                }`}
+                              >
+                                {f}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 3. Category */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
+                          CATEGORY *
+                        </label>
+                        <input
+                          type="text"
+                          value={orgCategory}
+                          onChange={(e) => setOrgCategory(e.target.value)}
+                          placeholder="e.g. Orders, Rulings, Guide, Manuals, Circular"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                        {/* Quick category pills */}
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {['Orders', 'Rulings', 'Guide', 'Manuals', 'Circular', 'Welfare'].map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setOrgCategory(c)}
+                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md border transition-all ${
+                                orgCategory === c
+                                  ? 'bg-blue-100 text-blue-900 border-blue-300'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-200'
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 4. Document URL */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
+                          DOCUMENT URL *
+                        </label>
+                        <input
+                          type="url"
+                          value={orgDocumentUrl}
+                          onChange={(e) => setOrgDocumentUrl(e.target.value)}
+                          placeholder="https://drive.google.com/... or https://indiapost.gov.in/..."
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-mono text-xs"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-1 block">
+                          Direct web link or Google Drive PDF download link.
+                        </span>
+                      </div>
+
+                      {/* Optional: Brief Note / Summary */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
+                          BRIEF DESCRIPTION / NOTE (OPTIONAL)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={orgNotes}
+                          onChange={(e) => setOrgNotes(e.target.value)}
+                          placeholder="Short summary or important order reference number..."
+                          className="w-full bg-slate-50 border border-slate-200 text-xs px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      {/* 5. Save Button */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>{editingOrgItem ? 'Update Document' : 'Save'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Uploaded Documents in Card View */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Search and Folder Filter in Admin */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={orgSearchQuery}
+                          onChange={(e) => setOrgSearchQuery(e.target.value)}
+                          placeholder="Search uploaded cards by file, folder, or category..."
+                          className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-red-500"
+                        />
+                        {orgSearchQuery && (
+                          <button
+                            onClick={() => setOrgSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={orgFolderFilter}
+                          onChange={(e) => setOrgFolderFilter(e.target.value)}
+                          className="text-xs bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl font-semibold outline-none focus:ring-2 focus:ring-red-500"
+                        >
+                          <option value="All">All Folders</option>
+                          {Array.from(new Set(ordersRulingsGuides.map((i) => i.folderName))).map((f) => (
+                            <option key={f} value={f}>
+                              📁 {f}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {ordersRulingsGuides
+                        .filter((item) => {
+                          const q = orgSearchQuery.toLowerCase().trim();
+                          const matchesQ =
+                            !q ||
+                            item.fileName.toLowerCase().includes(q) ||
+                            item.folderName.toLowerCase().includes(q) ||
+                            item.category.toLowerCase().includes(q) ||
+                            (item.notes && item.notes.toLowerCase().includes(q));
+                          const matchesF =
+                            orgFolderFilter === 'All' ||
+                            item.folderName.toLowerCase() === orgFolderFilter.toLowerCase();
+                          return matchesQ && matchesF;
+                        })
+                        .map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                          >
+                            <div className="space-y-2.5">
+                              {/* Badges */}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                  {item.category}
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Folder className="w-3 h-3 text-amber-600" />
+                                  <span>{item.folderName}</span>
+                                </span>
+                              </div>
+
+                              {/* File Name */}
+                              <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
+                                {item.fileName}
+                              </h4>
+
+                              {item.notes && (
+                                <p className="text-xs text-slate-500 line-clamp-2">
+                                  {item.notes}
+                                </p>
+                              )}
+
+                              {/* Link Preview */}
+                              <div className="pt-1">
+                                <a
+                                  href={item.documentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                                >
+                                  {item.documentUrl}
+                                </a>
+                              </div>
+                            </div>
+
+                            {/* Actions bar */}
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                              <a
+                                href={item.documentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-red-600 transition-colors"
+                              >
+                                <span>Preview</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditOrgClick(item)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Edit Document"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteOrgItem(item.id)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Delete Document"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+
+                    {ordersRulingsGuides.length === 0 && (
+                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm">
+                        No orders, rulings or guides uploaded yet. Use the form on the left to upload your first document.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* TAB CONTENT: DOCUMENTS (CIRCULARS) */}

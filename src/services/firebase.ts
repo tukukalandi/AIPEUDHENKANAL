@@ -13,7 +13,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem, UnionDocumentRuling } from '../types';
+import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem, UnionDocumentRuling, OrderRulingGuideItem } from '../types';
 import { OFFICE_BEARERS as DEFAULT_OFFICE_BEARERS, IMPORTANT_DOCUMENTS as DEFAULT_UNION_DOCUMENTS_AND_RULINGS } from '../data/unionInfo';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import {
@@ -701,5 +701,151 @@ export async function saveUnionDocumentRulingToFirestore(
 
 export async function deleteUnionDocumentRulingFromFirestore(id: string): Promise<void> {
   await deleteDoc(doc(db, 'unionDocumentsAndRulings', id));
+}
+
+// ================= ORDERS / RULINGS / GUIDE =================
+
+export const DEFAULT_ORDERS_RULINGS_GUIDES: OrderRulingGuideItem[] = [
+  {
+    id: 'org-seed-1',
+    fileName: 'Postal Manual Volume IV - Appointments, Promotion & Leave Regulations',
+    folderName: 'Postal Manuals',
+    category: 'Guide',
+    documentUrl: 'https://www.indiapost.gov.in',
+    published: '2026-01-15',
+    order: 1,
+    notes: 'Official Directorate manual covering PA, Postman, and MTS cadre service conditions.',
+  },
+  {
+    id: 'org-seed-2',
+    fileName: 'Inter-Circle & Intra-Circle Rule 38 Transfer Guidelines & Waiting List Procedures',
+    folderName: 'Rule 38 Transfers',
+    category: 'Orders',
+    documentUrl: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
+    published: '2026-02-10',
+    order: 2,
+    notes: 'Comprehensive guidelines and SOP for online transfer application and portal processing.',
+  },
+  {
+    id: 'org-seed-3',
+    fileName: 'CCS (Conduct) Rules 1964 and CCS (CCA) Rules 1965 Statutory Rulings',
+    folderName: 'Conduct & Service Rules',
+    category: 'Rulings',
+    documentUrl: 'https://www.indiapost.gov.in',
+    published: '2026-02-28',
+    order: 3,
+    notes: 'Statutory disciplinary rulings, representation protocols, and inquiry guidelines.',
+  },
+  {
+    id: 'org-seed-4',
+    fileName: 'MACP Scheme Benchmark, Fixation Orders & 7th CPC Clarifications',
+    folderName: 'Pay & Allowances',
+    category: 'Orders',
+    documentUrl: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
+    published: '2026-03-05',
+    order: 4,
+    notes: 'Financial upgradation criteria after 10, 20, 30 years of regular departmental service.',
+  },
+  {
+    id: 'org-seed-5',
+    fileName: 'AIPEU Trade Union Constitution, Branch Bye-Laws & Meeting Procedures',
+    folderName: 'Union Affairs',
+    category: 'Guide',
+    documentUrl: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
+    published: '2026-01-01',
+    order: 5,
+    notes: 'Constitution and administrative rules of AIPEU Group C Dhenkanal Division branch.',
+  },
+  {
+    id: 'org-seed-6',
+    fileName: 'GDS (Conduct and Engagement) Rules 2020 with Latest Amendments',
+    folderName: 'GDS Regulations',
+    category: 'Orders',
+    documentUrl: 'https://www.indiapost.gov.in',
+    published: '2026-03-12',
+    order: 6,
+    notes: 'Service terms, TRCA allowances, leave, and discipline for Gramin Dak Sevaks.',
+  },
+];
+
+export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRulingGuideItem[]> {
+  try {
+    const colRef = collection(db, 'ordersRulingsGuides');
+    const snapshot = await getDocs(colRef);
+
+    if (snapshot.empty) {
+      try {
+        for (const item of DEFAULT_ORDERS_RULINGS_GUIDES) {
+          await addDoc(colRef, {
+            fileName: item.fileName,
+            folderName: item.folderName,
+            category: item.category,
+            documentUrl: item.documentUrl,
+            published: item.published || new Date().toISOString().split('T')[0],
+            order: item.order || 0,
+            notes: item.notes || '',
+            createdAt: serverTimestamp(),
+          });
+        }
+      } catch (seedErr) {
+        console.warn('Could not auto-seed orders rulings guides to Firestore:', seedErr);
+      }
+      return DEFAULT_ORDERS_RULINGS_GUIDES;
+    }
+
+    const items: OrderRulingGuideItem[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        fileName: data.fileName || '',
+        folderName: data.folderName || 'General',
+        category: data.category || 'Orders',
+        documentUrl: data.documentUrl || '',
+        published: data.published || '',
+        order: data.order ?? 0,
+        notes: data.notes || '',
+      };
+    });
+
+    return items.sort((a, b) => {
+      if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+      return (b.published || '').localeCompare(a.published || '');
+    });
+  } catch (err) {
+    console.error('Error fetching orders, rulings & guides from Firestore:', err);
+    return DEFAULT_ORDERS_RULINGS_GUIDES;
+  }
+}
+
+export async function saveOrderRulingGuideToFirestore(
+  item: Partial<OrderRulingGuideItem> & { id?: string }
+): Promise<string> {
+  const colRef = collection(db, 'ordersRulingsGuides');
+  const docData = {
+    fileName: item.fileName || '',
+    folderName: item.folderName || 'General',
+    category: item.category || 'Orders',
+    documentUrl: item.documentUrl || '',
+    published: item.published || new Date().toISOString().split('T')[0],
+    order: item.order ?? 0,
+    notes: item.notes || '',
+    updatedAt: serverTimestamp(),
+  };
+
+  if (item.id && !item.id.startsWith('org-seed-') && !item.id.startsWith('temp-')) {
+    const docItem = doc(db, 'ordersRulingsGuides', item.id);
+    await updateDoc(docItem, docData);
+    return item.id;
+  } else {
+    const docRef = await addDoc(colRef, {
+      ...docData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  }
+}
+
+export async function deleteOrderRulingGuideFromFirestore(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'ordersRulingsGuides', id));
 }
 

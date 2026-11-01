@@ -36,6 +36,7 @@ import { OfflineTab } from './components/OfflineTab';
 import { DirectoryTab } from './components/DirectoryTab';
 import { SettingsTab } from './components/SettingsTab';
 import { UserPortal } from './components/UserPortal';
+import { OrdersRulingsGuideView } from './components/OrdersRulingsGuideView';
 import { SocialAndVisitorSection } from './components/SocialAndVisitorSection';
 import { ArticleReader } from './components/ArticleReader';
 import { ShareModal } from './components/ShareModal';
@@ -430,6 +431,15 @@ export default function App() {
                     setActiveTab(tab);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
+                />
+              </div>
+            )}
+
+            {activeTab === 'orders-rulings-guide' && (
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+                <OrdersRulingsGuideView
+                  platform={effectivePlatform}
+                  onOpenAdmin={() => setIsAdminOpen(true)}
                 />
               </div>
             )}
