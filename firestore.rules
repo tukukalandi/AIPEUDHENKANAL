@@ -62,6 +62,57 @@ service cloud.firestore {
       allow create, update: if request.resource.data.title is string;
       allow delete: if true;
     }
+
+    // ==========================================
+    // 🛡️ MEMBER DIRECTORY & MEMBERSHIP SECURITY
+    // ==========================================
+
+    // Approved member profiles
+    match /members/{memberId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.membershipId is string &&
+                             request.resource.data.fullName is string;
+      allow delete: if true;
+    }
+
+    // Member authentication credentials (salted hashes only, no plaintext passwords)
+    match /memberCredentials/{memberId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.membershipId is string &&
+                             request.resource.data.passwordHash is string &&
+                             request.resource.data.salt is string;
+      allow delete: if true;
+    }
+
+    // Member profile change requests submitted for admin approval
+    match /profileUpdateRequests/{requestId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.membershipId is string;
+      allow delete: if true;
+    }
+
+    // Digital membership card records and tokens
+    match /membershipCards/{cardId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.membershipId is string &&
+                             request.resource.data.cardToken is string;
+      allow delete: if true;
+    }
+
+    // Public QR code card verification endpoint (Zero PII - no phone, email, address)
+    match /cardVerifications/{tokenId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.membershipId is string &&
+                             request.resource.data.status is string;
+      allow delete: if true;
+    }
+
+    // Administrator action audit log
+    match /memberAuditLogs/{logId} {
+      allow read: if true;
+      allow create: if request.resource.data.action is string &&
+                       request.resource.data.actor is string;
+      allow update, delete: if false; // Append-only audit trail
+    }
   }
 }
-

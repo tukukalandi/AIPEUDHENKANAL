@@ -89,6 +89,7 @@ import {
 } from '../data/dakshikshaData';
 import { DEFAULT_MY_APPS, TARGET_CALCULATOR_HTML } from '../data/portalMenuData';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
+import { MemberManagementAdmin } from './MemberManagementAdmin';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -105,6 +106,7 @@ interface AdminPortalProps {
 
 export type AdminMenuTab =
   | 'dashboard'
+  | 'members'
   | 'documents'
   | 'importantDocs'
   | 'notices'
@@ -1383,6 +1385,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Navigation menu items matching the screenshot
   const menuItems: { id: AdminMenuTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'members', label: 'Member Management', icon: ShieldCheck },
     { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'importantDocs', label: 'Homepage Docs', icon: FileCheck },
     { id: 'notices', label: 'Notices & Circulars', icon: Bookmark },
@@ -1646,6 +1649,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">
                 {activeTab === 'hero' && 'HERO SLIDER'}
                 {activeTab === 'dashboard' && 'DASHBOARD'}
+                {activeTab === 'members' && 'MEMBER MANAGEMENT'}
                 {activeTab === 'documents' && 'DOCUMENTS'}
                 {activeTab === 'importantDocs' && 'HOMEPAGE DOCS'}
                 {activeTab === 'notices' && 'NOTICES & CIRCULARS'}
@@ -1660,6 +1664,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
                 {activeTab === 'hero' && 'UPLOAD PHOTOS FOR THE HOMEPAGE HERO SLIDER.'}
                 {activeTab === 'dashboard' && 'OVERVIEW AND STATISTICS OF WEBSITE ASSETS.'}
+                {activeTab === 'members' && 'MANAGE UNION MEMBERS, VERIFICATION, ID CARDS & PROFILE UPDATES.'}
                 {activeTab === 'documents' && 'UPLOAD DIVISIONAL CIRCULARS AND ORDERS.'}
                 {activeTab === 'importantDocs' && 'PIN CRUCIAL DOCUMENTS TO HOMEPAGE.'}
                 {activeTab === 'notices' && 'MANAGE NOTICE BOARD, CGHS & PENSION CIRCULARS.'}
@@ -2097,6 +2102,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     { label: 'Announcements', count: announcements.length, tab: 'announcements' as AdminMenuTab, icon: Megaphone },
                     { label: 'Photo Gallery', count: galleryPhotos.length, tab: 'gallery' as AdminMenuTab, icon: ImageIcon },
                     { label: 'Quick Apps', count: myApps.length, tab: 'myApps' as AdminMenuTab, icon: LayoutGrid },
+                    { label: 'Member Register', count: 'Members', tab: 'members' as AdminMenuTab, icon: ShieldCheck },
                     { label: 'Executive Bearers', count: executives.length, tab: 'executives' as AdminMenuTab, icon: Users },
                   ].map((stat, idx) => {
                     const StatIcon = stat.icon;
@@ -2143,6 +2149,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* TAB CONTENT: MEMBER MANAGEMENT (ADMINISTRATION) */}
+            {activeTab === 'members' && (
+              <MemberManagementAdmin onNotify={showNotification} />
             )}
 
             {/* TAB CONTENT: DOCUMENTS (CIRCULARS) */}

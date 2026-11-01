@@ -144,3 +144,136 @@ export interface EmployeeResource {
   category: string;
   url: string;
 }
+
+// ================= MEMBER LOGIN & DIGITAL MEMBERSHIP CARD TYPES =================
+
+export type MemberStatus = 'Active' | 'Pending' | 'Expired';
+export type CardStatus = 'Valid' | 'Expired' | 'Revoked' | 'Invalid';
+
+export interface MemberProfile {
+  id: string;
+  membershipId: string;
+  name: string;
+  cadre: string;
+  office: string;
+  division: string;
+  mobile: string;
+  email: string;
+  address: string;
+  dateOfJoining: string;
+  status: MemberStatus;
+  validFrom: string;
+  validTo: string;
+  photoUrl?: string;
+  activeCardId?: string;
+  activeCardToken?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  remarks?: string;
+}
+
+export interface MemberCredential {
+  id?: string;
+  membershipId: string;
+  mobile: string;
+  email: string;
+  passwordHash: string;
+  salt: string;
+  failedAttempts: number;
+  lockedUntil?: string;
+  recoveryEmail?: string;
+  updatedAt: string;
+}
+
+export interface ProfileUpdateRequest {
+  id: string;
+  memberId: string;
+  membershipId: string;
+  memberName: string;
+  proposedChanges: {
+    name?: string;
+    cadre?: string;
+    office?: string;
+    mobile?: string;
+    email?: string;
+    address?: string;
+    photoUrl?: string;
+  };
+  currentValues: {
+    name?: string;
+    cadre?: string;
+    office?: string;
+    mobile?: string;
+    email?: string;
+    address?: string;
+    photoUrl?: string;
+  };
+  status: 'Pending' | 'Approved' | 'Rejected';
+  requestedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewRemarks?: string;
+}
+
+export interface DigitalMembershipCard {
+  id: string;
+  memberId: string;
+  membershipId: string;
+  memberName: string;
+  cadre: string;
+  office: string;
+  division: string;
+  photoUrl?: string;
+  issueDate: string;
+  validFrom: string;
+  validTo: string;
+  cardToken: string;
+  cardStatus: CardStatus;
+  revokedAt?: string;
+  revocationReason?: string;
+  reissuedAt?: string;
+  reissuedNewToken?: string;
+  createdAt: string;
+}
+
+export interface CardVerificationResult {
+  token: string;
+  status: CardStatus;
+  membershipId?: string;
+  memberName?: string;
+  cadre?: string;
+  office?: string;
+  division?: string;
+  unionName?: string;
+  validFrom?: string;
+  validTo?: string;
+  issueDate?: string;
+  verifiedCount?: number;
+  lastCheckedAt?: string;
+  message?: string;
+}
+
+export interface MemberAuditLog {
+  id: string;
+  action: string;
+  actor: string;
+  targetMemberId: string;
+  targetMembershipId: string;
+  details: string;
+  timestamp: string;
+}
+
+export interface MemberSession {
+  memberId: string;
+  membershipId: string;
+  name: string;
+  cadre: string;
+  office: string;
+  division: string;
+  status: 'Active' | 'Pending' | 'Expired';
+  token: string;
+  loginAt: string;
+  expiresAt: number;
+}

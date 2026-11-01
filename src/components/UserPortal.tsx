@@ -28,6 +28,7 @@ import { UNION_CONTACT_INFO, UNION_BRANCHES, OFFICE_BEARERS } from '../data/unio
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
 import { getExecutiveMembersFromFirestore } from '../services/firebase';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
+import { MemberArea } from './MemberArea';
 
 interface UserPortalProps {
   language?: AppLanguage;
@@ -60,7 +61,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
-  const [activeSubTab, setActiveSubTab] = useState<'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('grievance');
+  const [activeSubTab, setActiveSubTab] = useState<'member-area' | 'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('member-area');
 
   // 🏛️ Dynamic Office Bearers state (auto-synced with changes in Office Bearers / Admin)
   const [bearers, setBearers] = useState<OfficeBearer[]>(() => {
@@ -353,6 +354,18 @@ export const UserPortal: React.FC<UserPortalProps> = ({
       {/* 🧭 Sub-Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto scrollbar-none">
         <button
+          onClick={() => setActiveSubTab('member-area')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
+            activeSubTab === 'member-area'
+              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md ring-2 ring-amber-400'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-slate-900" />
+          <span>Member Login & ID Card</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('grievance')}
           className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
             activeSubTab === 'grievance'
@@ -414,6 +427,11 @@ export const UserPortal: React.FC<UserPortalProps> = ({
           </button>
         )}
       </div>
+
+      {/* ================= 0. MEMBER AREA (LOGIN, PROFILE, ID CARD) ================= */}
+      {activeSubTab === 'member-area' && (
+        <MemberArea />
+      )}
 
       {/* ================= 1. SUBMIT GRIEVANCE SECTION ================= */}
       {activeSubTab === 'grievance' && (

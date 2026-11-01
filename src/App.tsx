@@ -44,6 +44,7 @@ import { DeviceFrameWrapper } from './components/DeviceFrameWrapper';
 import { NewsTicker } from './components/NewsTicker';
 import { Footer } from './components/Footer';
 import { AdminPortal } from './components/AdminPortal';
+import { CardVerificationScreen } from './components/CardVerificationScreen';
 import {
   getCircularsFromFirestore,
   getHeroSlidesFromFirestore,
@@ -80,6 +81,16 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+
+  // Digital Membership Card QR verification token from URL (?verifyCard=...)
+  const [verifyCardToken, setVerifyCardToken] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('verifyCard');
+    } catch {
+      return null;
+    }
+  });
 
   const loadOfficeBearers = async () => {
     try {
@@ -550,6 +561,21 @@ export default function App() {
         onDocsUpdated={() => loadDynamicContent()}
         onNoticeCircularsUpdated={() => loadDynamicContent()}
       />
+
+      {/* 💳 Digital Membership Card QR Verification Overlay */}
+      {verifyCardToken && (
+        <CardVerificationScreen
+          token={verifyCardToken}
+          onClose={() => {
+            setVerifyCardToken(null);
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('verifyCard');
+              window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+            } catch {}
+          }}
+        />
+      )}
     </DeviceFrameWrapper>
   );
 }

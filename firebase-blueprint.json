@@ -115,6 +115,95 @@
         "published": { "type": "string", "description": "Publication or entry date" }
       },
       "required": ["title", "link", "type"]
+    },
+    "MemberProfile": {
+      "title": "MemberProfile",
+      "description": "Official union member profile record in Dhenkanal Division",
+      "type": "object",
+      "properties": {
+        "membershipId": { "type": "string", "description": "Unique format AIPEU-DKL-XXXX" },
+        "fullName": { "type": "string", "description": "Member's full name" },
+        "mobile": { "type": "string", "description": "10-digit registered mobile number" },
+        "email": { "type": "string", "description": "Member email" },
+        "cadre": { "type": "string", "description": "Designation/Cadre" },
+        "office": { "type": "string", "description": "Office or Post Office" },
+        "division": { "type": "string", "description": "Dhenkanal" },
+        "address": { "type": "string", "description": "Residential address" },
+        "joiningDate": { "type": "string", "description": "Date of joining union" },
+        "status": { "type": "string", "description": "Active, Pending, Expired" },
+        "validFrom": { "type": "string", "description": "Validity start date" },
+        "validUntil": { "type": "string", "description": "Validity expiry date" },
+        "photoUrl": { "type": "string", "description": "Member photo" },
+        "activeCardId": { "type": "string", "description": "ID of current issued membership card" }
+      },
+      "required": ["membershipId", "fullName", "mobile", "cadre", "office", "division", "status"]
+    },
+    "MemberCredential": {
+      "title": "MemberCredential",
+      "description": "Secure salted PBKDF2 hash credential for member login",
+      "type": "object",
+      "properties": {
+        "membershipId": { "type": "string", "description": "Membership ID" },
+        "mobile": { "type": "string", "description": "Normalized mobile number" },
+        "passwordHash": { "type": "string", "description": "PBKDF2 SHA-256 hash" },
+        "salt": { "type": "string", "description": "Cryptographic salt" }
+      },
+      "required": ["membershipId", "mobile", "passwordHash", "salt"]
+    },
+    "ProfileUpdateRequest": {
+      "title": "ProfileUpdateRequest",
+      "description": "Member change requests pending administrator review and approval",
+      "type": "object",
+      "properties": {
+        "membershipId": { "type": "string", "description": "Member ID" },
+        "proposedChanges": { "type": "object", "description": "Field modifications proposed by member" },
+        "status": { "type": "string", "description": "Pending, Approved, Rejected" },
+        "submittedAt": { "type": "string", "description": "Submission timestamp" }
+      },
+      "required": ["membershipId", "status", "submittedAt"]
+    },
+    "DigitalMembershipCard": {
+      "title": "DigitalMembershipCard",
+      "description": "Issued digital membership card metadata and QR token",
+      "type": "object",
+      "properties": {
+        "membershipId": { "type": "string", "description": "Membership ID" },
+        "cardToken": { "type": "string", "description": "Unguessable 24-character random verification token" },
+        "status": { "type": "string", "description": "Valid, Expired, Revoked, Replaced" },
+        "issueDate": { "type": "string", "description": "Date of issue" },
+        "expiryDate": { "type": "string", "description": "Validity expiration date" }
+      },
+      "required": ["membershipId", "cardToken", "status", "issueDate", "expiryDate"]
+    },
+    "CardVerification": {
+      "title": "CardVerification",
+      "description": "Public card verification lookup without exposing private member PII",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string", "description": "Token key" },
+        "membershipId": { "type": "string", "description": "AIPEU-DKL-XXXX" },
+        "memberName": { "type": "string", "description": "Member name" },
+        "cadre": { "type": "string", "description": "Cadre" },
+        "office": { "type": "string", "description": "Office" },
+        "division": { "type": "string", "description": "Dhenkanal" },
+        "status": { "type": "string", "description": "Valid, Expired, Revoked" },
+        "validFrom": { "type": "string", "description": "Valid from date" },
+        "validUntil": { "type": "string", "description": "Valid until date" }
+      },
+      "required": ["token", "membershipId", "memberName", "status"]
+    },
+    "MemberAuditLog": {
+      "title": "MemberAuditLog",
+      "description": "Administrator audit trail for member lifecycle and card events",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "description": "Action performed" },
+        "actor": { "type": "string", "description": "Administrator identity" },
+        "targetMembershipId": { "type": "string", "description": "Target member ID" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" },
+        "details": { "type": "string", "description": "Action specifics without secrets" }
+      },
+      "required": ["action", "actor", "targetMembershipId", "timestamp"]
     }
   },
   "firestore": {
@@ -149,7 +238,30 @@
     "/unionDocumentsAndRulings/{docId}": {
       "schema": "UnionDocumentRuling",
       "description": "Trade union rulings, Constitution, Form B, and grievance documents managed in Executive Bearer section"
+    },
+    "/members/{memberId}": {
+      "schema": "MemberProfile",
+      "description": "Approved union member profiles in Dhenkanal Division"
+    },
+    "/memberCredentials/{memberId}": {
+      "schema": "MemberCredential",
+      "description": "PBKDF2 salted hash credentials for member authentication"
+    },
+    "/profileUpdateRequests/{requestId}": {
+      "schema": "ProfileUpdateRequest",
+      "description": "Profile change proposals submitted by members for admin approval"
+    },
+    "/membershipCards/{cardId}": {
+      "schema": "DigitalMembershipCard",
+      "description": "Issued digital membership cards with QR codes and lifecycle status"
+    },
+    "/cardVerifications/{tokenId}": {
+      "schema": "CardVerification",
+      "description": "Public certificate verification records checked via QR code scanning without private PII"
+    },
+    "/memberAuditLogs/{logId}": {
+      "schema": "MemberAuditLog",
+      "description": "Tamper-evident audit trail of all membership administrative actions"
     }
   }
 }
-
