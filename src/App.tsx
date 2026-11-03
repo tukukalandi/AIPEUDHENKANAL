@@ -292,9 +292,9 @@ export default function App() {
       ]);
       if (slides && slides.length > 0) setHeroSlides(slides);
       if (news && news.length > 0) setNewsItems(news);
-      if (anns && anns.length > 0) setAnnouncements(anns);
-      if (docs && docs.length > 0) setImportantDocs(docs);
-      if (notcs && notcs.length > 0) setNoticeCirculars(notcs);
+      if (anns) setAnnouncements(anns);
+      if (docs) setImportantDocs(docs);
+      if (notcs) setNoticeCirculars(notcs);
     } catch (err) {
       console.warn('Could not load dynamic content from Firestore', err);
     }

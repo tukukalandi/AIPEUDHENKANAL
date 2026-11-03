@@ -420,18 +420,7 @@ export async function getAnnouncementsFromFirestore(): Promise<AnnouncementItem[
     const snapshot = await getDocs(colRef);
 
     if (snapshot.empty) {
-      // Seed default announcements
-      for (const ann of DEFAULT_ANNOUNCEMENTS) {
-        await addDoc(colRef, {
-          title: ann.title,
-          link: ann.link || '',
-          published: ann.published || new Date().toISOString(),
-          order: ann.order || 0,
-          active: ann.active !== false,
-          createdAt: serverTimestamp(),
-        });
-      }
-      return DEFAULT_ANNOUNCEMENTS;
+      return [];
     }
 
     const items: AnnouncementItem[] = snapshot.docs.map((d) => {
@@ -449,7 +438,7 @@ export async function getAnnouncementsFromFirestore(): Promise<AnnouncementItem[
     return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
     console.error('Error fetching announcements from Firestore:', err);
-    return DEFAULT_ANNOUNCEMENTS;
+    return [];
   }
 }
 
@@ -491,18 +480,7 @@ export async function getImportantDocumentsFromFirestore(): Promise<ImportantDoc
     const snapshot = await getDocs(colRef);
 
     if (snapshot.empty) {
-      // Seed default important documents
-      for (const docItem of DEFAULT_IMPORTANT_DOCUMENTS) {
-        await addDoc(colRef, {
-          title: docItem.title,
-          url: docItem.url || '',
-          category: docItem.category || 'General',
-          order: docItem.order || 0,
-          published: docItem.published || new Date().toISOString(),
-          createdAt: serverTimestamp(),
-        });
-      }
-      return DEFAULT_IMPORTANT_DOCUMENTS;
+      return [];
     }
 
     const items: ImportantDocItem[] = snapshot.docs.map((d) => {
@@ -520,7 +498,7 @@ export async function getImportantDocumentsFromFirestore(): Promise<ImportantDoc
     return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
     console.error('Error fetching important documents from Firestore:', err);
-    return DEFAULT_IMPORTANT_DOCUMENTS;
+    return [];
   }
 }
 
@@ -562,18 +540,7 @@ export async function getNoticeCircularsFromFirestore(): Promise<NoticeCircularI
     const snapshot = await getDocs(colRef);
 
     if (snapshot.empty) {
-      // Seed default notice circulars
-      for (const nc of DEFAULT_NOTICE_CIRCULARS) {
-        await addDoc(colRef, {
-          title: nc.title,
-          category: nc.category || 'NOTICE',
-          published: nc.published || new Date().toISOString().split('T')[0],
-          url: nc.url || '',
-          order: nc.order || 0,
-          createdAt: serverTimestamp(),
-        });
-      }
-      return DEFAULT_NOTICE_CIRCULARS;
+      return [];
     }
 
     const items: NoticeCircularItem[] = snapshot.docs.map((d) => {
@@ -591,7 +558,7 @@ export async function getNoticeCircularsFromFirestore(): Promise<NoticeCircularI
     return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
     console.error('Error fetching notice circulars from Firestore:', err);
-    return DEFAULT_NOTICE_CIRCULARS;
+    return [];
   }
 }
 
