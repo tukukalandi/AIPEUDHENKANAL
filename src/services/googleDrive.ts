@@ -15,10 +15,13 @@ export const auth = getAuth(app);
 
 const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.file');
+provider.setCustomParameters({ prompt: 'consent select_account' });
 
 // In-memory token cache (never stored in localStorage or sessionStorage)
 let cachedAccessToken: string | null = null;
 let isSigningIn = false;
+
+let cachedUser: User | null = null;
 
 // Target Google Drive folder specified by the user
 export const TARGET_GOOGLE_DRIVE_FOLDER_ID = '1XIKgUxuVj02KnDwX6qp4slvEDEF8RHWR';
@@ -43,9 +46,11 @@ export const initDriveAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user && cachedAccessToken) {
+      cachedUser = user;
       if (onSuccess) onSuccess(user, cachedAccessToken);
     } else if (!isSigningIn) {
       cachedAccessToken = null;
+      cachedUser = null;
       if (onFailure) onFailure();
     }
   });
@@ -53,6 +58,7 @@ export const initDriveAuth = (
 
 /**
  * Signs in with Google to obtain an OAuth token with drive.file scope.
+ * MUST be invoked directly from a user click event to prevent popup-blocked error.
  */
 export const signInWithGoogleDrive = async (): Promise<{ user: User; accessToken: string }> => {
   try {
@@ -63,9 +69,22 @@ export const signInWithGoogleDrive = async (): Promise<{ user: User; accessToken
       throw new Error('Failed to obtain Google Drive access token from sign in');
     }
     cachedAccessToken = credential.accessToken;
+    cachedUser = result.user;
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Drive sign-in error:', error);
+    if (error?.code === 'auth/popup-blocked') {
+      const err = new Error(
+        'Pop-up was blocked by your browser. Please allow pop-ups for this site in your browser address bar and click "Sign in with Google" again.'
+      );
+      (err as any).code = 'auth/popup-blocked';
+      throw err;
+    }
+    if (error?.code === 'auth/popup-closed-by-user') {
+      const err = new Error('Sign-in pop-up was closed before completing. Please try again.');
+      (err as any).code = 'auth/popup-closed-by-user';
+      throw err;
+    }
     throw error;
   } finally {
     isSigningIn = false;
@@ -80,10 +99,25 @@ export const getDriveAccessToken = (): string | null => {
 };
 
 /**
+ * Returns currently cached in-memory Google user.
+ */
+export const getCurrentDriveUser = (): User | null => {
+  return cachedUser;
+};
+
+/**
+ * Checks whether Google Drive is authenticated in memory.
+ */
+export const hasDriveAuth = (): boolean => {
+  return !!cachedAccessToken;
+};
+
+/**
  * Disconnects / logs out from Google Drive session.
  */
 export const logoutGoogleDrive = async () => {
   cachedAccessToken = null;
+  cachedUser = null;
   await signOut(auth).catch(() => {});
 };
 
@@ -91,29 +125,18 @@ export const logoutGoogleDrive = async () => {
  * Directly uploads a file into the user's designated Google Drive folder.
  * Uses Google Drive v3 multipart upload and sets public link permissions.
  */
-export async function uploadFileToGoogleDrive(
-  file: File,
-  folderId: string = TARGET_GOOGLE_DRIVE_FOLDER_ID,
-  onStatusUpdate?: (status: string) => void
-): Promise<DriveUploadResult> {
-  let token = cachedAccessToken;
-  if (!token) {
-    if (onStatusUpdate) onStatusUpdate('Authorizing Google Drive access...');
-    const authResult = await signInWithGoogleDrive();
-    token = authResult.accessToken;
-  }
-
-  if (onStatusUpdate) onStatusUpdate(`Uploading "${file.name}" to Google Drive folder...`);
-
+async function sendDriveMultipartUpload(token: string, file: File, folderId?: string) {
   const boundary = '-------aipeu_dhenkanal_drive_upload_boundary_92311';
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelimiter = `\r\n--${boundary}--`;
 
-  const metadata = {
+  const metadata: Record<string, any> = {
     name: file.name,
     mimeType: file.type || 'application/octet-stream',
-    parents: [folderId],
   };
+  if (folderId) {
+    metadata.parents = [folderId];
+  }
 
   const multipartRequestBody = new Blob(
     [
@@ -128,7 +151,7 @@ export async function uploadFileToGoogleDrive(
     { type: `multipart/related; boundary=${boundary}` }
   );
 
-  const uploadRes = await fetch(
+  return fetch(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink,size,mimeType',
     {
       method: 'POST',
@@ -139,14 +162,59 @@ export async function uploadFileToGoogleDrive(
       body: multipartRequestBody,
     }
   );
+}
+
+/**
+ * Directly uploads a file into the user's designated Google Drive folder.
+ * Uses Google Drive v3 multipart upload and sets public link permissions.
+ */
+export async function uploadFileToGoogleDrive(
+  file: File,
+  folderId: string = TARGET_GOOGLE_DRIVE_FOLDER_ID,
+  onStatusUpdate?: (status: string) => void
+): Promise<DriveUploadResult> {
+  const token = cachedAccessToken;
+  if (!token) {
+    throw new Error('Please click "Connect Google Drive" first before choosing a file to upload.');
+  }
+
+  if (onStatusUpdate) onStatusUpdate(`Uploading "${file.name}" to Google Drive folder...`);
+
+  let uploadRes = await sendDriveMultipartUpload(token, file, folderId);
+
+  // If upload into specific folder failed due to parent folder permission or existence, retry into root
+  if (!uploadRes.ok && folderId) {
+    const errorJson = await uploadRes.clone().json().catch(() => ({}));
+    const errMsg = JSON.stringify(errorJson);
+    const isParentIssue =
+      uploadRes.status === 404 ||
+      errMsg.includes('File not found') ||
+      errMsg.includes('notFound') ||
+      errMsg.includes('parent');
+
+    if (isParentIssue) {
+      console.warn('Direct upload into folder failed, falling back to Drive root...', errorJson);
+      if (onStatusUpdate) onStatusUpdate(`Retrying upload for "${file.name}" in Google Drive...`);
+      uploadRes = await sendDriveMultipartUpload(token, file);
+    }
+  }
 
   if (!uploadRes.ok) {
     const errorData = await uploadRes.json().catch(() => ({}));
     console.error('Google Drive API upload failed:', errorData);
 
-    if (uploadRes.status === 401) {
+    const errorStr = JSON.stringify(errorData);
+    const isScopeError =
+      uploadRes.status === 403 &&
+      (errorStr.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT') ||
+        errorStr.includes('insufficientPermissions') ||
+        errorStr.includes('insufficient authentication scopes'));
+
+    if (uploadRes.status === 401 || isScopeError) {
       cachedAccessToken = null;
-      throw new Error('Google Drive session expired. Please click upload again to re-authorize.');
+      throw new Error(
+        'Google Drive authorization needs to be refreshed. Please click "Sign in with Google to Connect Drive" to approve Google Drive access, then upload your file.'
+      );
     }
 
     throw new Error(
