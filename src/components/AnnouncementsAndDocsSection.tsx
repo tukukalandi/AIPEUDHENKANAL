@@ -86,7 +86,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
         </div>
 
         {/* Announcements List: maximum 6 documents visible, scrollable to show others */}
-        <div className="space-y-3 pt-1 max-h-[360px] overflow-y-auto pr-1.5 scroll-smooth overscroll-auto">
+        <div className="space-y-3 pt-1 max-h-[360px] overflow-y-auto pr-1.5 scroll-smooth overscroll-contain">
           {announcements.length === 0 ? (
             <p className="text-sm text-slate-400 italic py-3 font-medium">
               No current announcements posted.
@@ -140,7 +140,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
           </div>
 
           {/* Documents List: maximum 6 documents visible, scrollable to show others */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[385px] overflow-y-auto pr-2 scroll-smooth overscroll-auto">
+          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[385px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
             {importantDocs.length === 0 ? (
               <p className="text-sm text-slate-400 italic font-medium">No documents uploaded yet.</p>
             ) : (
@@ -212,7 +212,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
           </div>
 
           {/* Notices List for Active Category: maximum 6 documents visible, scrollable to show others */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[495px] overflow-y-auto pr-2 scroll-smooth overscroll-auto">
+          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[495px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
             {filteredNotices.length === 0 ? (
               <div className="py-8 text-center text-sm text-slate-400 italic font-medium">
                 No circulars published under {selectedNoticeCategory} yet.

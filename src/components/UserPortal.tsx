@@ -33,7 +33,6 @@ import { getExecutiveMembersFromFirestore } from '../services/firebase';
 import { getMembersFromFirestore } from '../services/memberService';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberArea } from './MemberArea';
-import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface UserPortalProps {
   language?: AppLanguage;
@@ -41,8 +40,6 @@ interface UserPortalProps {
   onNavigateTab?: (tab: any) => void;
   officeBearers?: OfficeBearer[];
   onRefreshOfficeBearers?: () => void;
-  onBack?: () => void;
-  onHome?: () => void;
 }
 
 interface GrievanceTicket {
@@ -65,8 +62,6 @@ export const UserPortal: React.FC<UserPortalProps> = ({
   onNavigateTab,
   officeBearers,
   onRefreshOfficeBearers,
-  onBack,
-  onHome,
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
@@ -364,16 +359,6 @@ export const UserPortal: React.FC<UserPortalProps> = ({
 
   return (
     <div className="w-full space-y-6 pb-12 animate-fade-in">
-      {/* Universal Page Header with Back & Home */}
-      {(onBack || onHome) && (
-        <PageHeaderWithNav
-          title="User Portal (Self-Service)"
-          category="Member Services"
-          onBack={onBack || (() => window.history.back())}
-          onHome={onHome || (() => {})}
-        />
-      )}
-
       {/* 🌟 Header Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-[#002D62] via-[#0A4B9C] to-[#C5221F] text-white p-6 sm:p-8 shadow-xl border-2 border-amber-400/50 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

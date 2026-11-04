@@ -21,7 +21,6 @@ interface TopTimeDateBarProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onOpenUserPortal?: () => void;
-  onOpenAdminPortal?: () => void;
   activeTab?: ActiveTab;
 }
 
@@ -31,7 +30,6 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
   theme,
   onToggleTheme,
   onOpenUserPortal,
-  onOpenAdminPortal,
   activeTab,
 }) => {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -145,9 +143,9 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
           </button>
         </div>
 
-        {/* Row 3: User Portal & Admin Portal Buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {onOpenUserPortal && (
+        {/* Row 3: User Portal Green Button */}
+        {onOpenUserPortal && (
+          <div className="flex items-center">
             <button
               onClick={onOpenUserPortal}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer ${
@@ -160,19 +158,8 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
               <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
               <span>{t.userPortal}</span>
             </button>
-          )}
-
-          {onOpenAdminPortal && (
-            <button
-              onClick={onOpenAdminPortal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-red-700 hover:bg-red-600 text-white border border-red-500/40 shadow-sm transition-all active:scale-95 cursor-pointer"
-              title="Open Official Admin Portal"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-100" />
-              <span>Admin Portal</span>
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* 💻 DESKTOP VIEW (hidden on mobile, flex on md+) */}
@@ -268,18 +255,6 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
             >
               <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
               <span>{t.userPortal}</span>
-            </button>
-          )}
-
-          {/* Admin Portal Button in Top Bar */}
-          {onOpenAdminPortal && (
-            <button
-              onClick={onOpenAdminPortal}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-black text-[11px] bg-red-700 hover:bg-red-600 text-white border border-red-500/40 shadow-sm transition-all active:scale-95 cursor-pointer"
-              title="Open Official Admin Portal"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-red-200" />
-              <span>Admin Portal</span>
             </button>
           )}
         </div>

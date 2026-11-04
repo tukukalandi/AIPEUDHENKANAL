@@ -35,9 +35,8 @@ const app = getApps().length > 0 ? getApp() : initializeApp({
   messagingSenderId: firebaseConfig.messagingSenderId,
 });
 
-// Initialize Firestore using the designated databaseId from config if present
-const dbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId;
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+// Initialize Firestore using the designated databaseId from config
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 
 // Test connection on boot
 export async function testFirestoreConnection() {
@@ -737,27 +736,11 @@ export const DEFAULT_ORDERS_RULINGS_GUIDES: OrderRulingGuideItem[] = [
 ];
 
 export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRulingGuideItem[]> {
-  let firestoreItems: OrderRulingGuideItem[] = [];
   try {
     const colRef = collection(db, 'ordersRulingsGuides');
     const snapshot = await getDocs(colRef);
 
-    if (!snapshot.empty) {
-      firestoreItems = snapshot.docs.map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          fileName: data.fileName || '',
-          folderName: data.folderName || 'General',
-          category: data.category || 'Orders',
-          documentUrl: data.documentUrl || '',
-          published: data.published || '',
-          order: data.order ?? 0,
-          notes: data.notes || '',
-        };
-      });
-    } else {
-      // Auto-seed defaults if Firestore collection is brand new
+    if (snapshot.empty) {
       try {
         for (const item of DEFAULT_ORDERS_RULINGS_GUIDES) {
           await addDoc(colRef, {
@@ -774,34 +757,30 @@ export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRuling
       } catch (seedErr) {
         console.warn('Could not auto-seed orders rulings guides to Firestore:', seedErr);
       }
-      firestoreItems = [...DEFAULT_ORDERS_RULINGS_GUIDES];
-    }
-  } catch (err) {
-    console.warn('Error fetching orders, rulings & guides from Firestore:', err);
-  }
-
-  // Merge with local storage cache so newly added items are always visible
-  try {
-    const localItems: OrderRulingGuideItem[] = JSON.parse(
-      localStorage.getItem('aipeu_orders_rulings_guides') || '[]'
-    );
-    const mergedMap = new Map<string, OrderRulingGuideItem>();
-
-    firestoreItems.forEach((item) => mergedMap.set(item.id, item));
-    localItems.forEach((item) => {
-      mergedMap.set(item.id, item);
-    });
-
-    const result = Array.from(mergedMap.values());
-    if (result.length === 0) {
       return DEFAULT_ORDERS_RULINGS_GUIDES;
     }
-    return result.sort((a, b) => {
+
+    const items: OrderRulingGuideItem[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        fileName: data.fileName || '',
+        folderName: data.folderName || 'General',
+        category: data.category || 'Orders',
+        documentUrl: data.documentUrl || '',
+        published: data.published || '',
+        order: data.order ?? 0,
+        notes: data.notes || '',
+      };
+    });
+
+    return items.sort((a, b) => {
       if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
       return (b.published || '').localeCompare(a.published || '');
     });
-  } catch (e) {
-    return firestoreItems.length > 0 ? firestoreItems : DEFAULT_ORDERS_RULINGS_GUIDES;
+  } catch (err) {
+    console.error('Error fetching orders, rulings & guides from Firestore:', err);
+    return DEFAULT_ORDERS_RULINGS_GUIDES;
   }
 }
 
@@ -820,71 +799,20 @@ export async function saveOrderRulingGuideToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  let savedId = item.id;
-
-  try {
-    if (item.id && !item.id.startsWith('org-seed-') && !item.id.startsWith('temp-') && !item.id.startsWith('org-local-')) {
-      const docItem = doc(db, 'ordersRulingsGuides', item.id);
-      await updateDoc(docItem, docData);
-      savedId = item.id;
-    } else {
-      const docRef = await addDoc(colRef, {
-        ...docData,
-        createdAt: serverTimestamp(),
-      });
-      savedId = docRef.id;
-    }
-  } catch (firestoreErr) {
-    console.error('Firestore save failed, persisting locally:', firestoreErr);
-    if (!savedId) {
-      savedId = `org-local-${Date.now()}`;
-    }
+  if (item.id && !item.id.startsWith('org-seed-') && !item.id.startsWith('temp-')) {
+    const docItem = doc(db, 'ordersRulingsGuides', item.id);
+    await updateDoc(docItem, docData);
+    return item.id;
+  } else {
+    const docRef = await addDoc(colRef, {
+      ...docData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
   }
-
-  // Always update local cache so the item is instantly visible and persistent
-  try {
-    const finalId = savedId || `org-local-${Date.now()}`;
-    const localList: OrderRulingGuideItem[] = JSON.parse(
-      localStorage.getItem('aipeu_orders_rulings_guides') || '[]'
-    );
-    const existingIdx = localList.findIndex((x) => x.id === finalId);
-    const newItem: OrderRulingGuideItem = {
-      id: finalId,
-      fileName: docData.fileName,
-      folderName: docData.folderName,
-      category: docData.category,
-      documentUrl: docData.documentUrl,
-      published: docData.published,
-      order: docData.order,
-      notes: docData.notes,
-    };
-    if (existingIdx >= 0) {
-      localList[existingIdx] = newItem;
-    } else {
-      localList.unshift(newItem);
-    }
-    localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(localList));
-  } catch (e) {
-    console.warn('LocalStorage sync error:', e);
-  }
-
-  return savedId || `org-local-${Date.now()}`;
 }
 
 export async function deleteOrderRulingGuideFromFirestore(id: string): Promise<void> {
-  try {
-    await deleteDoc(doc(db, 'ordersRulingsGuides', id));
-  } catch (err) {
-    console.warn('Error deleting document from Firestore:', err);
-  }
-  try {
-    const localList: OrderRulingGuideItem[] = JSON.parse(
-      localStorage.getItem('aipeu_orders_rulings_guides') || '[]'
-    );
-    const updated = localList.filter((x) => x.id !== id);
-    localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updated));
-  } catch (e) {
-    console.warn('LocalStorage delete error:', e);
-  }
+  await deleteDoc(doc(db, 'ordersRulingsGuides', id));
 }
 

@@ -19,20 +19,15 @@ import {
 import { OrderRulingGuideItem, PlatformStyle } from '../types';
 import { getOrdersRulingsGuidesFromFirestore } from '../services/firebase';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
-import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface OrdersRulingsGuideViewProps {
   platform?: PlatformStyle;
   onOpenAdmin?: () => void;
-  onBack?: () => void;
-  onHome?: () => void;
 }
 
 export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
   platform = 'android',
   onOpenAdmin,
-  onBack,
-  onHome,
 }) => {
   const [items, setItems] = useState<OrderRulingGuideItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,16 +121,6 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
 
   return (
     <div className="w-full space-y-6 pb-14 animate-fade-in">
-      {/* Universal Page Header with Back & Home */}
-      {(onBack || onHome) && (
-        <PageHeaderWithNav
-          title="Orders / Rullings / Guide"
-          category="Official Records"
-          onBack={onBack || (() => window.history.back())}
-          onHome={onHome || (() => {})}
-        />
-      )}
-
       {/* 🌟 Header Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-[#022A61] via-[#0A3D80] to-[#B91C1C] text-white p-6 sm:p-8 shadow-xl border-2 border-amber-400/50 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

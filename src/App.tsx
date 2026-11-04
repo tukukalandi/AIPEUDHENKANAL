@@ -37,10 +37,6 @@ import { DirectoryTab } from './components/DirectoryTab';
 import { SettingsTab } from './components/SettingsTab';
 import { UserPortal } from './components/UserPortal';
 import { OrdersRulingsGuideView } from './components/OrdersRulingsGuideView';
-import { GalleryPageView } from './components/GalleryPageView';
-import { AppsPageView } from './components/AppsPageView';
-import { EmployeeSitePageView } from './components/EmployeeSitePageView';
-import { PageHeaderWithNav } from './components/PageHeaderWithNav';
 import { SocialAndVisitorSection } from './components/SocialAndVisitorSection';
 import { ArticleReader } from './components/ArticleReader';
 import { ShareModal } from './components/ShareModal';
@@ -85,35 +81,7 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [tabHistory, setTabHistory] = useState<ActiveTab[]>(['home']);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-
-  const navigateToTab = (tab: ActiveTab) => {
-    if (tab === activeTab) return;
-    setTabHistory((prev) => [...prev, tab]);
-    setActiveTab(tab);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleGoBack = () => {
-    if (tabHistory.length > 1) {
-      const newHistory = [...tabHistory];
-      newHistory.pop();
-      const prevTab = newHistory[newHistory.length - 1];
-      setTabHistory(newHistory);
-      setActiveTab(prevTab);
-    } else {
-      setActiveTab('home');
-      setTabHistory(['home']);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleGoHome = () => {
-    setActiveTab('home');
-    setTabHistory(['home']);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   // Digital Membership Card QR verification token from URL (?verifyCard=...)
   const [verifyCardToken, setVerifyCardToken] = useState<string | null>(() => {
@@ -382,18 +350,20 @@ export default function App() {
         />
       ) : (
         <div className="flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors pb-16 md:pb-0">
-          {/* 🕒 Top Bar: Live Date & Clock, Language Switcher (EN, HI, OR), Dark Mode Toggle, User Portal & Admin Portal */}
+          {/* 🕒 Top Bar: Live Date & Clock, Language Switcher (EN, HI, OR) & Dark Mode Toggle */}
           <TopTimeDateBar
             language={language}
             onSetLanguage={handleSetLanguage}
             theme={themeMode}
             onToggleTheme={() => handleSetTheme(themeMode === 'dark' ? 'light' : 'dark')}
-            onOpenUserPortal={() => navigateToTab('user-portal')}
-            onOpenAdminPortal={() => setIsAdminOpen(true)}
+            onOpenUserPortal={() => {
+              setActiveTab('user-portal');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             activeTab={activeTab}
           />
 
-          {/* Top App Bar with Admin Portal Button and Hamburger Menu */}
+          {/* Top App Bar with Admin Portal Button */}
           <TopAppBar
             platform={effectivePlatform}
             unreadNotifsCount={unreadNotifsCount}
@@ -403,7 +373,10 @@ export default function App() {
             onOpenShareModal={() => handleOpenShare()}
             onOpenAdmin={() => setIsAdminOpen(true)}
             activeTab={activeTab}
-            onSelectTab={navigateToTab}
+            onSelectTab={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             offlineCount={savedPostIds.length}
           />
 
@@ -427,7 +400,10 @@ export default function App() {
                   importantDocs={importantDocs}
                   noticeCirculars={noticeCirculars}
                   onSelectPost={(post) => setSelectedPost(post)}
-                  onNavigateTab={navigateToTab}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   onOpenAdmin={() => setIsAdminOpen(true)}
                   platform={effectivePlatform}
                 />
@@ -435,75 +411,41 @@ export default function App() {
                 <div className="px-3.5 sm:px-0 mt-8">
                   <SocialAndVisitorSection
                     language={language}
-                    onSelectWing={() => navigateToTab('categories')}
+                    onSelectWing={() => {
+                      setActiveTab('categories');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                   />
                 </div>
               </>
             )}
 
             {activeTab === 'user-portal' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <UserPortal
                   language={language}
                   platform={effectivePlatform}
                   officeBearers={officeBearers}
                   onRefreshOfficeBearers={loadOfficeBearers}
-                  onNavigateTab={navigateToTab}
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                 />
               </div>
             )}
 
             {activeTab === 'orders-rulings-guide' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <OrdersRulingsGuideView
                   platform={effectivePlatform}
                   onOpenAdmin={() => setIsAdminOpen(true)}
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
-              </div>
-            )}
-
-            {activeTab === 'gallery' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <GalleryPageView
-                  platform={effectivePlatform}
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
-              </div>
-            )}
-
-            {activeTab === 'apps' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <AppsPageView
-                  platform={effectivePlatform}
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
-              </div>
-            )}
-
-            {activeTab === 'employeeSite' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <EmployeeSitePageView
-                  platform={effectivePlatform}
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
                 />
               </div>
             )}
 
             {activeTab === 'feed' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <PageHeaderWithNav
-                  title="Feed & Circulars"
-                  category="Union Updates"
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <FeedTab
                   posts={posts}
                   heroSlides={heroSlides}
@@ -516,19 +458,16 @@ export default function App() {
                   officeBearers={officeBearers}
                   onRefreshOfficeBearers={loadOfficeBearers}
                   onOpenAdmin={() => setIsAdminOpen(true)}
-                  onNavigateTab={navigateToTab}
+                  onNavigateTab={(tab) => {
+                    setActiveTab(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                 />
               </div>
             )}
 
             {activeTab === 'categories' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <PageHeaderWithNav
-                  title="Categories & Wings"
-                  category="Constituent Wings"
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <CategoriesTab
                   posts={posts}
                   onSelectPost={(post) => setSelectedPost(post)}
@@ -538,13 +477,7 @@ export default function App() {
             )}
 
             {activeTab === 'offline' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <PageHeaderWithNav
-                  title="Offline Reading Vault"
-                  category="Saved Articles"
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <OfflineTab
                   allPosts={posts}
                   onSelectPost={(post) => setSelectedPost(post)}
@@ -556,13 +489,7 @@ export default function App() {
             )}
 
             {activeTab === 'directory' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <PageHeaderWithNav
-                  title="Executive Directory"
-                  category="Leadership & Office Bearers"
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <DirectoryTab
                   platform={effectivePlatform}
                   officeBearers={officeBearers}
@@ -573,13 +500,7 @@ export default function App() {
             )}
 
             {activeTab === 'settings' && (
-              <div className="px-3.5 sm:px-0 pt-2 sm:pt-0">
-                <PageHeaderWithNav
-                  title="App Settings"
-                  category="Preferences & Display"
-                  onBack={handleGoBack}
-                  onHome={handleGoHome}
-                />
+              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
                 <SettingsTab
                   platform={platformMode}
                   onSetPlatform={handleSetPlatform}
@@ -596,13 +517,19 @@ export default function App() {
           {/* 🏛️ Comprehensive Footer matching attached design */}
           <Footer
             onOpenAdmin={() => setIsAdminOpen(true)}
-            onNavigateSection={(sec) => navigateToTab(sec as any)}
+            onNavigateSection={(sec) => {
+              setActiveTab(sec as any);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
 
           {/* Bottom Navigation Bar for Mobile Viewports (hidden on desktop md:) */}
           <BottomNavBar
             activeTab={activeTab}
-            onSelectTab={navigateToTab}
+            onSelectTab={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             platform={effectivePlatform}
             offlineCount={savedPostIds.length}
           />
