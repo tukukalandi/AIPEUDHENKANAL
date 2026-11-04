@@ -63,20 +63,30 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             <h3 className="text-xl sm:text-2xl font-black text-red-700 dark:text-red-400 tracking-tight">
               Announcements
             </h3>
+            {announcements.length > 0 && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300">
+                {announcements.length}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
+            {announcements.length > 6 && (
+              <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                Showing 6 • Scroll to view all
+              </span>
+            )}
             <button
               onClick={onViewAllAnnouncements}
-              className="text-xs sm:text-sm font-black text-red-600 hover:text-red-700 uppercase tracking-wider transition-colors hover:underline"
+              className="text-xs sm:text-sm font-black text-red-600 hover:text-red-700 uppercase tracking-wider transition-colors hover:underline cursor-pointer"
             >
               VIEW ALL
             </button>
           </div>
         </div>
 
-        {/* Announcements List with Colorful Left Bar and Clean Readable Text */}
-        <div className="space-y-3 pt-1">
+        {/* Announcements List: maximum 6 documents visible, scrollable to show others */}
+        <div className="space-y-3 pt-1 max-h-[360px] overflow-y-auto pr-1.5 scroll-smooth overscroll-contain">
           {announcements.length === 0 ? (
             <p className="text-sm text-slate-400 italic py-3 font-medium">
               No current announcements posted.
@@ -100,6 +110,12 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             ))
           )}
         </div>
+
+        {announcements.length > 6 && (
+          <div className="pt-1 text-center text-xs font-bold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
+            <span>Scroll inside to view all {announcements.length} announcements</span>
+          </div>
+        )}
       </div>
 
       {/* 🔷 Split Bottom Grid: IMPORTANT DOCUMENTS (Left) & NOTICE / CIRCULAR (Right) */}
@@ -116,10 +132,15 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 IMPORTANT DOCUMENTS
               </h3>
             </div>
+            {importantDocs.length > 0 && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                {importantDocs.length}
+              </span>
+            )}
           </div>
 
-          {/* Documents List */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1">
+          {/* Documents List: maximum 6 documents visible, scrollable to show others */}
+          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[385px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
             {importantDocs.length === 0 ? (
               <p className="text-sm text-slate-400 italic font-medium">No documents uploaded yet.</p>
             ) : (
@@ -143,6 +164,12 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
               ))
             )}
           </div>
+
+          {importantDocs.length > 6 && (
+            <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 text-center text-xs font-bold text-blue-600 dark:text-blue-400">
+              Showing 6 in view • Scroll inside to view all {importantDocs.length} documents
+            </div>
+          )}
         </div>
 
         {/* ================= RIGHT: NOTICE / CIRCULAR ================= */}
@@ -157,6 +184,11 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 NOTICE / CIRCULAR
               </h3>
             </div>
+            {filteredNotices.length > 0 && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                {filteredNotices.length}
+              </span>
+            )}
           </div>
 
           {/* Category Tabs Bar */}
@@ -167,7 +199,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 <button
                   key={cat}
                   onClick={() => setSelectedNoticeCategory(cat)}
-                  className={`py-3 px-3 sm:px-4 text-xs font-black uppercase whitespace-nowrap transition-all border-b-2 ${
+                  className={`py-3 px-3 sm:px-4 text-xs font-black uppercase whitespace-nowrap transition-all border-b-2 cursor-pointer ${
                     isActive
                       ? 'border-slate-950 dark:border-white text-slate-950 dark:text-white'
                       : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -179,8 +211,8 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             })}
           </div>
 
-          {/* Notices List for Active Category */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1">
+          {/* Notices List for Active Category: maximum 6 documents visible, scrollable to show others */}
+          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[495px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
             {filteredNotices.length === 0 ? (
               <div className="py-8 text-center text-sm text-slate-400 italic font-medium">
                 No circulars published under {selectedNoticeCategory} yet.
@@ -210,6 +242,12 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
               ))
             )}
           </div>
+
+          {filteredNotices.length > 6 && (
+            <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 text-center text-xs font-bold text-amber-700 dark:text-amber-400">
+              Showing 6 in view • Scroll inside to view all {filteredNotices.length} circulars
+            </div>
+          )}
         </div>
       </div>
     </section>

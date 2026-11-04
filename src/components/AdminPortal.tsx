@@ -263,6 +263,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [docTitle, setDocTitle] = useState('');
   const [docUrl, setDocUrl] = useState('');
   const [docCategory, setDocCategory] = useState('General');
+  const [docPublished, setDocPublished] = useState('');
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+  const [docCategoryFilter, setDocCategoryFilter] = useState('All');
 
   // ================= 4. NOTICES & CIRCULARS STATE =================
   const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>([]);
@@ -271,6 +274,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [noticeCategory, setNoticeCategory] = useState<string>('NOTICE');
   const [noticePublished, setNoticePublished] = useState('');
   const [noticeUrl, setNoticeUrl] = useState('');
+  const [noticeSearchQuery, setNoticeSearchQuery] = useState('');
+  const [noticeCategoryFilter, setNoticeCategoryFilter] = useState('All');
 
   // ================= 5. ANNOUNCEMENTS STATE =================
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -278,6 +283,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [annTitle, setAnnTitle] = useState('');
   const [annLink, setAnnLink] = useState('');
   const [annPublished, setAnnPublished] = useState('');
+  const [annSearchQuery, setAnnSearchQuery] = useState('');
 
   // ================= 6. PHOTO GALLERY STATE =================
   const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>(DEFAULT_GALLERY);
@@ -679,6 +685,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocTitle(docItem.title || '');
     setDocUrl(docItem.url || '');
     setDocCategory(docItem.category || 'General');
+    setDocPublished(docItem.published || new Date().toISOString().split('T')[0]);
   };
 
   const handleCancelEditImportantDoc = () => {
@@ -686,6 +693,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocTitle('');
     setDocUrl('');
     setDocCategory('General');
+    setDocPublished('');
   };
 
   const handleSaveImportantDoc = async (e: React.FormEvent) => {
@@ -702,6 +710,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         title: docTitle.trim(),
         url: docUrl.trim(),
         category: docCategory.trim() || 'General',
+        published: docPublished.trim() || new Date().toISOString().split('T')[0],
         order: editingDoc?.order ?? importantDocs.length + 1,
       });
 
@@ -710,7 +719,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (onDocsUpdated) onDocsUpdated();
 
       handleCancelEditImportantDoc();
-      showNotification('✅ Homepage Document saved successfully!');
+      showNotification(editingDoc ? '✅ Homepage Document updated successfully!' : '✅ Homepage Document saved successfully!');
     } catch (err) {
       console.error(err);
       showNotification('❌ Failed to save Homepage Document.');
@@ -2760,372 +2769,778 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             )}
 
             {/* TAB CONTENT: HOMEPAGE DOCS */}
-            {activeTab === 'importantDocs' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingDoc ? 'EDIT HOMEPAGE DOC' : 'ADD HOMEPAGE DOC'}
-                    </h2>
-                    {editingDoc && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                        Editing Mode
-                      </span>
-                    )}
-                  </div>
-                  <form onSubmit={handleSaveImportantDoc} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DOCUMENT TITLE *
-                      </label>
-                      <input
-                        type="text"
-                        value={docTitle}
-                        onChange={(e) => setDocTitle(e.target.value)}
-                        placeholder="e.g. APT 2.0 Work Flow Manual"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        CATEGORY
-                      </label>
-                      <input
-                        type="text"
-                        value={docCategory}
-                        onChange={(e) => setDocCategory(e.target.value)}
-                        placeholder="e.g. APT 2.0 / GDS Service / POSB"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DOCUMENT URL / PDF LINK *
-                      </label>
-                      <input
-                        type="url"
-                        value={docUrl}
-                        onChange={(e) => setDocUrl(e.target.value)}
-                        placeholder="https://..."
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{editingDoc ? 'Update Document' : '+ Add Document'}</span>
-                      </button>
+            {activeTab === 'importantDocs' && (() => {
+              const docCategories = ['All', ...Array.from(new Set(importantDocs.map((d) => d.category || 'General').filter(Boolean)))];
+              const filteredImportantDocs = importantDocs.filter((docItem) => {
+                const q = docSearchQuery.trim().toLowerCase();
+                const matchesSearch =
+                  !q ||
+                  (docItem.title && docItem.title.toLowerCase().includes(q)) ||
+                  (docItem.category && docItem.category.toLowerCase().includes(q)) ||
+                  (docItem.url && docItem.url.toLowerCase().includes(q));
+                const matchesCat =
+                  docCategoryFilter === 'All' ||
+                  (docItem.category && docItem.category.toLowerCase() === docCategoryFilter.toLowerCase());
+                return matchesSearch && matchesCat;
+              });
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Add / Edit Form */}
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="w-5 h-5 text-red-600" />
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                          {editingDoc ? 'EDIT HOMEPAGE DOCUMENT' : 'ADD HOMEPAGE DOCUMENT'}
+                        </h2>
+                      </div>
                       {editingDoc && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                          Editing Mode
+                        </span>
+                      )}
+                    </div>
+
+                    {editingDoc && (
+                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="text-xs text-blue-900 font-medium truncate">
+                          Editing: <span className="font-bold">{editingDoc.title}</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleCancelEditImportantDoc}
-                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
                         >
                           Cancel
                         </button>
-                      )}
-                    </div>
-                  </form>
-                </div>
-
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT HOMEPAGE DOCS ({importantDocs.length})
-                  </div>
-                  <div className="space-y-4">
-                    {importantDocs.map((docItem) => (
-                      <div
-                        key={docItem.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
-                            {docItem.category || 'General'}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 truncate">
-                            {docItem.title}
-                          </h3>
-                          <a
-                            href={docItem.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
-                          >
-                            <span>🔗 View Document</span>
-                          </a>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleEditImportantDocClick(docItem)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Document"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteImportantDoc(docItem.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                            title="Delete Doc"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* TAB CONTENT: NOTICES & CIRCULARS */}
-            {activeTab === 'notices' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingNotice ? 'EDIT NOTICE' : 'ADD NOTICE / CIRCULAR'}
-                    </h2>
-                    {editingNotice && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                        Editing Mode
-                      </span>
+                    <form onSubmit={handleSaveImportantDoc} className="space-y-4">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          DOCUMENT TITLE *
+                        </label>
+                        <input
+                          type="text"
+                          value={docTitle}
+                          onChange={(e) => setDocTitle(e.target.value)}
+                          placeholder="e.g. Death Claim Settlement : With Nomination"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          CATEGORY
+                        </label>
+                        <input
+                          type="text"
+                          list="homepage-doc-categories"
+                          value={docCategory}
+                          onChange={(e) => setDocCategory(e.target.value)}
+                          placeholder="e.g. POSB / Aadhaar / Service Matters / Manuals / General"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                        <datalist id="homepage-doc-categories">
+                          <option value="POSB" />
+                          <option value="Aadhaar" />
+                          <option value="Service Matters" />
+                          <option value="Manuals & Guides" />
+                          <option value="Welfare" />
+                          <option value="General" />
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          DOCUMENT URL / PDF LINK *
+                        </label>
+                        <input
+                          type="url"
+                          value={docUrl}
+                          onChange={(e) => setDocUrl(e.target.value)}
+                          placeholder="https://drive.google.com/... or https://..."
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Paste any direct PDF URL, Google Drive share link, or departmental portal URL.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          PUBLISHED DATE (OPTIONAL)
+                        </label>
+                        <input
+                          type="date"
+                          value={docPublished}
+                          onChange={(e) => setDocPublished(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="flex gap-2.5 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                        >
+                          {editingDoc ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          <span>{editingDoc ? 'Update Document' : '+ Add Document'}</span>
+                        </button>
+                        {editingDoc && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditImportantDoc}
+                            className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Cards Grid */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Header + Search & Filter */}
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          HOMEPAGE DOCUMENTS ({importantDocs.length})
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Shown under Important Documents on the Homepage
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <div className="relative flex-1 sm:w-56">
+                          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={docSearchQuery}
+                            onChange={(e) => setDocSearchQuery(e.target.value)}
+                            placeholder="Search documents..."
+                            className="w-full bg-slate-50 border border-slate-200 text-xs pl-8 pr-3 py-2 rounded-xl focus:bg-white focus:ring-1 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        {docCategories.length > 2 && (
+                          <select
+                            value={docCategoryFilter}
+                            onChange={(e) => setDocCategoryFilter(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500"
+                          >
+                            {docCategories.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat === 'All' ? 'All Categories' : cat}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredImportantDocs.map((docItem) => (
+                        <div
+                          key={docItem.id}
+                          className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                        >
+                          <div className="space-y-2.5">
+                            {/* Badges */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
+                                {docItem.category || 'General'}
+                              </span>
+                              {docItem.published && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{docItem.published}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Document Title */}
+                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
+                              {docItem.title}
+                            </h4>
+
+                            {/* Link Preview */}
+                            <div className="pt-1">
+                              <a
+                                href={docItem.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                              >
+                                {docItem.url}
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Actions Bar */}
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            {/* View / Preview */}
+                            <a
+                              href={docItem.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
+                              title="Open Document in New Tab"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View / Preview</span>
+                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                            </a>
+
+                            {/* Edit & Delete */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleEditImportantDocClick(docItem)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Edit / Modify Document"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteImportantDoc(docItem.id)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Delete Document"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {filteredImportantDocs.length === 0 && (
+                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm space-y-2">
+                        <FileCheck className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="font-semibold text-slate-600">No homepage documents found</p>
+                        <p className="text-xs text-slate-400">
+                          {docSearchQuery || docCategoryFilter !== 'All'
+                            ? 'No documents match your search criteria.'
+                            : 'Upload your first homepage document using the form on the left.'}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  <form onSubmit={handleSaveNoticeCircular} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        TITLE *
-                      </label>
-                      <input
-                        type="text"
-                        value={noticeTitle}
-                        onChange={(e) => setNoticeTitle(e.target.value)}
-                        placeholder="e.g. Allotment of Departmental Quarters"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        CATEGORY
-                      </label>
-                      <select
-                        value={noticeCategory}
-                        onChange={(e) => setNoticeCategory(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      >
-                        <option value="NOTICE">NOTICE</option>
-                        <option value="ACCOMMODATION">ACCOMMODATION</option>
-                        <option value="CGHS">CGHS</option>
-                        <option value="PENSION">PENSION</option>
-                        <option value="MISC">MISC</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DOCUMENT / PDF URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={noticeUrl}
-                        onChange={(e) => setNoticeUrl(e.target.value)}
-                        placeholder="https://..."
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{editingNotice ? 'Update Notice' : '+ Add Notice'}</span>
-                      </button>
+                </div>
+              );
+            })()}
+
+            {/* TAB CONTENT: NOTICES & CIRCULARS */}
+            {activeTab === 'notices' && (() => {
+              const noticeCategories = ['All', 'NOTICE', 'CIRCULAR', 'ACCOMMODATION', 'CGHS', 'PENSION', 'ORDERS', 'MISC'];
+              const filteredNotices = noticeCirculars.filter((nc) => {
+                const q = noticeSearchQuery.trim().toLowerCase();
+                const matchesSearch =
+                  !q ||
+                  (nc.title && nc.title.toLowerCase().includes(q)) ||
+                  (nc.category && nc.category.toLowerCase().includes(q)) ||
+                  (nc.url && nc.url.toLowerCase().includes(q));
+                const matchesCat =
+                  noticeCategoryFilter === 'All' ||
+                  (nc.category && nc.category.toLowerCase() === noticeCategoryFilter.toLowerCase());
+                return matchesSearch && matchesCat;
+              });
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Add / Edit Form */}
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <div className="flex items-center gap-2">
+                        <Bookmark className="w-5 h-5 text-red-600" />
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                          {editingNotice ? 'EDIT NOTICE / CIRCULAR' : 'ADD NOTICE / CIRCULAR'}
+                        </h2>
+                      </div>
                       {editingNotice && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                          Editing Mode
+                        </span>
+                      )}
+                    </div>
+
+                    {editingNotice && (
+                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="text-xs text-blue-900 font-medium truncate">
+                          Editing: <span className="font-bold">{editingNotice.title}</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleCancelEditNotice}
-                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
                         >
                           Cancel
                         </button>
-                      )}
-                    </div>
-                  </form>
-                </div>
-
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT NOTICES ({noticeCirculars.length})
-                  </div>
-                  <div className="space-y-4">
-                    {noticeCirculars.map((nc) => (
-                      <div
-                        key={nc.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-600 uppercase">
-                            {nc.category}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 truncate">
-                            {nc.title}
-                          </h3>
-                          <a
-                            href={nc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
-                          >
-                            <span>🔗 View Document</span>
-                          </a>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleEditNoticeClick(nc)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Notice"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteNoticeCircular(nc.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                            title="Delete Notice"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* TAB CONTENT: ANNOUNCEMENTS */}
-            {activeTab === 'announcements' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingAnn ? 'EDIT ANNOUNCEMENT' : 'ADD ANNOUNCEMENT'}
-                    </h2>
-                    {editingAnn && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                        Editing Mode
-                      </span>
+                    <form onSubmit={handleSaveNoticeCircular} className="space-y-4">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          TITLE *
+                        </label>
+                        <input
+                          type="text"
+                          value={noticeTitle}
+                          onChange={(e) => setNoticeTitle(e.target.value)}
+                          placeholder="e.g. Schedule of Departmental Examinations 2026"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          CATEGORY
+                        </label>
+                        <select
+                          value={noticeCategory}
+                          onChange={(e) => setNoticeCategory(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        >
+                          <option value="NOTICE">NOTICE</option>
+                          <option value="CIRCULAR">CIRCULAR</option>
+                          <option value="ACCOMMODATION">ACCOMMODATION</option>
+                          <option value="CGHS">CGHS</option>
+                          <option value="PENSION">PENSION</option>
+                          <option value="ORDERS">ORDERS</option>
+                          <option value="MISC">MISC</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          PUBLISHED DATE
+                        </label>
+                        <input
+                          type="date"
+                          value={noticePublished}
+                          onChange={(e) => setNoticePublished(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          DOCUMENT / PDF URL *
+                        </label>
+                        <input
+                          type="url"
+                          value={noticeUrl}
+                          onChange={(e) => setNoticeUrl(e.target.value)}
+                          placeholder="https://drive.google.com/... or https://..."
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="flex gap-2.5 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                        >
+                          {editingNotice ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          <span>{editingNotice ? 'Update Notice' : '+ Add Notice'}</span>
+                        </button>
+                        {editingNotice && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditNotice}
+                            className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Cards Grid */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Header + Search & Filter */}
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          NOTICES & CIRCULARS ({noticeCirculars.length})
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Shown under Notices & Circulars on the Homepage
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <div className="relative flex-1 sm:w-56">
+                          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={noticeSearchQuery}
+                            onChange={(e) => setNoticeSearchQuery(e.target.value)}
+                            placeholder="Search notices..."
+                            className="w-full bg-slate-50 border border-slate-200 text-xs pl-8 pr-3 py-2 rounded-xl focus:bg-white focus:ring-1 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        <select
+                          value={noticeCategoryFilter}
+                          onChange={(e) => setNoticeCategoryFilter(e.target.value)}
+                          className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500"
+                        >
+                          {noticeCategories.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat === 'All' ? 'All Categories' : cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredNotices.map((nc) => (
+                        <div
+                          key={nc.id}
+                          className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                        >
+                          <div className="space-y-2.5">
+                            {/* Badges */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                {nc.category || 'NOTICE'}
+                              </span>
+                              {nc.published && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{nc.published}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Notice Title */}
+                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
+                              {nc.title}
+                            </h4>
+
+                            {/* Link Preview */}
+                            <div className="pt-1">
+                              <a
+                                href={nc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                              >
+                                {nc.url}
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Actions Bar */}
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            {/* View / Preview */}
+                            <a
+                              href={nc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
+                              title="Open Document in New Tab"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View / Preview</span>
+                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                            </a>
+
+                            {/* Edit & Delete */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleEditNoticeClick(nc)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Edit / Modify Notice"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteNoticeCircular(nc.id)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Delete Notice"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {filteredNotices.length === 0 && (
+                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm space-y-2">
+                        <Bookmark className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="font-semibold text-slate-600">No notices or circulars found</p>
+                        <p className="text-xs text-slate-400">
+                          {noticeSearchQuery || noticeCategoryFilter !== 'All'
+                            ? 'No notices match your search criteria.'
+                            : 'Upload your first notice or circular using the form on the left.'}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  <form onSubmit={handleSaveAnnouncement} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        ANNOUNCEMENT TEXT *
-                      </label>
-                      <textarea
-                        value={annTitle}
-                        onChange={(e) => setAnnTitle(e.target.value)}
-                        placeholder="Enter scrolling announcement text..."
-                        rows={3}
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        TARGET LINK (OPTIONAL)
-                      </label>
-                      <input
-                        type="url"
-                        value={annLink}
-                        onChange={(e) => setAnnLink(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{editingAnn ? 'Update Announcement' : '+ Add Announcement'}</span>
-                      </button>
+                </div>
+              );
+            })()}
+
+            {/* TAB CONTENT: ANNOUNCEMENTS */}
+            {activeTab === 'announcements' && (() => {
+              const filteredAnnouncements = announcements.filter((ann) => {
+                const q = annSearchQuery.trim().toLowerCase();
+                return (
+                  !q ||
+                  (ann.title && ann.title.toLowerCase().includes(q)) ||
+                  (ann.link && ann.link.toLowerCase().includes(q))
+                );
+              });
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Add / Edit Form */}
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <div className="flex items-center gap-2">
+                        <Megaphone className="w-5 h-5 text-red-600" />
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                          {editingAnn ? 'EDIT ANNOUNCEMENT' : 'ADD ANNOUNCEMENT'}
+                        </h2>
+                      </div>
                       {editingAnn && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                          Editing Mode
+                        </span>
+                      )}
+                    </div>
+
+                    {editingAnn && (
+                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="text-xs text-blue-900 font-medium truncate">
+                          Editing: <span className="font-bold">{editingAnn.title}</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleCancelEditAnnouncement}
-                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
                         >
                           Cancel
                         </button>
-                      )}
-                    </div>
-                  </form>
-                </div>
-
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT ANNOUNCEMENTS ({announcements.length})
-                  </div>
-                  <div className="space-y-4">
-                    {announcements.map((ann) => (
-                      <div
-                        key={ann.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base line-clamp-2">
-                            {ann.title}
-                          </h3>
-                          {ann.link && (
-                            <a
-                              href={ann.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
-                            >
-                              <span>🔗 View Link</span>
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleEditAnnouncementClick(ann)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Announcement"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAnnouncement(ann.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                            title="Delete Announcement"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
-                    ))}
+                    )}
+
+                    <form onSubmit={handleSaveAnnouncement} className="space-y-4">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          ANNOUNCEMENT TEXT *
+                        </label>
+                        <textarea
+                          value={annTitle}
+                          onChange={(e) => setAnnTitle(e.target.value)}
+                          placeholder="e.g. Submission of Agenda Items for Coming Monthly Meeting on 03.11.2026"
+                          rows={3}
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          TARGET LINK / DOCUMENT URL (OPTIONAL)
+                        </label>
+                        <input
+                          type="url"
+                          value={annLink}
+                          onChange={(e) => setAnnLink(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          PUBLISHED DATE (OPTIONAL)
+                        </label>
+                        <input
+                          type="date"
+                          value={annPublished}
+                          onChange={(e) => setAnnPublished(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="flex gap-2.5 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                        >
+                          {editingAnn ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          <span>{editingAnn ? 'Update Announcement' : '+ Add Announcement'}</span>
+                        </button>
+                        {editingAnn && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditAnnouncement}
+                            className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Cards Grid */}
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Header + Search */}
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          ANNOUNCEMENTS ({announcements.length})
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Displayed on the Homepage Announcements section
+                        </p>
+                      </div>
+
+                      <div className="relative flex-1 sm:w-64">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={annSearchQuery}
+                          onChange={(e) => setAnnSearchQuery(e.target.value)}
+                          placeholder="Search announcements..."
+                          className="w-full bg-slate-50 border border-slate-200 text-xs pl-8 pr-3 py-2 rounded-xl focus:bg-white focus:ring-1 focus:ring-red-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredAnnouncements.map((ann) => (
+                        <div
+                          key={ann.id}
+                          className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                        >
+                          <div className="space-y-2.5">
+                            {/* Badges */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-amber-500" />
+                                <span>ANNOUNCEMENT</span>
+                              </span>
+                              {ann.published && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{ann.published}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Headline */}
+                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-3">
+                              {ann.title}
+                            </h4>
+
+                            {/* Link Preview if exists */}
+                            {ann.link && (
+                              <div className="pt-1">
+                                <a
+                                  href={ann.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                                >
+                                  {ann.link}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions Bar */}
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            {/* View / Open Link */}
+                            {ann.link ? (
+                              <a
+                                href={ann.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
+                                title="Open Link in New Tab"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View / Open Link</span>
+                                <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">No link attached</span>
+                            )}
+
+                            {/* Edit & Delete */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleEditAnnouncementClick(ann)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Edit / Modify Announcement"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAnnouncement(ann.id)}
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Delete Announcement"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {filteredAnnouncements.length === 0 && (
+                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm space-y-2">
+                        <Megaphone className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="font-semibold text-slate-600">No announcements found</p>
+                        <p className="text-xs text-slate-400">
+                          {annSearchQuery
+                            ? 'No announcements match your search.'
+                            : 'Post your first announcement using the form on the left.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* TAB CONTENT: PHOTO GALLERY */}
             {activeTab === 'gallery' && (
