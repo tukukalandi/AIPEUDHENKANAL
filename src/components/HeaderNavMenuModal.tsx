@@ -109,7 +109,10 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       icon: ImageIcon,
       gradient: 'from-purple-600 to-indigo-600',
       badgeBg: 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300',
-      action: () => setSubView('gallery'),
+      action: () => {
+        onSelectTab('gallery');
+        onClose();
+      },
     },
     {
       id: 'apps',
@@ -119,7 +122,10 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       icon: Grid,
       gradient: 'from-blue-600 to-cyan-600',
       badgeBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300',
-      action: () => setSubView('apps'),
+      action: () => {
+        onSelectTab('apps');
+        onClose();
+      },
     },
     {
       id: 'employeeSite',
@@ -129,7 +135,10 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       icon: Briefcase,
       gradient: 'from-amber-600 to-orange-600',
       badgeBg: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300',
-      action: () => setSubView('employeeSite'),
+      action: () => {
+        onSelectTab('employeeSite');
+        onClose();
+      },
     },
     {
       id: 'offline',

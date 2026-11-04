@@ -16,7 +16,18 @@ export interface BlogPost {
 
 export type PlatformStyle = 'ios' | 'android' | 'auto';
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type ActiveTab = 'home' | 'feed' | 'categories' | 'offline' | 'directory' | 'settings' | 'user-portal' | 'orders-rulings-guide';
+export type ActiveTab =
+  | 'home'
+  | 'feed'
+  | 'categories'
+  | 'offline'
+  | 'directory'
+  | 'settings'
+  | 'user-portal'
+  | 'orders-rulings-guide'
+  | 'gallery'
+  | 'apps'
+  | 'employeeSite';
 export type AppLanguage = 'en' | 'hi' | 'or' | string;
 
 export interface HeroSlide {

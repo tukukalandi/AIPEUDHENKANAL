@@ -42,6 +42,7 @@ import {
   Code,
   BookOpen,
   Folder,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   BlogPost,
@@ -86,6 +87,15 @@ import {
   deleteOrderRulingGuideFromFirestore,
   NewCircularInput,
 } from '../services/firebase';
+import {
+  uploadFileToGoogleDrive,
+  signInWithGoogleDrive,
+  logoutGoogleDrive,
+  hasDriveAuth,
+  getCurrentDriveUser,
+  TARGET_GOOGLE_DRIVE_FOLDER_ID,
+  TARGET_GOOGLE_DRIVE_FOLDER_URL,
+} from '../services/googleDrive';
 import {
   DEFAULT_HERO_SLIDES,
   DEFAULT_NEWS_ITEMS,
@@ -368,6 +378,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [orgNotes, setOrgNotes] = useState('');
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
   const [orgFolderFilter, setOrgFolderFilter] = useState('All');
+  // Google Drive Direct Upload State
+  const [isDriveConnected, setIsDriveConnected] = useState<boolean>(() => hasDriveAuth());
+  const [driveUserEmail, setDriveUserEmail] = useState<string | null>(() => getCurrentDriveUser()?.email || null);
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
+  const [driveUploadStatus, setDriveUploadStatus] = useState('');
+  const [driveUploadedFile, setDriveUploadedFile] = useState<{ name: string; url: string } | null>(null);
+  const [driveAuthError, setDriveAuthError] = useState<string | null>(null);
+  const [savedSuccessModal, setSavedSuccessModal] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    folderName: string;
+    category: string;
+    documentUrl: string;
+    isUpdate: boolean;
+  } | null>(null);
+  const orgFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Load all data when modal opens
   const loadAllData = async () => {
@@ -1432,6 +1459,87 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setOrgDocumentUrl('');
     setOrgPublished('');
     setOrgNotes('');
+    setDriveUploadedFile(null);
+    setDriveUploadStatus('');
+  };
+
+  const handleConnectDrive = async () => {
+    setIsConnectingDrive(true);
+    setDriveAuthError(null);
+    try {
+      const res = await signInWithGoogleDrive();
+      setIsDriveConnected(true);
+      setDriveUserEmail(res.user.email || 'Authorized Account');
+      setDriveAuthError(null);
+      showNotification(`✅ Connected to Google Drive (${res.user.email || 'Authorized'})! You can now choose files to upload.`);
+    } catch (err: any) {
+      console.error('Google Drive connection error:', err);
+      const isPopupBlocked = err?.code === 'auth/popup-blocked' || err?.message?.toLowerCase().includes('pop-up was blocked');
+      if (isPopupBlocked) {
+        setDriveAuthError(
+          'Browser Pop-up Blocked: Your browser prevented the Google Sign-in window from opening. Please click the pop-up icon (🚫) in your browser address bar (top-right), select "Always allow pop-ups for this site", and click "Sign in with Google to Connect Drive" again.'
+        );
+      } else {
+        setDriveAuthError(err.message || 'Could not connect Google Drive');
+      }
+      showNotification(`❌ ${err.message || 'Could not connect Google Drive'}`);
+    } finally {
+      setIsConnectingDrive(false);
+    }
+  };
+
+  const handleDisconnectDrive = async () => {
+    await logoutGoogleDrive();
+    setIsDriveConnected(false);
+    setDriveUserEmail(null);
+    setDriveAuthError(null);
+    showNotification('Google Drive disconnected.');
+  };
+
+  const handleDirectDriveFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!hasDriveAuth()) {
+      showNotification('⚠️ Please click "Sign in with Google" first to authorize Google Drive uploads.');
+      return;
+    }
+
+    setIsUploadingToDrive(true);
+    setDriveUploadStatus('Uploading file to Google Drive...');
+    try {
+      const result = await uploadFileToGoogleDrive(
+        file,
+        TARGET_GOOGLE_DRIVE_FOLDER_ID,
+        (statusText) => setDriveUploadStatus(statusText)
+      );
+
+      // Auto-populate File Name if empty
+      if (!orgFileName.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setOrgFileName(cleanName);
+      }
+
+      // Auto-populate Document URL with the Google Drive sharing view link
+      setOrgDocumentUrl(result.webViewLink);
+      setDriveUploadedFile({
+        name: file.name,
+        url: result.webViewLink,
+      });
+
+      showNotification(`✅ "${file.name}" uploaded to Google Drive! Link saved in form.`);
+    } catch (err: any) {
+      console.error('Google Drive direct upload error:', err);
+      if (!hasDriveAuth()) {
+        setIsDriveConnected(false);
+        setDriveUserEmail(null);
+      }
+      showNotification(`❌ Upload failed: ${err.message || 'Error uploading to Drive'}`);
+    } finally {
+      setIsUploadingToDrive(false);
+      setDriveUploadStatus('');
+      if (e.target) e.target.value = '';
+    }
   };
 
   const handleSaveOrgDocument = async (e: React.FormEvent) => {
@@ -1449,18 +1557,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
     if (!orgDocumentUrl.trim()) {
-      showNotification('⚠️ Please fill Document URL');
+      showNotification('⚠️ Please fill Document URL or upload a file');
       return;
     }
+
+    const wasEditing = !!editingOrgItem;
+    const savedFileName = orgFileName.trim();
+    const savedFolderName = orgFolderName.trim();
+    const savedCategory = orgCategory.trim();
+    const savedDocUrl = orgDocumentUrl.trim();
 
     setIsSubmitting(true);
     try {
       const dataToSave: Partial<OrderRulingGuideItem> & { id?: string } = {
         id: editingOrgItem ? editingOrgItem.id : undefined,
-        fileName: orgFileName.trim(),
-        folderName: orgFolderName.trim(),
-        category: orgCategory.trim(),
-        documentUrl: orgDocumentUrl.trim(),
+        fileName: savedFileName,
+        folderName: savedFolderName,
+        category: savedCategory,
+        documentUrl: savedDocUrl,
         published: orgPublished.trim() || new Date().toISOString().split('T')[0],
         notes: orgNotes.trim(),
         order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
@@ -1471,10 +1585,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setOrdersRulingsGuides(updated);
       handleCancelEditOrg();
       window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
-      showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
-    } catch (err) {
+
+      // Pop-up modal confirmation as requested by user
+      setSavedSuccessModal({
+        isOpen: true,
+        fileName: savedFileName,
+        folderName: savedFolderName,
+        category: savedCategory,
+        documentUrl: savedDocUrl,
+        isUpdate: wasEditing,
+      });
+
+      showNotification(wasEditing ? '✅ Document updated successfully!' : '✅ File saved successfully!');
+    } catch (err: any) {
       console.error(err);
-      showNotification('❌ Failed to save document to Orders/Rullings/Guide.');
+      showNotification(`❌ Failed to save document: ${err.message || 'Please check connection'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -2326,6 +2451,184 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
 
                     <form onSubmit={handleSaveOrgDocument} className="space-y-4">
+                      {/* DIRECT GOOGLE DRIVE UPLOAD BOX */}
+                      <div className="p-4 bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-dashed border-emerald-400 rounded-2xl relative overflow-hidden transition-all hover:border-emerald-500">
+                        <input
+                          type="file"
+                          ref={orgFileInputRef}
+                          onChange={handleDirectDriveFileUpload}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg"
+                          className="hidden"
+                          id="org-drive-file-input"
+                        />
+
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                              <Upload className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                                Direct Upload to Google Drive
+                              </h4>
+                              <span className="text-[10px] text-emerald-700 font-medium">
+                                Files save directly to your specified Drive folder
+                              </span>
+                            </div>
+                          </div>
+
+                          <a
+                            href={TARGET_GOOGLE_DRIVE_FOLDER_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 bg-white/80 hover:bg-white px-2 py-1 rounded-lg border border-emerald-200 transition-colors inline-flex items-center gap-1 shadow-2xs shrink-0"
+                            title="Open destination folder in Google Drive"
+                          >
+                            <span>Open Drive</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+
+                        {/* Upload Trigger Button & Dropzone */}
+                        <div className="mt-3">
+                          {isUploadingToDrive ? (
+                            <div className="bg-white/95 rounded-xl p-4 text-center border border-emerald-200 shadow-inner flex flex-col items-center justify-center gap-2">
+                              <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                              <p className="text-xs font-bold text-emerald-800 animate-pulse">
+                                {driveUploadStatus || 'Uploading file to Google Drive...'}
+                              </p>
+                              <span className="text-[10px] text-slate-500">
+                                Setting public view access & generating document link
+                              </span>
+                            </div>
+                          ) : driveUploadedFile ? (
+                            <div className="bg-white rounded-xl p-3 border border-emerald-300 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <span className="text-xs font-bold text-slate-800 truncate">
+                                    {driveUploadedFile.name}
+                                  </span>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Uploaded
+                                </span>
+                              </div>
+
+                              <p className="text-[10px] text-emerald-700 font-medium">
+                                ✅ Saved to your Drive folder. Document URL below is updated!
+                              </p>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => orgFileInputRef.current?.click()}
+                                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                                >
+                                  Upload another file
+                                </button>
+                                <span className="text-slate-300">•</span>
+                                <a
+                                  href={driveUploadedFile.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1"
+                                >
+                                  <span>Test Google Drive Link</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            </div>
+                          ) : !isDriveConnected ? (
+                            <div className="space-y-2.5">
+                              {driveAuthError && (
+                                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs space-y-1.5 shadow-2xs">
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-sm">⚠️</span>
+                                    <div className="flex-1">
+                                      <p className="font-bold text-[11px] leading-tight text-amber-950">
+                                        Pop-Up Blocked by Browser
+                                      </p>
+                                      <p className="text-[10px] text-amber-800 mt-0.5 leading-normal">
+                                        {driveAuthError}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDriveAuthError(null)}
+                                      className="text-amber-600 hover:text-amber-900 text-[10px] font-bold"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  <div className="pt-1 border-t border-amber-200/80 flex items-center justify-between text-[10px]">
+                                    <span className="text-amber-700">Check top-right of your browser URL bar for 🚫</span>
+                                    <button
+                                      type="button"
+                                      onClick={handleConnectDrive}
+                                      className="font-bold text-amber-900 underline hover:text-black cursor-pointer"
+                                    >
+                                      Retry Sign-In
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={handleConnectDrive}
+                                disabled={isConnectingDrive}
+                                className="w-full py-3 px-4 bg-white hover:bg-emerald-50 active:bg-emerald-100 border-2 border-emerald-500 text-slate-800 font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+                              >
+                                {isConnectingDrive ? (
+                                  <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
+                                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                                  </svg>
+                                )}
+                                <span>{isConnectingDrive ? 'Connecting Google Drive...' : 'Sign in with Google to Connect Drive'}</span>
+                              </button>
+                              <p className="text-[10px] text-slate-500 text-center">
+                                Connect once to allow uploading directly from your device to Google Drive
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[11px] bg-emerald-100/70 border border-emerald-300 px-3 py-1.5 rounded-lg text-emerald-900 font-semibold">
+                                <span className="truncate">
+                                  🟢 Drive Connected {driveUserEmail ? `(${driveUserEmail})` : ''}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleDisconnectDrive}
+                                  className="text-emerald-700 hover:text-emerald-900 underline text-[10px] shrink-0 cursor-pointer ml-2"
+                                >
+                                  Disconnect
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => orgFileInputRef.current?.click()}
+                                className="w-full py-3 px-4 bg-white hover:bg-emerald-50/80 active:bg-emerald-100 border-2 border-emerald-500 text-emerald-800 font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer group"
+                              >
+                                <Upload className="w-4 h-4 text-emerald-600 group-hover:-translate-y-0.5 transition-transform" />
+                                <span>Choose File from Computer (Uploads to Drive)</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between">
+                          <span>Supports PDF, Word, Excel, Images, etc.</span>
+                          <span className="font-mono text-[9px] text-slate-400">Folder ID: 1XIKgUxuVj...</span>
+                        </div>
+                      </div>
+
                       {/* 1. File Name */}
                       <div>
                         <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
