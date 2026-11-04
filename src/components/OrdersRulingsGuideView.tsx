@@ -325,8 +325,8 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
                       <Calendar className="w-3.5 h-3.5" />
                       <span>{docItem.published || 'Official Order'}</span>
                     </span>
-                    <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md flex items-center gap-1">
-                      {docItem.documentUrl?.includes('drive.google.com') ? '📁 Google Drive' : 'Verified'}
+                    <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                      Verified
                     </span>
                   </div>
                 </div>

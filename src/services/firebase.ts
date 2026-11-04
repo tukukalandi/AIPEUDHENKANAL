@@ -35,9 +35,8 @@ const app = getApps().length > 0 ? getApp() : initializeApp({
   messagingSenderId: firebaseConfig.messagingSenderId,
 });
 
-// Initialize Firestore using the designated databaseId from config if present
-const dbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId;
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+// Initialize Firestore using the designated databaseId from config
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 
 // Test connection on boot
 export async function testFirestoreConnection() {
