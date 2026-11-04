@@ -679,10 +679,26 @@ export function getStoredMyApps(): CustomPortalApp[] {
   return DEFAULT_MY_APPS;
 }
 
+export const DEFAULT_FORMS_LIST = [
+  { id: 'form-1', title: 'GDS Gratuity & Severance Claim Settlement', formCode: 'Form-1 & Annexure-A', category: 'GDS Service', downloadUrl: 'https://www.indiapost.gov.in' },
+  { id: 'form-2', title: 'Application Proforma for LDCE GDS to Postman/MTS 2026', formCode: 'DoP-LDCE-2026', category: 'Examinations', downloadUrl: 'https://www.indiapost.gov.in' },
+  { id: 'form-3', title: 'Child Care Leave (CCL) & Maternity Leave Application', formCode: 'FRSR-Leave-CCL', category: 'Leave Rules', downloadUrl: 'https://www.indiapost.gov.in' },
+  { id: 'form-4', title: 'Postal Life Insurance Loan & Revival Application', formCode: 'PLI-Loan-Revival', category: 'PLI / RPLI', downloadUrl: 'https://www.indiapost.gov.in' },
+  { id: 'form-5', title: 'AIPEU Membership Enrollment & Monthly Subscription Form', formCode: 'AIPEU-MEMB-01', category: 'Union Affairs', downloadUrl: 'https://www.indiapost.gov.in' },
+];
+
 export function getStoredEmployeeResources(): EmployeeResource[] {
   try {
     const raw = localStorage.getItem('aipeu_admin_resources');
     if (raw) return JSON.parse(raw);
   } catch {}
   return DEFAULT_EMPLOYEE_RESOURCES;
+}
+
+export function getStoredForms() {
+  try {
+    const raw = localStorage.getItem('aipeu_admin_forms');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return DEFAULT_FORMS_LIST;
 }

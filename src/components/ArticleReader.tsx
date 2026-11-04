@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
+  Home,
   Share2,
   Bookmark,
   BookmarkCheck,
@@ -20,6 +21,7 @@ import { isPostSavedOffline, savePostForOffline, removePostFromOffline } from '.
 interface ArticleReaderProps {
   post: BlogPost;
   onBack: () => void;
+  onHome?: () => void;
   onShare: (data: ShareData) => void;
   platform: PlatformStyle;
 }
@@ -27,6 +29,7 @@ interface ArticleReaderProps {
 export const ArticleReader: React.FC<ArticleReaderProps> = ({
   post,
   onBack,
+  onHome,
   onShare,
   platform,
 }) => {
@@ -108,7 +111,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         </div>
       )}
 
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar with Back & Home */}
       <div
         className={`sticky top-0 z-40 transition-colors ${
           isIOS
@@ -117,15 +120,28 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         } pt-safe`}
       >
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 h-14 flex items-center justify-between gap-2">
-          {/* Back button */}
-          <button
-            onClick={onBack}
-            className="min-h-[44px] min-w-[44px] flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium text-sm active:opacity-70 transition-opacity"
-            aria-label="Go Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
+          {/* Left: Back & Home buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
+              aria-label="Go Back"
+              title="Return to previous page"
+            >
+              <ArrowLeft className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>← Back</span>
+            </button>
+
+            <button
+              onClick={onHome || onBack}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#022A61] hover:bg-blue-900 text-white font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer"
+              aria-label="Go to Home Page"
+              title="Go directly to Home Page"
+            >
+              <Home className="w-4 h-4 text-amber-400" />
+              <span>⌂ Home</span>
+            </button>
+          </div>
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1">

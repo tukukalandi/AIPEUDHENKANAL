@@ -275,7 +275,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
                 href="#forms"
                 onClick={(e) => {
                   e.preventDefault();
-                  onNavigateSection && onNavigateSection('directory');
+                  onNavigateSection && onNavigateSection('forms');
                 }}
                 className="flex items-center gap-2 hover:text-amber-300 transition-colors"
               >
@@ -320,9 +320,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, onNavigateSection }
             </li>
             <li>
               <a
-                href="https://aipeup3dkl.blogspot.com/"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#gallery"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onNavigateSection && onNavigateSection('gallery');
+                }}
                 className="flex items-center gap-2 hover:text-amber-300 transition-colors"
               >
                 <ImageIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />

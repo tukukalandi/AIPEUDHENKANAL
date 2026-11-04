@@ -6,7 +6,13 @@
   :root {
     font-family: 'Plus Jakarta Sans', 'Noto Sans Oriya', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+  }
+
+  html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+    scroll-behavior: smooth;
   }
 
   html.dark, body.dark {
@@ -14,6 +20,14 @@
     background-color: #020617;
     color: #f8fafc;
   }
+}
+
+/* Smooth scrollable document section that chains seamlessly to main page */
+.doc-scroll-area {
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* Safe area padding for mobile notches and home indicators */

@@ -6,33 +6,29 @@ import {
   Briefcase,
   Bookmark,
   Settings,
-  ExternalLink,
-  Search,
-  ArrowRight,
-  ArrowLeft,
-  Calendar,
   Layers,
-  Sparkles,
   Shield,
   FileText,
   ChevronRight,
   UserCheck,
-  Play,
-  FileCode,
-  RotateCcw,
   BookOpen,
+  Download,
+  Users,
+  Home,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle, GalleryPhoto, CustomPortalApp, EmployeeResource } from '../types';
 import {
   getStoredGallery,
   getStoredMyApps,
   getStoredEmployeeResources,
+  getStoredForms,
 } from '../data/portalMenuData';
 
 interface HeaderNavMenuModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectTab: (tab: ActiveTab) => void;
+  onOpenAdmin?: () => void;
   offlineCount: number;
   platform: PlatformStyle;
   initialSubView?: 'menu' | 'gallery' | 'apps' | 'employeeSite';
@@ -42,43 +38,43 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
   isOpen,
   onClose,
   onSelectTab,
+  onOpenAdmin,
   offlineCount,
-  platform,
-  initialSubView = 'menu',
 }) => {
-  const [subView, setSubView] = useState<'menu' | 'gallery' | 'apps' | 'employeeSite'>(initialSubView);
   const [gallery, setGallery] = useState<GalleryPhoto[]>([]);
   const [myApps, setMyApps] = useState<CustomPortalApp[]>([]);
   const [employeeResources, setEmployeeResources] = useState<EmployeeResource[]>([]);
-  const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
-  const [runningApp, setRunningApp] = useState<CustomPortalApp | null>(null);
-  const [iframeKey, setIframeKey] = useState(0);
-
-  // Search & filters
-  const [appSearch, setAppSearch] = useState('');
-  const [resSearch, setResSearch] = useState('');
-  const [galleryCat, setGalleryCat] = useState<string>('all');
+  const [formsCount, setFormsCount] = useState<number>(5);
 
   useEffect(() => {
     if (isOpen) {
       setGallery(getStoredGallery());
       setMyApps(getStoredMyApps());
       setEmployeeResources(getStoredEmployeeResources());
-      setSubView(initialSubView);
-      setSelectedPhoto(null);
-      setRunningApp(null);
+      setFormsCount(getStoredForms().length);
     }
-  }, [isOpen, initialSubView]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const isIOS = platform === 'ios';
-
   const menuItems = [
+    {
+      id: 'home',
+      title: 'Home Page',
+      desc: 'Main union portal, announcements, important documents & notices',
+      count: 'Main',
+      icon: Home,
+      gradient: 'from-blue-700 to-indigo-800',
+      badgeBg: 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300',
+      action: () => {
+        onSelectTab('home');
+        onClose();
+      },
+    },
     {
       id: 'user-portal',
       title: 'User Portal (Self-Service)',
-      desc: 'Member Grievances, Executive Directory & Contacts, ID Cards, Forms',
+      desc: 'Member Grievances, Digital Membership Card, Directory & Forms',
       count: 'Portal',
       icon: UserCheck,
       gradient: 'from-emerald-600 to-teal-600',
@@ -90,7 +86,7 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
     },
     {
       id: 'orders-rulings-guide',
-      title: 'Orders/Rullings/Guide',
+      title: 'Orders / Rulings / Guide',
       desc: 'Postal department orders, union rulings, guidelines and handbooks in card view',
       count: 'Official Docs',
       icon: BookOpen,
@@ -102,41 +98,101 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       },
     },
     {
+      id: 'feed',
+      title: 'Circulars & Feed',
+      desc: 'Divisional circulars, meeting minutes, exam notifications & orders',
+      count: 'Live Feed',
+      icon: FileText,
+      gradient: 'from-red-600 to-orange-600',
+      badgeBg: 'bg-red-100 text-red-800 dark:bg-red-950/80 dark:text-red-300',
+      action: () => {
+        onSelectTab('feed');
+        onClose();
+      },
+    },
+    {
+      id: 'categories',
+      title: 'Constituent Union Wings',
+      desc: 'AIPEU Group C, Postman & MTS, AIGDSU, AIPRPA & Women Committee',
+      count: '5 Wings',
+      icon: Layers,
+      gradient: 'from-indigo-600 to-blue-600',
+      badgeBg: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300',
+      action: () => {
+        onSelectTab('categories');
+        onClose();
+      },
+    },
+    {
+      id: 'directory',
+      title: 'Office Bearers & Directory',
+      desc: 'Divisional executives, contact numbers, union constitution & rulings',
+      count: 'Directory',
+      icon: Users,
+      gradient: 'from-cyan-600 to-blue-700',
+      badgeBg: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/80 dark:text-cyan-300',
+      action: () => {
+        onSelectTab('directory');
+        onClose();
+      },
+    },
+    {
       id: 'gallery',
       title: 'Photo Gallery',
-      desc: 'Historic conferences, Staff Adalat, and union rallies',
+      desc: 'Historic conferences, Staff Adalat, and union rallies in full-page view',
       count: `${gallery.length} Photos`,
       icon: ImageIcon,
       gradient: 'from-purple-600 to-indigo-600',
       badgeBg: 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300',
-      action: () => setSubView('gallery'),
+      action: () => {
+        onSelectTab('gallery');
+        onClose();
+      },
     },
     {
-      id: 'apps',
-      title: 'My Apps',
-      desc: 'Quick portal shortcuts: SAP ERP, CEPT, Finacle, PLI & CGHS',
+      id: 'my-apps',
+      title: 'My Apps & Online Portals',
+      desc: 'ACG-17 Receipt Generator, Target Calculator, SAP ERP, CEPT, Finacle & PLI',
       count: `${myApps.length} Apps`,
       icon: Grid,
       gradient: 'from-blue-600 to-cyan-600',
       badgeBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300',
-      action: () => setSubView('apps'),
+      action: () => {
+        onSelectTab('my-apps');
+        onClose();
+      },
     },
     {
-      id: 'employeeSite',
-      title: 'Employee Site',
+      id: 'employee-site',
+      title: 'Employee Site & Rules',
       desc: 'Postal Manuals Vol IV & VI, CCS Conduct Rules, Pay Matrix',
       count: `${employeeResources.length} Manuals`,
       icon: Briefcase,
       gradient: 'from-amber-600 to-orange-600',
       badgeBg: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300',
-      action: () => setSubView('employeeSite'),
+      action: () => {
+        onSelectTab('employee-site');
+        onClose();
+      },
+    },
+    {
+      id: 'forms',
+      title: 'Downloadable Forms',
+      desc: 'Claim settlement, LDCE proforma, CCL leave, PLI revival & union forms',
+      count: `${formsCount} Forms`,
+      icon: Download,
+      gradient: 'from-violet-600 to-purple-700',
+      badgeBg: 'bg-violet-100 text-violet-800 dark:bg-violet-950/80 dark:text-violet-300',
+      action: () => {
+        onSelectTab('forms');
+        onClose();
+      },
     },
     {
       id: 'offline',
       title: 'Offline Vault',
       desc: 'Cached circulars & orders accessible without internet',
       count: offlineCount > 0 ? `${offlineCount} Saved` : 'Vault',
-      badge: offlineCount > 0 ? `${offlineCount}` : undefined,
       icon: Bookmark,
       gradient: 'from-emerald-600 to-teal-600',
       badgeBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300',
@@ -147,7 +203,7 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
     },
     {
       id: 'settings',
-      title: 'Settings',
+      title: 'Settings & Preferences',
       desc: 'Display modes, UI platform style, language, and font sizing',
       count: 'Preferences',
       icon: Settings,
@@ -160,66 +216,24 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
     },
   ];
 
-  // Gallery categories
-  const galleryCategories = ['all', ...Array.from(new Set(gallery.map((g) => g.category)))];
-  const filteredGallery = gallery.filter((g) =>
-    galleryCat === 'all' ? true : g.category === galleryCat
-  );
-
-  // Filtered Apps
-  const filteredApps = myApps.filter((a) => {
-    const q = appSearch.toLowerCase().trim();
-    return (
-      !q ||
-      a.name.toLowerCase().includes(q) ||
-      a.category.toLowerCase().includes(q) ||
-      (a.description && a.description.toLowerCase().includes(q))
-    );
-  });
-
-  // Filtered Resources
-  const filteredResources = employeeResources.filter((r) => {
-    const q = resSearch.toLowerCase().trim();
-    return (
-      !q ||
-      r.title.toLowerCase().includes(q) ||
-      r.category.toLowerCase().includes(q)
-    );
-  });
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-[#022A61] to-[#0A3D80] text-white">
-          <div className="flex items-center gap-3">
-            {subView !== 'menu' && (
-              <button
-                type="button"
-                onClick={() => setSubView('menu')}
-                className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all active:scale-95"
-                title="Back to Menu"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <div>
-              <span className="text-[10px] font-black tracking-widest uppercase text-amber-300 block">
-                {subView === 'menu' ? 'PORTAL NAVIGATION' : 'EXPLORE UTILITIES'}
-              </span>
-              <h2 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
-                {subView === 'menu' && 'Union Menu & Portals'}
-                {subView === 'gallery' && 'Union Photo Gallery'}
-                {subView === 'apps' && 'My Apps & Online Portals'}
-                {subView === 'employeeSite' && 'Employee Site & Postal Rules'}
-              </h2>
-            </div>
+          <div>
+            <span className="text-[10px] font-black tracking-widest uppercase text-amber-300 block">
+              FULL-PAGE PORTAL DIRECTORY
+            </span>
+            <h2 className="text-base sm:text-lg font-black tracking-tight text-white">
+              Union Menu & Full-Page Portals
+            </h2>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all active:scale-95"
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all active:scale-95 cursor-pointer"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
@@ -228,265 +242,67 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {/* ================= 1. ROOT MENU VIEW ================= */}
-          {subView === 'menu' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Access official India Post employee tools, union photo archives, postal rules, offline vault, and settings.
-              </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Select any portal section below to open its dedicated full-page view.
+          </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={item.action}
-                      className={`p-4 rounded-2xl border text-left flex items-start gap-3.5 transition-all active:scale-[0.98] group bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md ${
-                        item.id === 'offline' && offlineCount > 0
-                          ? 'ring-1 ring-emerald-500/30'
-                          : ''
-                      }`}
-                    >
-                      <div
-                        className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${item.gradient} text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {item.title}
-                          </h3>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.badgeBg}`}
-                          >
-                            {item.count}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                          {item.desc}
-                        </p>
-                      </div>
-
-                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ================= 2. PHOTO GALLERY VIEW ================= */}
-          {subView === 'gallery' && (
-            <div className="space-y-4">
-              {/* Category Filter Pills */}
-              {galleryCategories.length > 2 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {galleryCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setGalleryCat(cat)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                        galleryCat === cat
-                          ? 'bg-purple-600 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                      }`}
-                    >
-                      {cat === 'all' ? 'All Photos' : cat}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Photos Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {filteredGallery.map((photo) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.action}
+                  className="p-4 rounded-2xl border text-left flex items-start gap-3.5 transition-all active:scale-[0.98] group bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md cursor-pointer"
+                >
                   <div
-                    key={photo.id}
-                    onClick={() => setSelectedPhoto(photo)}
-                    className="group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col"
+                    className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${item.gradient} text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform`}
                   >
-                    <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                      <img
-                        src={photo.imageUrl}
-                        alt={photo.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[10px] font-bold text-white">
-                        {photo.category}
-                      </div>
+                    <Icon className="w-5 h-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {item.title}
+                      </h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.badgeBg}`}>
+                        {item.count}
+                      </span>
                     </div>
-                    <div className="p-3 flex-1 flex flex-col justify-between">
-                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white line-clamp-2">
-                        {photo.title}
-                      </h4>
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {photo.date}
-                        </span>
-                        <span className="text-purple-600 dark:text-purple-400 font-bold group-hover:underline">
-                          View full →
-                        </span>
-                      </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                      {item.desc}
+                    </p>
+                  </div>
+
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                </button>
+              );
+            })}
+          </div>
+
+          {onOpenAdmin && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAdmin();
+                }}
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-sm flex items-center justify-between shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-amber-300" />
+                  <div className="text-left">
+                    <div className="font-black">Admin Portal (Login / Dashboard)</div>
+                    <div className="text-[11px] text-rose-100 font-normal">
+                      Manage circulars, hero slider, homepage docs, members & executive bearers
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {filteredGallery.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-xs">
-                  No photos found in this category.
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* ================= 3. MY APPS VIEW ================= */}
-          {subView === 'apps' && (
-            <div className="space-y-4">
-              {/* Search box */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={appSearch}
-                  onChange={(e) => setAppSearch(e.target.value)}
-                  placeholder="Search portal name, ERP, CEPT, CBS..."
-                  className="w-full pl-9 pr-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Apps List */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {filteredApps.map((app) => {
-                  const isCodeApp = app.sourceType === 'code' || !!app.codeSnippet;
-                  if (isCodeApp) {
-                    return (
-                      <button
-                        key={app.id}
-                        type="button"
-                        onClick={() => {
-                          setRunningApp(app);
-                          setIframeKey((k) => k + 1);
-                        }}
-                        className="p-3.5 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-md transition-all flex items-start justify-between gap-3 group active:scale-[0.99] text-left cursor-pointer"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 uppercase">
-                              {app.category}
-                            </span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1">
-                              <FileCode className="w-2.5 h-2.5 text-amber-600" /> HTML App
-                            </span>
-                          </div>
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white mt-1 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
-                            {app.name}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                            {app.description || 'Custom interactive application'}
-                          </p>
-                        </div>
-
-                        <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                        </div>
-                      </button>
-                    );
-                  }
-                  return (
-                    <a
-                      key={app.id}
-                      href={app.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md transition-all flex items-start justify-between gap-3 group active:scale-[0.99]"
-                    >
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 uppercase">
-                          {app.category}
-                        </span>
-                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white mt-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
-                          {app.name}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                          {app.description}
-                        </p>
-                      </div>
-
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <ExternalLink className="w-4 h-4" />
-                      </div>
-                    </a>
-                  );
-                })}
-              </div>
-
-              {filteredApps.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-xs">
-                  No portal found matching "{appSearch}".
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ================= 4. EMPLOYEE SITE VIEW ================= */}
-          {subView === 'employeeSite' && (
-            <div className="space-y-4">
-              {/* Search box */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={resSearch}
-                  onChange={(e) => setResSearch(e.target.value)}
-                  placeholder="Search Postal Manuals, CCS rules, Pay Matrix..."
-                  className="w-full pl-9 pr-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              {/* Resource List */}
-              <div className="space-y-2.5">
-                {filteredResources.map((res) => (
-                  <a
-                    key={res.id}
-                    href={res.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-md transition-all flex items-center justify-between gap-3 group active:scale-[0.99]"
-                  >
-                    <div className="min-w-0 flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
-                          {res.category}
-                        </span>
-                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                          {res.title}
-                        </h4>
-                      </div>
-                    </div>
-
-                    <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                      <ExternalLink className="w-4 h-4" />
-                    </div>
-                  </a>
-                ))}
-              </div>
-
-              {filteredResources.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-xs">
-                  No employee resource found matching "{resSearch}".
-                </div>
-              )}
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           )}
         </div>
@@ -500,134 +316,12 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold transition-all text-xs"
+            className="px-4 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 font-bold transition-all text-xs cursor-pointer"
           >
             Close
           </button>
         </div>
       </div>
-
-      {/* Full Photo Modal Viewer */}
-      {selectedPhoto && (
-        <div
-          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
-          onClick={() => setSelectedPhoto(null)}
-        >
-          <div
-            className="relative max-w-3xl w-full bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl border border-slate-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 flex items-center justify-between border-b border-slate-800">
-              <div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600 uppercase">
-                  {selectedPhoto.category}
-                </span>
-                <h3 className="font-bold text-sm sm:text-base mt-1">{selectedPhoto.title}</h3>
-                <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {selectedPhoto.date}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPhoto(null)}
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-2 bg-black flex items-center justify-center max-h-[70vh]">
-              <img
-                src={selectedPhoto.imageUrl}
-                alt={selectedPhoto.title}
-                className="max-h-[65vh] w-auto object-contain rounded-xl"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Full View HTML Application Runner matching reference screenshot */}
-      {runningApp && (
-        <div className="fixed inset-0 z-[120] bg-[#f1f3f6] flex flex-col overflow-hidden animate-fade-in">
-          {/* Floating Top Left Back Button matching screenshot */}
-          <div className="fixed top-3.5 left-4 z-50">
-            <button
-              type="button"
-              onClick={() => setRunningApp(null)}
-              className="bg-white hover:bg-slate-50 text-slate-800 font-semibold px-4 py-2 rounded-xl border border-slate-300 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 text-sm"
-              title="Back to My Apps"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-700" />
-              <span>Back</span>
-            </button>
-          </div>
-
-          {/* Floating Top Right Controls */}
-          <div className="fixed top-3.5 right-4 z-50 flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-2 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs text-xs font-semibold text-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="truncate max-w-[200px]">{runningApp.name}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIframeKey((k) => k + 1)}
-              title="Reload Tool"
-              className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-            {runningApp.codeSnippet && (
-              <button
-                type="button"
-                onClick={() => {
-                  const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
-                  const blobUrl = URL.createObjectURL(blob);
-                  window.open(blobUrl, '_blank');
-                }}
-                title="Open in Full Browser Tab"
-                className="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setRunningApp(null)}
-              title="Close Full View"
-              className="bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 p-2 rounded-xl border border-slate-200 shadow-2xs cursor-pointer transition-all active:scale-95"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Sandboxed Full View iframe */}
-          <div className="flex-1 w-full h-full bg-[#f1f3f6] overflow-auto">
-            {runningApp.codeSnippet ? (
-              <iframe
-                key={iframeKey}
-                title={runningApp.name}
-                sandbox="allow-scripts allow-forms allow-modals"
-                srcDoc={runningApp.codeSnippet}
-                className="w-full h-full min-h-screen border-0 bg-[#f1f3f6]"
-              />
-            ) : (
-              <div className="w-full min-h-screen flex flex-col items-center justify-center p-6 text-center">
-                <p className="text-sm font-semibold text-slate-700 mb-3">This card points to an external website URL.</p>
-                <a
-                  href={runningApp.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold inline-flex items-center gap-2 shadow-sm"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Open External Website</span>
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

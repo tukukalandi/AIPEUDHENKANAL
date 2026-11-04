@@ -21,6 +21,7 @@ interface TopTimeDateBarProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onOpenUserPortal?: () => void;
+  onOpenAdmin?: () => void;
   activeTab?: ActiveTab;
 }
 
@@ -30,6 +31,7 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
   theme,
   onToggleTheme,
   onOpenUserPortal,
+  onOpenAdmin,
   activeTab,
 }) => {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -72,7 +74,7 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
 
   return (
     <div className="w-full bg-[#180303] text-slate-100 border-b border-red-900/60 text-xs py-2 px-3 sm:px-6 lg:px-12 select-none transition-colors">
-      {/* 📱 MOBILE VIEW (< md): Exact 3-row layout matching reference screenshot */}
+      {/* 📱 MOBILE VIEW (< md): Responsive layout with Language, Theme, User Portal & Admin Portal */}
       <div className="md:hidden flex flex-col gap-2 w-full">
         {/* Row 1: Date & Live Time */}
         <div className="flex items-center justify-between w-full">
@@ -143,23 +145,34 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
           </button>
         </div>
 
-        {/* Row 3: User Portal Green Button */}
-        {onOpenUserPortal && (
-          <div className="flex items-center">
+        {/* Row 3: User Portal & Admin Portal Buttons side-by-side */}
+        <div className="flex items-center gap-2 w-full">
+          {onOpenUserPortal && (
             <button
               onClick={onOpenUserPortal}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer ${
                 activeTab === 'user-portal'
                   ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-300'
                   : 'bg-[#059669] hover:bg-[#047857] text-white border border-emerald-400/40'
               }`}
               title="Open Postal Staff & Members Self-Service Portal"
             >
-              <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
-              <span>{t.userPortal}</span>
+              <UserCheck className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
+              <span className="truncate">{t.userPortal}</span>
             </button>
-          </div>
-        )}
+          )}
+
+          {onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white border border-amber-400/50"
+              title="Open Official Admin Portal"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span className="truncate">Admin Portal</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 💻 DESKTOP VIEW (hidden on mobile, flex on md+) */}
@@ -189,10 +202,10 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Language Dropdown Selector & Dark Mode Toggle */}
+        {/* Right Side: Language Dropdown Selector, Dark Mode, User Portal & Admin Portal */}
         <div className="flex items-center flex-wrap gap-2 ml-auto">
           {/* Language Dropdown Selector */}
-          <div className="relative flex items-center bg-black/60 hover:bg-black/80 px-2 py-1 rounded-xl border border-white/20 hover:border-amber-400/80 transition-all shadow-sm">
+          <div className="relative flex items-center bg-black/60 hover:bg-black/80 px-2.5 py-1 rounded-xl border border-white/20 hover:border-amber-400/80 transition-all shadow-sm">
             <Globe className="w-3.5 h-3.5 text-amber-400 mr-1.5 shrink-0" />
             <select
               value={language}
@@ -246,7 +259,7 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
           {onOpenUserPortal && (
             <button
               onClick={onOpenUserPortal}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-black text-[11px] shadow-sm transition-all active:scale-95 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl font-black text-[11px] shadow-sm transition-all active:scale-95 cursor-pointer ${
                 activeTab === 'user-portal'
                   ? 'bg-emerald-500 text-slate-950 ring-1 ring-emerald-300'
                   : 'bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-400/40'
@@ -255,6 +268,18 @@ export const TopTimeDateBar: React.FC<TopTimeDateBarProps> = ({
             >
               <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
               <span>{t.userPortal}</span>
+            </button>
+          )}
+
+          {/* Admin Portal Button in Language Bar */}
+          {onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl font-black text-[11px] shadow-sm transition-all active:scale-95 cursor-pointer bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white border border-amber-400/50"
+              title="Open Official Admin Portal (Login / Dashboard)"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+              <span>Admin Portal</span>
             </button>
           )}
         </div>

@@ -172,9 +172,12 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   const navLinks: { id: ActiveTab; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'user-portal', label: 'User Portal' },
+    { id: 'orders-rulings-guide', label: 'Orders / Rulings' },
     { id: 'feed', label: 'Circulars & Feed' },
     { id: 'categories', label: 'Union Wings' },
-    { id: 'directory', label: 'Office Bearers & Docs' },
+    { id: 'directory', label: 'Directory' },
+    { id: 'gallery', label: 'Gallery' },
+    { id: 'my-apps', label: 'My Apps' },
   ];
 
   return (
@@ -214,12 +217,16 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
         {/* Row 2: Centered Action Bar (Grid [Apps], Menu [Yellow Pill], Refresh, Share, Bell with red dot) */}
         <div className="flex items-center justify-center gap-3 pt-1">
-          {/* 1. Grid Button (Quick Apps Launcher) */}
+          {/* 1. Grid Button (Quick Apps Launcher -> Opens full-page My Apps) */}
           <button
             type="button"
             onClick={() => {
-              setNavMenuInitialSubView('apps');
-              setIsNavMenuOpen(true);
+              if (onSelectTab) {
+                onSelectTab('my-apps');
+              } else {
+                setNavMenuInitialSubView('apps');
+                setIsNavMenuOpen(true);
+              }
             }}
             className="w-10 h-10 rounded-2xl bg-white/15 hover:bg-white/25 active:bg-white/30 text-white flex items-center justify-center border border-white/10 shadow-xs transition-all active:scale-95 cursor-pointer"
             title="My Apps & Online Tools"
@@ -419,6 +426,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
         offlineCount={offlineCount}
         platform={platform}
         initialSubView={navMenuInitialSubView}
+        onOpenAdmin={onOpenAdmin}
       />
     </header>
   );

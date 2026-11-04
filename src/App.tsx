@@ -37,6 +37,13 @@ import { DirectoryTab } from './components/DirectoryTab';
 import { SettingsTab } from './components/SettingsTab';
 import { UserPortal } from './components/UserPortal';
 import { OrdersRulingsGuideView } from './components/OrdersRulingsGuideView';
+import {
+  InternalPageNavBar,
+  PhotoGalleryPage,
+  MyAppsPage,
+  EmployeeSitePage,
+  FormsPage,
+} from './components/FullPagePortalViews';
 import { SocialAndVisitorSection } from './components/SocialAndVisitorSection';
 import { ArticleReader } from './components/ArticleReader';
 import { ShareModal } from './components/ShareModal';
@@ -81,7 +88,89 @@ export default function App() {
     }
   });
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
+  const [navHistory, setNavHistory] = useState<ActiveTab[]>([]);
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+
+  // Navigate to a tab while recording navigation history & browser history state
+  const handleNavigateTab = (nextTab: ActiveTab) => {
+    if (selectedPost) {
+      setSelectedPost(null);
+    }
+    if (nextTab !== activeTab) {
+      setNavHistory((prev) => [...prev, activeTab]);
+      setActiveTab(nextTab);
+      try {
+        window.history.pushState({ tab: nextTab, postId: null }, '', `#${nextTab}`);
+      } catch {}
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Open an article while recording browser history state
+  const handleSelectPost = (post: BlogPost | null) => {
+    setSelectedPost(post);
+    if (post) {
+      try {
+        window.history.pushState({ tab: activeTab, postId: post.id }, '', `#post-${post.id}`);
+      } catch {}
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ← Back handler using actual previous navigation history
+  const handleGoBack = () => {
+    if (selectedPost) {
+      setSelectedPost(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (navHistory.length > 0) {
+      const previousTab = navHistory[navHistory.length - 1];
+      setNavHistory((prev) => prev.slice(0, -1));
+      setActiveTab(previousTab);
+      try {
+        window.history.replaceState({ tab: previousTab, postId: null }, '', `#${previousTab}`);
+      } catch {}
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setActiveTab('home');
+      try {
+        window.history.replaceState({ tab: 'home', postId: null }, '', '#home');
+      } catch {}
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // ⌂ Home handler directly to Home Page
+  const handleGoHome = () => {
+    setSelectedPost(null);
+    if (activeTab !== 'home') {
+      setNavHistory((prev) => [...prev, activeTab]);
+      setActiveTab('home');
+      try {
+        window.history.pushState({ tab: 'home', postId: null }, '', '#home');
+      } catch {}
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Support browser back/forward buttons seamlessly
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state;
+      if (state && state.tab) {
+        setSelectedPost(null);
+        setActiveTab(state.tab as ActiveTab);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setSelectedPost(null);
+        setActiveTab('home');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Digital Membership Card QR verification token from URL (?verifyCard=...)
   const [verifyCardToken, setVerifyCardToken] = useState<string | null>(() => {
@@ -327,11 +416,11 @@ export default function App() {
     if (postId) {
       const found = posts.find((p) => p.id === postId);
       if (found) {
-        setSelectedPost(found);
+        handleSelectPost(found);
         return;
       }
     }
-    setActiveTab('feed');
+    handleNavigateTab('feed');
   };
 
   const handleCircularAdded = (newPost: BlogPost) => {
@@ -340,30 +429,29 @@ export default function App() {
 
   return (
     <DeviceFrameWrapper deviceFrame={deviceFrame} platform={effectivePlatform}>
-      {/* If an article is open, render reader view */}
+      {/* If an article is open, render reader view with Back & Home */}
       {selectedPost ? (
         <ArticleReader
           post={selectedPost}
-          onBack={() => setSelectedPost(null)}
+          onBack={handleGoBack}
+          onHome={handleGoHome}
           onShare={handleOpenShare}
           platform={effectivePlatform}
         />
       ) : (
         <div className="flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors pb-16 md:pb-0">
-          {/* 🕒 Top Bar: Live Date & Clock, Language Switcher (EN, HI, OR) & Dark Mode Toggle */}
+          {/* 🕒 Top Bar: Live Date & Clock, Language Switcher, User Portal & Admin Portal */}
           <TopTimeDateBar
             language={language}
             onSetLanguage={handleSetLanguage}
             theme={themeMode}
             onToggleTheme={() => handleSetTheme(themeMode === 'dark' ? 'light' : 'dark')}
-            onOpenUserPortal={() => {
-              setActiveTab('user-portal');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onOpenUserPortal={() => handleNavigateTab('user-portal')}
+            onOpenAdmin={() => setIsAdminOpen(true)}
             activeTab={activeTab}
           />
 
-          {/* Top App Bar with Admin Portal Button */}
+          {/* Top App Bar with Full-Page Menu Navigation */}
           <TopAppBar
             platform={effectivePlatform}
             unreadNotifsCount={unreadNotifsCount}
@@ -373,10 +461,7 @@ export default function App() {
             onOpenShareModal={() => handleOpenShare()}
             onOpenAdmin={() => setIsAdminOpen(true)}
             activeTab={activeTab}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onSelectTab={(tab) => handleNavigateTab(tab)}
             offlineCount={savedPostIds.length}
           />
 
@@ -384,12 +469,23 @@ export default function App() {
           <NewsTicker
             posts={posts}
             newsItems={newsItems}
-            onSelectPost={(post) => setSelectedPost(post)}
+            onSelectPost={(post) => handleSelectPost(post)}
             onOpenAdmin={() => setIsAdminOpen(true)}
           />
 
-          {/* Main Tab Content - Full Edge-to-Edge on mobile for Hero Slider, padded on desktop */}
+          {/* Main Tab Content - Full-Page View for Every Menu Option */}
           <main className="flex-1 w-full px-0 sm:px-6 lg:px-8 xl:px-12 pt-0 sm:pt-5">
+            {/* Internal Page Navigation Controls (← Back and ⌂ Home) on all non-Home pages */}
+            {activeTab !== 'home' && (
+              <div className="px-3.5 sm:px-0 pt-3 sm:pt-0">
+                <InternalPageNavBar
+                  activeTab={activeTab}
+                  onBack={handleGoBack}
+                  onHome={handleGoHome}
+                />
+              </div>
+            )}
+
             {activeTab === 'home' && (
               <>
                 <HomePage
@@ -399,11 +495,8 @@ export default function App() {
                   announcements={announcements}
                   importantDocs={importantDocs}
                   noticeCirculars={noticeCirculars}
-                  onSelectPost={(post) => setSelectedPost(post)}
-                  onNavigateTab={(tab) => {
-                    setActiveTab(tab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onSelectPost={(post) => handleSelectPost(post)}
+                  onNavigateTab={(tab) => handleNavigateTab(tab)}
                   onOpenAdmin={() => setIsAdminOpen(true)}
                   platform={effectivePlatform}
                 />
@@ -411,32 +504,26 @@ export default function App() {
                 <div className="px-3.5 sm:px-0 mt-8">
                   <SocialAndVisitorSection
                     language={language}
-                    onSelectWing={() => {
-                      setActiveTab('categories');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
+                    onSelectWing={() => handleNavigateTab('categories')}
                   />
                 </div>
               </>
             )}
 
             {activeTab === 'user-portal' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <UserPortal
                   language={language}
                   platform={effectivePlatform}
                   officeBearers={officeBearers}
                   onRefreshOfficeBearers={loadOfficeBearers}
-                  onNavigateTab={(tab) => {
-                    setActiveTab(tab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onNavigateTab={(tab) => handleNavigateTab(tab)}
                 />
               </div>
             )}
 
             {activeTab === 'orders-rulings-guide' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <OrdersRulingsGuideView
                   platform={effectivePlatform}
                   onOpenAdmin={() => setIsAdminOpen(true)}
@@ -444,12 +531,36 @@ export default function App() {
               </div>
             )}
 
+            {activeTab === 'gallery' && (
+              <div className="px-3.5 sm:px-0">
+                <PhotoGalleryPage />
+              </div>
+            )}
+
+            {activeTab === 'my-apps' && (
+              <div className="px-3.5 sm:px-0">
+                <MyAppsPage />
+              </div>
+            )}
+
+            {activeTab === 'employee-site' && (
+              <div className="px-3.5 sm:px-0">
+                <EmployeeSitePage onNavigateTab={(tab) => handleNavigateTab(tab)} />
+              </div>
+            )}
+
+            {activeTab === 'forms' && (
+              <div className="px-3.5 sm:px-0">
+                <FormsPage />
+              </div>
+            )}
+
             {activeTab === 'feed' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <FeedTab
                   posts={posts}
                   heroSlides={heroSlides}
-                  onSelectPost={(post) => setSelectedPost(post)}
+                  onSelectPost={(post) => handleSelectPost(post)}
                   onSharePost={handleOpenShare}
                   onToggleSaveOffline={handleToggleSaveOffline}
                   savedPostIds={savedPostIds}
@@ -458,29 +569,26 @@ export default function App() {
                   officeBearers={officeBearers}
                   onRefreshOfficeBearers={loadOfficeBearers}
                   onOpenAdmin={() => setIsAdminOpen(true)}
-                  onNavigateTab={(tab) => {
-                    setActiveTab(tab);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onNavigateTab={(tab) => handleNavigateTab(tab)}
                 />
               </div>
             )}
 
             {activeTab === 'categories' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <CategoriesTab
                   posts={posts}
-                  onSelectPost={(post) => setSelectedPost(post)}
+                  onSelectPost={(post) => handleSelectPost(post)}
                   platform={effectivePlatform}
                 />
               </div>
             )}
 
             {activeTab === 'offline' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <OfflineTab
                   allPosts={posts}
-                  onSelectPost={(post) => setSelectedPost(post)}
+                  onSelectPost={(post) => handleSelectPost(post)}
                   onSharePost={handleOpenShare}
                   platform={effectivePlatform}
                   isOnline={isOnline}
@@ -489,7 +597,7 @@ export default function App() {
             )}
 
             {activeTab === 'directory' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <DirectoryTab
                   platform={effectivePlatform}
                   officeBearers={officeBearers}
@@ -500,7 +608,7 @@ export default function App() {
             )}
 
             {activeTab === 'settings' && (
-              <div className="px-3.5 sm:px-0 pt-4 sm:pt-0">
+              <div className="px-3.5 sm:px-0">
                 <SettingsTab
                   platform={platformMode}
                   onSetPlatform={handleSetPlatform}
@@ -517,19 +625,13 @@ export default function App() {
           {/* 🏛️ Comprehensive Footer matching attached design */}
           <Footer
             onOpenAdmin={() => setIsAdminOpen(true)}
-            onNavigateSection={(sec) => {
-              setActiveTab(sec as any);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onNavigateSection={(sec) => handleNavigateTab(sec as ActiveTab)}
           />
 
           {/* Bottom Navigation Bar for Mobile Viewports (hidden on desktop md:) */}
           <BottomNavBar
             activeTab={activeTab}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onSelectTab={(tab) => handleNavigateTab(tab)}
             platform={effectivePlatform}
             offlineCount={savedPostIds.length}
           />
@@ -556,6 +658,10 @@ export default function App() {
       <AdminPortal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
+        onGoHome={() => {
+          setIsAdminOpen(false);
+          handleGoHome();
+        }}
         onCircularAdded={handleCircularAdded}
         onCircularDeleted={(id) => {
           setPosts((prev) => prev.filter((p) => p.id !== id));

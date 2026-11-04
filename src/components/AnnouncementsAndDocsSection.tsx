@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Bell,
   FileText,
   ExternalLink,
-  ChevronRight,
-  Calendar,
-  Sparkles,
-  Download,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { AnnouncementItem, ImportantDocItem, NoticeCircularItem } from '../types';
 
@@ -22,10 +20,13 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
   announcements,
   importantDocs,
   noticeCirculars,
-  onOpenAdmin,
   onViewAllAnnouncements,
 }) => {
   const [selectedNoticeCategory, setSelectedNoticeCategory] = useState<string>('NOTICE');
+
+  const annScrollRef = useRef<HTMLDivElement | null>(null);
+  const docsScrollRef = useRef<HTMLDivElement | null>(null);
+  const noticesScrollRef = useRef<HTMLDivElement | null>(null);
 
   const noticeCategories = [
     'NOTICE',
@@ -35,10 +36,18 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
     'MISCELLANEOUS',
   ];
 
-  // Filter notice circulars by active category
-  const filteredNotices = noticeCirculars.filter(
-    (item) => item.category?.toUpperCase() === selectedNoticeCategory.toUpperCase()
-  );
+  // Filter notice circulars by active category (matching PENSION to PENSION/SALARY & MISC to MISCELLANEOUS too)
+  const filteredNotices = noticeCirculars.filter((item) => {
+    const itemCat = (item.category || 'NOTICE').toUpperCase().trim();
+    const activeCat = selectedNoticeCategory.toUpperCase().trim();
+    if (activeCat === 'PENSION/SALARY') {
+      return itemCat === 'PENSION/SALARY' || itemCat === 'PENSION' || itemCat === 'SALARY';
+    }
+    if (activeCat === 'MISCELLANEOUS') {
+      return itemCat === 'MISCELLANEOUS' || itemCat === 'MISC' || itemCat === 'ORDERS' || itemCat === 'CIRCULAR';
+    }
+    return itemCat === activeCat;
+  });
 
   const handleOpenLink = (url?: string) => {
     if (!url) return;
@@ -47,6 +56,32 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     } else {
       window.open(url, '_blank');
+    }
+  };
+
+  /**
+   * Seamless scroll-chaining handler for mouse-wheel and touchpad:
+   * When scrolling inside a 6-document container reaches the top or bottom boundary,
+   * it immediately chains the scroll delta to the main window so the webpage never locks.
+   */
+  const handleSectionWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight <= el.clientHeight + 2) {
+      return; // Not scrollable, let browser scroll window naturally
+    }
+    const isScrollingDown = e.deltaY > 0;
+    const isScrollingUp = e.deltaY < 0;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    const isAtTop = el.scrollTop <= 1;
+
+    if ((isScrollingDown && isAtBottom) || (isScrollingUp && isAtTop)) {
+      window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+    }
+  };
+
+  const scrollContainerBy = (ref: React.RefObject<HTMLDivElement | null>, amount: number) => {
+    if (ref.current) {
+      ref.current.scrollBy({ top: amount, behavior: 'smooth' });
     }
   };
 
@@ -70,11 +105,28 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {announcements.length > 6 && (
-              <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                Showing 6 • Scroll to view all
-              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => scrollContainerBy(annScrollRef, -160)}
+                  className="p-1.5 rounded-lg bg-red-50 dark:bg-slate-800 text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
+                  title="Scroll announcements up"
+                  aria-label="Scroll announcements up"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollContainerBy(annScrollRef, 160)}
+                  className="p-1.5 rounded-lg bg-red-50 dark:bg-slate-800 text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
+                  title="Scroll announcements down"
+                  aria-label="Scroll announcements down"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
             )}
             <button
               onClick={onViewAllAnnouncements}
@@ -85,8 +137,14 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
           </div>
         </div>
 
-        {/* Announcements List: maximum 6 documents visible, scrollable to show others */}
-        <div className="space-y-3 pt-1 max-h-[360px] overflow-y-auto pr-1.5 scroll-smooth overscroll-contain">
+        {/* Announcements List: maximum 6 documents visible in area, smooth vertical scroll for more */}
+        <div
+          ref={annScrollRef}
+          onWheel={handleSectionWheel}
+          className={`space-y-3 pt-1 pr-1.5 ${
+            announcements.length > 6 ? 'max-h-[360px] doc-scroll-area' : ''
+          }`}
+        >
           {announcements.length === 0 ? (
             <p className="text-sm text-slate-400 italic py-3 font-medium">
               No current announcements posted.
@@ -112,14 +170,14 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
         </div>
 
         {announcements.length > 6 && (
-          <div className="pt-1 text-center text-xs font-bold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
-            <span>Scroll inside to view all {announcements.length} announcements</span>
+          <div className="pt-1 text-center text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
+            <span>Showing 6 in view • Scroll to view all {announcements.length} announcements</span>
           </div>
         )}
       </div>
 
       {/* 🔷 Split Bottom Grid: IMPORTANT DOCUMENTS (Left) & NOTICE / CIRCULAR (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-start">
         {/* ================= LEFT: IMPORTANT DOCUMENTS ================= */}
         <div className="rounded-3xl overflow-hidden bg-white dark:bg-slate-900 border-2 border-blue-600/50 hover:border-blue-600 shadow-xl transition-all duration-300 flex flex-col">
           {/* Vibrant Blue Header Bar */}
@@ -132,15 +190,43 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 IMPORTANT DOCUMENTS
               </h3>
             </div>
-            {importantDocs.length > 0 && (
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
-                {importantDocs.length}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {importantDocs.length > 6 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scrollContainerBy(docsScrollRef, -160)}
+                    className="p-1 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                    title="Scroll documents up"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollContainerBy(docsScrollRef, 160)}
+                    className="p-1 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                    title="Scroll documents down"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {importantDocs.length > 0 && (
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                  {importantDocs.length}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Documents List: maximum 6 documents visible, scrollable to show others */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[385px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
+          {/* Documents List: maximum 6 documents visible, smooth vertical scroll for more */}
+          <div
+            ref={docsScrollRef}
+            onWheel={handleSectionWheel}
+            className={`p-5 sm:p-6 space-y-3 flex-1 ${
+              importantDocs.length > 6 ? 'max-h-[385px] doc-scroll-area pr-2' : ''
+            }`}
+          >
             {importantDocs.length === 0 ? (
               <p className="text-sm text-slate-400 italic font-medium">No documents uploaded yet.</p>
             ) : (
@@ -167,7 +253,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
 
           {importantDocs.length > 6 && (
             <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 text-center text-xs font-bold text-blue-600 dark:text-blue-400">
-              Showing 6 in view • Scroll inside to view all {importantDocs.length} documents
+              Showing 6 in view • Scroll to view all {importantDocs.length} documents
             </div>
           )}
         </div>
@@ -184,11 +270,33 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
                 NOTICE / CIRCULAR
               </h3>
             </div>
-            {filteredNotices.length > 0 && (
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
-                {filteredNotices.length}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {filteredNotices.length > 6 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scrollContainerBy(noticesScrollRef, -180)}
+                    className="p-1 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                    title="Scroll notices up"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollContainerBy(noticesScrollRef, 180)}
+                    className="p-1 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                    title="Scroll notices down"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {filteredNotices.length > 0 && (
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                  {filteredNotices.length}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Category Tabs Bar */}
@@ -211,8 +319,14 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             })}
           </div>
 
-          {/* Notices List for Active Category: maximum 6 documents visible, scrollable to show others */}
-          <div className="p-5 sm:p-6 space-y-3 flex-1 max-h-[495px] overflow-y-auto pr-2 scroll-smooth overscroll-contain">
+          {/* Notices List for Active Category: maximum 6 documents visible, smooth vertical scroll for more */}
+          <div
+            ref={noticesScrollRef}
+            onWheel={handleSectionWheel}
+            className={`p-5 sm:p-6 space-y-3 flex-1 ${
+              filteredNotices.length > 6 ? 'max-h-[495px] doc-scroll-area pr-2' : ''
+            }`}
+          >
             {filteredNotices.length === 0 ? (
               <div className="py-8 text-center text-sm text-slate-400 italic font-medium">
                 No circulars published under {selectedNoticeCategory} yet.
@@ -245,7 +359,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
 
           {filteredNotices.length > 6 && (
             <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 text-center text-xs font-bold text-amber-700 dark:text-amber-400">
-              Showing 6 in view • Scroll inside to view all {filteredNotices.length} circulars
+              Showing 6 in view • Scroll to view all {filteredNotices.length} circulars
             </div>
           )}
         </div>

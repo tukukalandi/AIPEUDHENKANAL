@@ -96,10 +96,12 @@ import {
 import { DEFAULT_MY_APPS, TARGET_CALCULATOR_HTML } from '../data/portalMenuData';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberManagementAdmin } from './MemberManagementAdmin';
+import { getCardColorPalette } from './OrdersRulingsGuideView';
 
 interface AdminPortalProps {
   isOpen: boolean;
   onClose: () => void;
+  onGoHome?: () => void;
   onCircularAdded: (newPost: BlogPost) => void;
   onCircularDeleted?: (id: string) => void;
   onExecutiveUpdated: () => void;
@@ -199,6 +201,7 @@ const DEFAULT_EMPLOYEE_RESOURCES: EmployeeResource[] = [
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   isOpen,
   onClose,
+  onGoHome,
   onCircularAdded,
   onCircularDeleted,
   onExecutiveUpdated,
@@ -208,7 +211,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onDocsUpdated,
   onNoticeCircularsUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<AdminMenuTab>('hero');
+  const [activeTab, setActiveTab] = useState<AdminMenuTab>('dashboard');
+  const [adminTabHistory, setAdminTabHistory] = useState<AdminMenuTab[]>([]);
+  const adminContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleSelectAdminTab = (nextTab: AdminMenuTab) => {
+    if (nextTab !== activeTab) {
+      setAdminTabHistory((prev) => [...prev, activeTab]);
+      setActiveTab(nextTab);
+    }
+    setMobileMenuOpen(false);
+    if (adminContainerRef.current) {
+      adminContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleAdminBack = () => {
+    if (adminTabHistory.length > 0) {
+      const prevTab = adminTabHistory[adminTabHistory.length - 1];
+      setAdminTabHistory((prev) => prev.slice(0, -1));
+      setActiveTab(prevTab);
+      if (adminContainerRef.current) {
+        adminContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else if (activeTab !== 'dashboard') {
+      setActiveTab('dashboard');
+      if (adminContainerRef.current) {
+        adminContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else {
+      onClose();
+    }
+  };
+
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
       return sessionStorage.getItem('aipeu_admin_authenticated') === 'true';
@@ -1535,33 +1570,76 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#f8fafc] text-slate-800 flex flex-col overflow-y-auto selection:bg-red-500 selection:text-white">
+    <div
+      ref={adminContainerRef}
+      className="fixed inset-0 z-50 bg-[#f8fafc] text-slate-800 flex flex-col overflow-y-auto overflow-x-hidden selection:bg-red-500 selection:text-white"
+    >
       {/* 1. Thin Red Accent Line at the very top edge */}
-      <div className="h-1 bg-red-600 w-full shrink-0 sticky top-0 z-40" />
+      <div className="h-1 bg-gradient-to-r from-red-600 via-amber-400 to-red-600 w-full shrink-0 sticky top-0 z-40" />
 
-      {/* 2. Top Breadcrumb Bar */}
-      <header className="bg-white/90 backdrop-blur-md px-6 lg:px-10 py-3.5 flex items-center justify-between border-b border-slate-200/80 sticky top-1 z-30">
-        <div className="flex items-center gap-2.5 text-xs font-semibold">
+      {/* 2. Top Navigation & Breadcrumb Bar with Back & Home Controls */}
+      <header className="bg-white/95 backdrop-blur-md px-3 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-2 border-b border-slate-200/80 sticky top-1 z-30 shadow-2xs">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {/* ← Back Button */}
           <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-900 flex items-center gap-1.5 transition-colors"
+            onClick={handleAdminBack}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
+            title="Return to previous section or page"
           >
-            <Home className="w-3.5 h-3.5" />
-            <span>HOME</span>
+            <ArrowLeft className="w-3.5 h-3.5 text-red-600" />
+            <span>← Back</span>
           </button>
-          <span className="text-slate-300 font-normal">›</span>
-          <span className="text-red-600 font-bold uppercase tracking-wider">ADMIN PORTAL</span>
+
+          {/* ⌂ Home Button (Direct to Website Home Page) */}
+          <button
+            onClick={() => {
+              if (onGoHome) onGoHome();
+              else onClose();
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#022A61] hover:bg-blue-900 text-white font-bold text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
+            title="Go directly to main Website Home Page"
+          >
+            <Home className="w-3.5 h-3.5 text-amber-400" />
+            <span>⌂ Home</span>
+          </button>
+
+          {isAuthenticated && activeTab !== 'dashboard' && (
+            <button
+              onClick={() => handleSelectAdminTab('dashboard')}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs transition-all cursor-pointer"
+              title="Open Admin Dashboard"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
+            </button>
+          )}
+
+          <div className="hidden md:flex items-center gap-2 text-xs font-semibold pl-1">
+            <span className="text-slate-300 font-normal">›</span>
+            <span className="text-red-600 font-black uppercase tracking-wider">ADMIN PORTAL</span>
+            {isAuthenticated && (
+              <>
+                <span className="text-slate-300 font-normal">›</span>
+                <span className="text-slate-700 font-bold uppercase tracking-wider truncate">
+                  {menuItems.find((m) => m.id === activeTab)?.label || 'Dashboard'}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Mobile hamburger menu toggle */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-red-600 hover:bg-slate-100 transition-colors"
-            aria-label="Toggle menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {isAuthenticated && (
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden px-3 py-1.5 rounded-xl bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+              aria-label="Toggle Admin Menu"
+            >
+              <Menu className="w-4 h-4" />
+              <span>Sections</span>
+            </button>
+          )}
 
           {isAuthenticated && (
             <button
@@ -1576,17 +1654,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
-            <span>Exit Portal</span>
+            <span className="hidden sm:inline">Exit</span>
           </button>
         </div>
       </header>
 
+      {/* Mobile Horizontal Quick-Switch Tab Strip (Visible on phones/tablets when authenticated) */}
+      {isAuthenticated && (
+        <div className="lg:hidden bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none sticky top-[53px] z-20 shadow-2xs">
+          {menuItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleSelectAdminTab(item.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Status toast message */}
       {statusMsg && (
-        <div className="fixed top-14 right-6 z-50 max-w-md bg-slate-900 text-white text-xs font-medium px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce">
+        <div className="fixed top-16 right-4 sm:right-6 z-50 max-w-md bg-slate-900 text-white text-xs font-medium px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce">
           <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
           <span>{statusMsg}</span>
         </div>
@@ -1700,35 +1802,72 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </div>
         </div>
       ) : (
-        /* Authenticated Admin Portal with matching layout from reference screenshot */
-        <div className="flex-1 flex min-h-[calc(100vh-50px)] relative">
+        /* Authenticated Admin Portal with clean sidebar & single-scroll responsive layout */
+        <div className="flex-1 flex relative">
+          {/* Mobile Drawer Backdrop */}
+          {mobileMenuOpen && (
+            <div
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-30 lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          )}
+
           {/* Left Sidebar */}
           <aside
-            className={`w-64 xl:w-72 bg-white border-r border-slate-200/80 p-4 sm:p-5 flex flex-col shrink-0 lg:static fixed inset-y-0 left-0 z-40 transition-transform lg:translate-x-0 ${
+            className={`w-64 xl:w-72 bg-white border-r border-slate-200/80 p-4 sm:p-5 flex flex-col shrink-0 lg:sticky lg:top-[57px] lg:h-[calc(100vh-57px)] fixed inset-y-0 left-0 z-40 transition-transform lg:translate-x-0 ${
               mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
             }`}
           >
             {/* Admin Profile Widget */}
-            <div className="flex items-center gap-3.5 pb-5 border-b border-slate-100 mb-4">
-              <div className="relative shrink-0">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
-                  alt="Administrator Kalandi Charan Sahoo"
-                  className="w-12 h-12 rounded-full object-cover border-2 border-red-500/80 shadow-sm"
-                />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
+            <div className="flex items-center justify-between gap-2 pb-4 border-b border-slate-100 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
+                    alt="Administrator Kalandi Charan Sahoo"
+                    className="w-11 h-11 rounded-full object-cover border-2 border-red-500/80 shadow-sm"
+                  />
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block">
+                    ADMINISTRATOR
+                  </span>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                    Kalandi Charan Sahoo
+                  </h3>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    Divisional Secretary
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block">
-                  ADMINISTRATOR
-                </span>
-                <h3 className="text-sm font-bold text-slate-900 truncate">
-                  Kalandi Charan Sahoo
-                </h3>
-                <p className="text-[11px] text-slate-400 truncate">
-                  Divisional Secretary
-                </p>
-              </div>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sidebar Back & Home Quick Controls */}
+            <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b border-slate-100">
+              <button
+                onClick={handleAdminBack}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-red-600" />
+                <span>← Back</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (onGoHome) onGoHome();
+                  else onClose();
+                }}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-[#022A61] hover:bg-blue-900 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                <Home className="w-3.5 h-3.5 text-amber-400" />
+                <span>⌂ Home</span>
+              </button>
             </div>
 
             {/* Navigation Menu List */}
@@ -1739,15 +1878,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setMobileMenuOpen(false);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${
+                    onClick={() => handleSelectAdminTab(item.id)}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-red-600 hover:bg-slate-100/80'
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/20'
+                        : 'text-slate-600 hover:text-red-600 hover:bg-red-50/60'
                     }`}
                   >
                     <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
@@ -1758,47 +1893,82 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </nav>
 
             {/* Sidebar Footer info */}
-            <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 text-center leading-tight">
+            <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-400 text-center leading-tight">
               NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
             </div>
           </aside>
 
-          {/* Main Content Area */}
-          <main className="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full overflow-y-auto">
-            {/* Top Section Header matching screenshot */}
-            <div className="mb-8">
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">
-                {activeTab === 'hero' && 'HERO SLIDER'}
-                {activeTab === 'dashboard' && 'DASHBOARD'}
-                {activeTab === 'members' && 'MEMBER MANAGEMENT'}
-                {activeTab === 'ordersRulingsGuide' && 'ORDERS / RULLINGS / GUIDE'}
-                {activeTab === 'documents' && 'DOCUMENTS'}
-                {activeTab === 'importantDocs' && 'HOMEPAGE DOCS'}
-                {activeTab === 'notices' && 'NOTICES & CIRCULARS'}
-                {activeTab === 'announcements' && 'ANNOUNCEMENTS'}
-                {activeTab === 'gallery' && 'PHOTO GALLERY'}
-                {activeTab === 'myApps' && 'MY APPS'}
-                {activeTab === 'forms' && 'FORMS'}
-                {activeTab === 'employeeSite' && 'EMPLOYEE SITE'}
-                {activeTab === 'news' && 'NEWS TICKER'}
-                {activeTab === 'executives' && 'EXECUTIVE BEARERS'}
-              </h1>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
-                {activeTab === 'hero' && 'UPLOAD PHOTOS FOR THE HOMEPAGE HERO SLIDER.'}
-                {activeTab === 'dashboard' && 'OVERVIEW AND STATISTICS OF WEBSITE ASSETS.'}
-                {activeTab === 'members' && 'MANAGE UNION MEMBERS, VERIFICATION, ID CARDS & PROFILE UPDATES.'}
-                {activeTab === 'ordersRulingsGuide' && 'UPLOAD AND MANAGE OFFICIAL DOCUMENTS DISPLAYED IN CARD VIEW.'}
-                {activeTab === 'documents' && 'UPLOAD DIVISIONAL CIRCULARS AND ORDERS.'}
-                {activeTab === 'importantDocs' && 'PIN CRUCIAL DOCUMENTS TO HOMEPAGE.'}
-                {activeTab === 'notices' && 'MANAGE NOTICE BOARD, CGHS & PENSION CIRCULARS.'}
-                {activeTab === 'announcements' && 'UPDATE HOMEPAGE SCROLLING TICKER & FLASHES.'}
-                {activeTab === 'gallery' && 'UPLOAD EVENT PHOTOS FOR UNION ARCHIVE.'}
-                {activeTab === 'myApps' && 'MANAGE 15 QUICK ACCESS SERVICE PORTALS.'}
-                {activeTab === 'forms' && 'MANAGE DOWNLOADABLE EXAM & SERVICE FORMS.'}
-                {activeTab === 'employeeSite' && 'MANAGE POSTAL MANUALS & CS REGULATIONS.'}
-                {activeTab === 'news' && 'MANAGE REAL-TIME BREAKING NEWS HEADLINES.'}
-                {activeTab === 'executives' && 'MANAGE UNION OFFICE BEARERS & REPRESENTATIVES.'}
-              </p>
+          {/* Main Content Area (No nested overflow-y-auto so the page scrolls naturally) */}
+          <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto w-full min-w-0">
+            {/* Top Section Header with quick Back / Dashboard button */}
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-wider">
+                    AIPEU ADMIN CONSOLE
+                  </span>
+                  {activeTab !== 'dashboard' && (
+                    <button
+                      onClick={() => handleSelectAdminTab('dashboard')}
+                      className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      ← Back to Dashboard Overview
+                    </button>
+                  )}
+                </div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight uppercase">
+                  {activeTab === 'hero' && 'HERO SLIDER MANAGEMENT'}
+                  {activeTab === 'dashboard' && 'EXECUTIVE ADMIN DASHBOARD'}
+                  {activeTab === 'members' && 'MEMBER MANAGEMENT'}
+                  {activeTab === 'ordersRulingsGuide' && 'ORDERS / RULINGS / GUIDE'}
+                  {activeTab === 'documents' && 'DOCUMENTS & CIRCULARS'}
+                  {activeTab === 'importantDocs' && 'HOMEPAGE IMPORTANT DOCS'}
+                  {activeTab === 'notices' && 'NOTICES & CIRCULARS'}
+                  {activeTab === 'announcements' && 'ANNOUNCEMENTS'}
+                  {activeTab === 'gallery' && 'PHOTO GALLERY'}
+                  {activeTab === 'myApps' && 'MY APPS & TOOLS'}
+                  {activeTab === 'forms' && 'DOWNLOADABLE FORMS'}
+                  {activeTab === 'employeeSite' && 'EMPLOYEE SITE RESOURCES'}
+                  {activeTab === 'news' && 'BREAKING NEWS TICKER'}
+                  {activeTab === 'executives' && 'EXECUTIVE OFFICE BEARERS'}
+                </h1>
+                <p className="text-xs font-semibold text-slate-500 mt-1">
+                  {activeTab === 'hero' && 'Upload and organize banners for the Homepage and Circulars & Feed slider.'}
+                  {activeTab === 'dashboard' && 'Complete overview, live statistics, and quick access to all union portal modules.'}
+                  {activeTab === 'members' && 'Manage union members, verification, digital ID cards, and profile updates.'}
+                  {activeTab === 'ordersRulingsGuide' && 'Upload and manage official documents displayed in color-coded card view.'}
+                  {activeTab === 'documents' && 'Upload divisional circulars, meeting minutes, and union orders.'}
+                  {activeTab === 'importantDocs' && 'Pin crucial documents to the Homepage Important Documents section.'}
+                  {activeTab === 'notices' && 'Manage Notice Board, CGHS, and pension circulars on the Homepage.'}
+                  {activeTab === 'announcements' && 'Update Homepage announcements and important flash alerts.'}
+                  {activeTab === 'gallery' && 'Upload and organize event photos for the full-page Union Photo Gallery.'}
+                  {activeTab === 'myApps' && 'Manage quick-access web portals and interactive HTML utilities.'}
+                  {activeTab === 'forms' && 'Manage downloadable departmental examination, leave, and service forms.'}
+                  {activeTab === 'employeeSite' && 'Manage postal manuals, conduct rules, and establishment links.'}
+                  {activeTab === 'news' && 'Manage real-time moving news ticker headlines.'}
+                  {activeTab === 'executives' && 'Manage Union Office Bearers and Divisional Representatives.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleAdminBack}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-red-600" />
+                  <span>← Back</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (onGoHome) onGoHome();
+                    else onClose();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-[#022A61] hover:bg-blue-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Home className="w-3.5 h-3.5 text-amber-400" />
+                  <span>⌂ Home</span>
+                </button>
+              </div>
             </div>
 
             {/* TAB CONTENT: HERO SLIDER (matching screenshot layout + Circular & Feed management) */}
@@ -2212,46 +2382,306 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
             )}
 
-            {/* TAB CONTENT: DASHBOARD */}
+            {/* TAB CONTENT: DASHBOARD (MODERNIZED UI/UX) */}
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Hero Slides', count: heroSlides.length, tab: 'hero' as AdminMenuTab, icon: Sliders },
-                    { label: 'Orders/Rullings/Guide', count: ordersRulingsGuides.length, tab: 'ordersRulingsGuide' as AdminMenuTab, icon: BookOpen },
-                    { label: 'Member Register', count: 'Members', tab: 'members' as AdminMenuTab, icon: ShieldCheck },
-                    { label: 'Documents', count: circulars.length, tab: 'documents' as AdminMenuTab, icon: FileText },
-                    { label: 'Homepage Docs', count: importantDocs.length, tab: 'importantDocs' as AdminMenuTab, icon: FileCheck },
-                    { label: 'Notices / Circulars', count: noticeCirculars.length, tab: 'notices' as AdminMenuTab, icon: Bookmark },
-                    { label: 'Announcements', count: announcements.length, tab: 'announcements' as AdminMenuTab, icon: Megaphone },
-                    { label: 'Photo Gallery', count: galleryPhotos.length, tab: 'gallery' as AdminMenuTab, icon: ImageIcon },
-                    { label: 'Quick Apps', count: myApps.length, tab: 'myApps' as AdminMenuTab, icon: LayoutGrid },
-                    { label: 'Executive Bearers', count: executives.length, tab: 'executives' as AdminMenuTab, icon: Users },
-                  ].map((stat, idx) => {
-                    const StatIcon = stat.icon;
-                    return (
+                {/* 1. Executive Welcome & Quick Action Banner */}
+                <div className="rounded-3xl bg-gradient-to-r from-[#022A61] via-[#0A3D80] to-[#B91C1C] text-white p-6 sm:p-8 shadow-xl border-2 border-amber-400/50 relative overflow-hidden">
+                  <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                    <div className="space-y-2 max-w-2xl">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-sm">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>DIVISIONAL EXECUTIVE COMMAND CENTER</span>
+                      </span>
+                      <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                        Welcome, Divisional Secretary · AIPEU Dhenkanal Portal
+                      </h2>
+                      <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
+                        Manage union members, publish departmental orders & rulings, update homepage documents, and control all 14 portal modules from one unified dashboard.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                       <button
-                        key={idx}
-                        onClick={() => setActiveTab(stat.tab)}
-                        className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:border-red-300 hover:shadow-md transition-all text-left flex flex-col justify-between"
+                        onClick={() => handleSelectAdminTab('ordersRulingsGuide')}
+                        className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-md flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                       >
-                        <div className="flex items-center justify-between w-full mb-3">
-                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                            {stat.label}
-                          </span>
-                          <StatIcon className="w-4 h-4 text-red-600" />
-                        </div>
-                        <div className="text-3xl font-black text-slate-900">{stat.count}</div>
-                        <span className="text-[10px] text-red-600 font-semibold mt-2 block">
-                          Manage Section →
-                        </span>
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        <span>Upload Order / Ruling</span>
                       </button>
-                    );
-                  })}
+                      <button
+                        onClick={() => handleSelectAdminTab('notices')}
+                        className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-bold text-xs shadow-sm flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <Bookmark className="w-4 h-4 text-amber-300" />
+                        <span>Post Notice</span>
+                      </button>
+                      <button
+                        onClick={() => handleSelectAdminTab('members')}
+                        className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-bold text-xs shadow-sm flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                        <span>Member Directory</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* System & Firestore Status */}
+                {/* 2. Attractive Color-Coded Summary Statistics Grid */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-red-600" />
+                      <span>Portal Content & Asset Summary</span>
+                    </h3>
+                    <span className="text-xs font-semibold text-slate-500">
+                      Click any card to open management module
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {[
+                      {
+                        label: 'Orders / Rulings / Guide',
+                        count: ordersRulingsGuides.length,
+                        tab: 'ordersRulingsGuide' as AdminMenuTab,
+                        icon: BookOpen,
+                        bg: 'bg-gradient-to-br from-sky-50 to-blue-100/70 border-sky-200 hover:border-sky-400',
+                        iconBox: 'bg-sky-600 text-white',
+                        text: 'text-sky-900',
+                      },
+                      {
+                        label: 'Homepage Docs',
+                        count: importantDocs.length,
+                        tab: 'importantDocs' as AdminMenuTab,
+                        icon: FileCheck,
+                        bg: 'bg-gradient-to-br from-emerald-50 to-green-100/70 border-emerald-200 hover:border-emerald-400',
+                        iconBox: 'bg-emerald-600 text-white',
+                        text: 'text-emerald-900',
+                      },
+                      {
+                        label: 'Notices & Circulars',
+                        count: noticeCirculars.length,
+                        tab: 'notices' as AdminMenuTab,
+                        icon: Bookmark,
+                        bg: 'bg-gradient-to-br from-amber-50 to-yellow-100/70 border-amber-200 hover:border-amber-400',
+                        iconBox: 'bg-amber-600 text-white',
+                        text: 'text-amber-900',
+                      },
+                      {
+                        label: 'Announcements',
+                        count: announcements.length,
+                        tab: 'announcements' as AdminMenuTab,
+                        icon: Megaphone,
+                        bg: 'bg-gradient-to-br from-rose-50 to-pink-100/70 border-rose-200 hover:border-rose-400',
+                        iconBox: 'bg-rose-600 text-white',
+                        text: 'text-rose-900',
+                      },
+                      {
+                        label: 'Member Management',
+                        count: 'Active',
+                        tab: 'members' as AdminMenuTab,
+                        icon: ShieldCheck,
+                        bg: 'bg-gradient-to-br from-indigo-50 to-violet-100/70 border-indigo-200 hover:border-indigo-400',
+                        iconBox: 'bg-indigo-600 text-white',
+                        text: 'text-indigo-900',
+                      },
+                      {
+                        label: 'Circulars & Feed',
+                        count: circulars.length,
+                        tab: 'documents' as AdminMenuTab,
+                        icon: FileText,
+                        bg: 'bg-gradient-to-br from-orange-50 to-amber-100/70 border-orange-200 hover:border-orange-400',
+                        iconBox: 'bg-orange-600 text-white',
+                        text: 'text-orange-900',
+                      },
+                      {
+                        label: 'Hero Slider Banners',
+                        count: heroSlides.length,
+                        tab: 'hero' as AdminMenuTab,
+                        icon: Sliders,
+                        bg: 'bg-gradient-to-br from-teal-50 to-cyan-100/70 border-teal-200 hover:border-teal-400',
+                        iconBox: 'bg-teal-600 text-white',
+                        text: 'text-teal-900',
+                      },
+                      {
+                        label: 'Photo Gallery',
+                        count: galleryPhotos.length,
+                        tab: 'gallery' as AdminMenuTab,
+                        icon: ImageIcon,
+                        bg: 'bg-gradient-to-br from-purple-50 to-fuchsia-100/70 border-purple-200 hover:border-purple-400',
+                        iconBox: 'bg-purple-600 text-white',
+                        text: 'text-purple-900',
+                      },
+                      {
+                        label: 'My Apps & Tools',
+                        count: myApps.length,
+                        tab: 'myApps' as AdminMenuTab,
+                        icon: LayoutGrid,
+                        bg: 'bg-gradient-to-br from-blue-50 to-indigo-100/70 border-blue-200 hover:border-blue-400',
+                        iconBox: 'bg-blue-600 text-white',
+                        text: 'text-blue-900',
+                      },
+                      {
+                        label: 'Executive Bearers',
+                        count: executives.length,
+                        tab: 'executives' as AdminMenuTab,
+                        icon: Users,
+                        bg: 'bg-gradient-to-br from-emerald-50 to-teal-100/70 border-emerald-200 hover:border-emerald-400',
+                        iconBox: 'bg-emerald-700 text-white',
+                        text: 'text-emerald-950',
+                      },
+                    ].map((stat, idx) => {
+                      const StatIcon = stat.icon;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => handleSelectAdminTab(stat.tab)}
+                          className={`rounded-3xl p-4 sm:p-5 border-2 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left flex flex-col justify-between cursor-pointer ${stat.bg}`}
+                        >
+                          <div className="flex items-start justify-between w-full gap-2 mb-3">
+                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider leading-snug">
+                              {stat.label}
+                            </span>
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${stat.iconBox}`}>
+                              <StatIcon className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className={`text-2xl sm:text-3xl font-black ${stat.text}`}>{stat.count}</div>
+                            <span className="text-[11px] text-slate-600 font-bold mt-1.5 inline-flex items-center gap-1">
+                              <span>Open Module</span>
+                              <span>→</span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Categorized Administrative Sections for 1-Click Navigation */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Category A: Homepage Sections (6-Document Scrollable Columns) */}
+                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                      <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                        <Megaphone className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase">Homepage Live Sections</h4>
+                        <p className="text-[11px] text-slate-500">Manage 6-row scrollable home columns & sliders</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'announcements' as AdminMenuTab, title: 'Announcements Column', sub: `${announcements.length} items published`, icon: Megaphone },
+                        { id: 'importantDocs' as AdminMenuTab, title: 'Important Documents (Homepage)', sub: `${importantDocs.length} pinned PDFs`, icon: FileCheck },
+                        { id: 'notices' as AdminMenuTab, title: 'Notice / Circular Column', sub: `${noticeCirculars.length} official notices`, icon: Bookmark },
+                        { id: 'hero' as AdminMenuTab, title: 'Hero Banner Slider', sub: `${heroSlides.length} active slides`, icon: Sliders },
+                        { id: 'news' as AdminMenuTab, title: 'Moving News Ticker', sub: `${newsItems.length} flash headlines`, icon: Radio },
+                      ].map((m) => {
+                        const MIcon = m.icon;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => handleSelectAdminTab(m.id)}
+                            className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/70 border border-slate-200/70 hover:border-red-200 flex items-center justify-between gap-3 transition-all text-left cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <MIcon className="w-4 h-4 text-red-600 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-900 group-hover:text-red-700 truncate">{m.title}</div>
+                                <div className="text-[10px] text-slate-500">{m.sub}</div>
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold text-red-600">Manage →</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Category B: Union Repository, Orders & Forms */}
+                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase">Repository & Resources</h4>
+                        <p className="text-[11px] text-slate-500">Orders, Rulings, Guides, Forms & Employee Site</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'ordersRulingsGuide' as AdminMenuTab, title: 'Orders / Rulings / Guide Cards', sub: `${ordersRulingsGuides.length} color-coded cards`, icon: BookOpen },
+                        { id: 'documents' as AdminMenuTab, title: 'Circulars & Feed Posts', sub: `${circulars.length} full articles`, icon: FileText },
+                        { id: 'forms' as AdminMenuTab, title: 'Downloadable Service Forms', sub: `${formsList.length} official forms`, icon: ListTodo },
+                        { id: 'employeeSite' as AdminMenuTab, title: 'Employee Site Manuals & Rules', sub: `${employeeResources.length} reference links`, icon: Briefcase },
+                      ].map((m) => {
+                        const MIcon = m.icon;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => handleSelectAdminTab(m.id)}
+                            className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200/70 hover:border-blue-200 flex items-center justify-between gap-3 transition-all text-left cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <MIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">{m.title}</div>
+                                <div className="text-[10px] text-slate-500">{m.sub}</div>
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold text-blue-600">Manage →</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Category C: Members, Bearers, Apps & Gallery */}
+                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 uppercase">Members, Bearers & Apps</h4>
+                        <p className="text-[11px] text-slate-500">Union directory, ID cards, apps & photo gallery</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'members' as AdminMenuTab, title: 'Member Management & ID Cards', sub: 'Approve members & verify QR cards', icon: ShieldCheck },
+                        { id: 'executives' as AdminMenuTab, title: 'Executive Office Bearers', sub: `${executives.length} union representatives`, icon: Users },
+                        { id: 'myApps' as AdminMenuTab, title: 'My Apps & HTML Calculators', sub: `${myApps.length} web & HTML apps`, icon: LayoutGrid },
+                        { id: 'gallery' as AdminMenuTab, title: 'Union Photo Gallery', sub: `${galleryPhotos.length} event photos`, icon: ImageIcon },
+                      ].map((m) => {
+                        const MIcon = m.icon;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => handleSelectAdminTab(m.id)}
+                            className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50/70 border border-slate-200/70 hover:border-emerald-200 flex items-center justify-between gap-3 transition-all text-left cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <MIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700 truncate">{m.title}</div>
+                                <div className="text-[10px] text-slate-500">{m.sub}</div>
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-600">Manage →</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. System & Firestore Status */}
                 <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-red-600 pb-3 border-b border-slate-100 mb-4">
                     SYSTEM STATUS & CLOUD FIREBASE DATABASE
@@ -2280,7 +2710,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <MemberManagementAdmin onNotify={showNotification} />
             )}
 
-            {/* TAB CONTENT: ORDERS / RULLINGS / GUIDE (UPLOAD & CARD MANAGEMENT) */}
+            {/* TAB CONTENT: ORDERS / RULINGS / GUIDE (UPLOAD & PASTEL COLOR-CODED CARD MANAGEMENT) */}
             {activeTab === 'ordersRulingsGuide' && (
               <div className="space-y-6">
                 {/* Information Header Banner */}
@@ -2291,10 +2721,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
-                        Orders / Rullings / Guide Management
+                        Orders / Rulings / Guide Management
                       </h3>
                       <p className="text-xs text-slate-600 max-w-2xl mt-0.5 leading-relaxed">
-                        Upload official documents with <strong>File name</strong>, <strong>folder name</strong>, <strong>category</strong>, and <strong>Document URL</strong>. These documents are instantly published in <strong>card type</strong> in the website’s Orders/Rullings/Guide menu view.
+                        Upload official documents with <strong>File name</strong>, <strong>Folder name</strong>, <strong>Category</strong>, and <strong>Document URL</strong>. Each card is automatically styled with a distinct pastel color combination.
                       </p>
                     </div>
                   </div>
@@ -2308,7 +2738,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Upload / Fill-up Form matching user request */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24">
+                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 lg:sticky lg:top-24">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
                         {editingOrgItem ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -2456,7 +2886,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </form>
                   </div>
 
-                  {/* Right Column: Uploaded Documents in Card View */}
+                  {/* Right Column: Uploaded Documents in Distinct Pastel Color-Coded Card View */}
                   <div className="lg:col-span-7 xl:col-span-8 space-y-4">
                     {/* Search and Folder Filter in Admin */}
                     <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -2511,82 +2941,88 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             item.folderName.toLowerCase() === orgFolderFilter.toLowerCase();
                           return matchesQ && matchesF;
                         })
-                        .map((item) => (
-                          <div
-                            key={item.id}
-                            className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
-                          >
-                            <div className="space-y-2.5">
-                              {/* Badges */}
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-                                  {item.category}
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                  <Folder className="w-3 h-3 text-amber-600" />
-                                  <span>{item.folderName}</span>
-                                </span>
+                        .map((item, idx) => {
+                          const stableIndex = ordersRulingsGuides.findIndex((x) => x.id === item.id);
+                          const palette = getCardColorPalette(stableIndex >= 0 ? stableIndex : idx);
+                          return (
+                            <div
+                              key={item.id}
+                              className={`relative overflow-hidden p-5 rounded-3xl border-2 ${palette.cardBg} ${palette.cardBorder} ${palette.cardHoverBorder} shadow-xs hover:shadow-md transition-all flex flex-col justify-between group`}
+                            >
+                              <div className={`absolute top-0 left-0 right-0 h-1.5 ${palette.accentBar}`} />
+
+                              <div className="space-y-2.5 pt-1">
+                                {/* Badges */}
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${palette.badgeBg}`}>
+                                    {item.category}
+                                  </span>
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${palette.folderBadge}`}>
+                                    <Folder className="w-3 h-3" />
+                                    <span>{item.folderName}</span>
+                                  </span>
+                                </div>
+
+                                {/* File Name */}
+                                <h4 className={`font-black text-sm leading-snug line-clamp-2 ${palette.titleColor}`}>
+                                  {item.fileName}
+                                </h4>
+
+                                {item.notes && (
+                                  <p className={`text-xs line-clamp-2 ${palette.notesColor}`}>
+                                    {item.notes}
+                                  </p>
+                                )}
+
+                                {/* Link Preview */}
+                                <div className="pt-1">
+                                  <a
+                                    href={item.documentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] font-mono text-blue-700 hover:underline truncate block"
+                                  >
+                                    {item.documentUrl}
+                                  </a>
+                                </div>
                               </div>
 
-                              {/* File Name */}
-                              <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
-                                {item.fileName}
-                              </h4>
-
-                              {item.notes && (
-                                <p className="text-xs text-slate-500 line-clamp-2">
-                                  {item.notes}
-                                </p>
-                              )}
-
-                              {/* Link Preview */}
-                              <div className="pt-1">
+                              {/* Actions bar */}
+                              <div className="mt-4 pt-3 border-t border-black/10 flex items-center justify-between">
                                 <a
                                   href={item.documentUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors"
                                 >
-                                  {item.documentUrl}
+                                  <span>Preview</span>
+                                  <ExternalLink className="w-3 h-3" />
                                 </a>
+
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditOrgClick(item)}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-800 bg-white/90 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Edit Document"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOrgItem(item.id)}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-white/90 hover:bg-red-100 border border-red-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Delete Document"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
-
-                            {/* Actions bar */}
-                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <a
-                                href={item.documentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-red-600 transition-colors"
-                              >
-                                <span>Preview</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditOrgClick(item)}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                  title="Edit Document"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                  <span>Edit</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteOrgItem(item.id)}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                  title="Delete Document"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Delete</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
 
                     {ordersRulingsGuides.length === 0 && (
