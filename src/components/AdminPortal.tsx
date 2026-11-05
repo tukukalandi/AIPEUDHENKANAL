@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Plus,
@@ -42,6 +42,8 @@ import {
   Code,
   BookOpen,
   Folder,
+  Download,
+  Link as LinkIcon,
 } from 'lucide-react';
 import {
   BlogPost,
@@ -97,6 +99,7 @@ import { DEFAULT_MY_APPS, TARGET_CALCULATOR_HTML } from '../data/portalMenuData'
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberManagementAdmin } from './MemberManagementAdmin';
 import { getCardColorPalette } from './OrdersRulingsGuideView';
+import { getMyAppCardTheme, getMyAppIcon } from './FullPagePortalViews';
 
 interface AdminPortalProps {
   isOpen: boolean;
@@ -280,6 +283,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [heroGradient, setHeroGradient] = useState('from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]');
   const [heroTargetPage, setHeroTargetPage] = useState<'home' | 'feed' | 'both'>('home');
   const [heroFilterPage, setHeroFilterPage] = useState<'all' | 'home' | 'feed'>('all');
+  const heroFileInputRef = useRef<HTMLInputElement | null>(null);
+  const heroFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 2. DOCUMENTS & CIRCULARS STATE =================
   const [circulars, setCirculars] = useState<BlogPost[]>([]);
@@ -291,6 +296,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [docPostImageUrl, setDocPostImageUrl] = useState('');
   const [docPostAuthor, setDocPostAuthor] = useState('Divisional Secretary, AIPEU Dhenkanal');
   const [docPostUrgent, setDocPostUrgent] = useState(false);
+  const [docPostFileMode, setDocPostFileMode] = useState<'upload' | 'url'>('upload');
+  const [docPostFileName, setDocPostFileName] = useState('');
+  const [docPostFileSize, setDocPostFileSize] = useState('');
+  const [docPostSearchQuery, setDocPostSearchQuery] = useState('');
+  const [docPostCategoryFilter, setDocPostCategoryFilter] = useState('All');
+  const docPostFileInputRef = useRef<HTMLInputElement | null>(null);
+  const docPostFormRef = useRef<HTMLDivElement | null>(null);
+
+  // ================= DOCUMENT VIEWER / PREVIEW MODAL STATE =================
+  const [viewingDoc, setViewingDoc] = useState<{
+    title: string;
+    category?: string;
+    url: string;
+    published?: string;
+    type?: 'Homepage Document' | 'Notice / Circular' | 'Announcement' | 'Order / Ruling' | 'Document' | string;
+  } | null>(null);
 
   // ================= 3. HOMEPAGE DOCS STATE =================
   const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>([]);
@@ -301,6 +322,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [docPublished, setDocPublished] = useState('');
   const [docSearchQuery, setDocSearchQuery] = useState('');
   const [docCategoryFilter, setDocCategoryFilter] = useState('All');
+  const [docFileMode, setDocFileMode] = useState<'upload' | 'url'>('upload');
+  const [docFileName, setDocFileName] = useState('');
+  const [docFileSize, setDocFileSize] = useState('');
+  const docFileInputRef = useRef<HTMLInputElement | null>(null);
+  const docFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 4. NOTICES & CIRCULARS STATE =================
   const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>([]);
@@ -311,6 +337,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [noticeUrl, setNoticeUrl] = useState('');
   const [noticeSearchQuery, setNoticeSearchQuery] = useState('');
   const [noticeCategoryFilter, setNoticeCategoryFilter] = useState('All');
+  const [noticeFileMode, setNoticeFileMode] = useState<'upload' | 'url'>('upload');
+  const [noticeFileName, setNoticeFileName] = useState('');
+  const [noticeFileSize, setNoticeFileSize] = useState('');
+  const noticeFileInputRef = useRef<HTMLInputElement | null>(null);
+  const noticeFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 5. ANNOUNCEMENTS STATE =================
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -319,6 +350,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [annLink, setAnnLink] = useState('');
   const [annPublished, setAnnPublished] = useState('');
   const [annSearchQuery, setAnnSearchQuery] = useState('');
+  const [annFileMode, setAnnFileMode] = useState<'upload' | 'url'>('url');
+  const [annFileName, setAnnFileName] = useState('');
+  const [annFileSize, setAnnFileSize] = useState('');
+  const annFileInputRef = useRef<HTMLInputElement | null>(null);
+  const annFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 6. PHOTO GALLERY STATE =================
   const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>(DEFAULT_GALLERY);
@@ -370,6 +406,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [newsCategory, setNewsCategory] = useState('LATEST NEWS');
   const [newsLink, setNewsLink] = useState('');
   const [newsIsUrgent, setNewsIsUrgent] = useState(false);
+  const [newsFileMode, setNewsFileMode] = useState<'upload' | 'url'>('url');
+  const [newsFileName, setNewsFileName] = useState('');
+  const [newsFileSize, setNewsFileSize] = useState('');
+  const [newsSearchQuery, setNewsSearchQuery] = useState('');
+  const newsFileInputRef = useRef<HTMLInputElement | null>(null);
+  const newsFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 11. EXECUTIVE MEMBERS & DOCUMENTS/RULINGS STATE =================
   const [executiveSubSection, setExecutiveSubSection] = useState<'bearers' | 'rulings'>('bearers');
@@ -379,9 +421,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [execDesignation, setExecDesignation] = useState('');
   const [execBranch, setExecBranch] = useState("AIPEU Group 'C', Dhenkanal Division");
   const [execPhone, setExecPhone] = useState('');
-  const [execLocation, setExecLocation] = useState('Dhenkanal HO');
+  const [execLocation, setExecLocation] = useState('Dhenkanal Division');
   const [execRoleType, setExecRoleType] = useState<'president' | 'secretary' | 'treasurer' | 'executive'>('executive');
   const [execPhotoUrl, setExecPhotoUrl] = useState('');
+  const [execSearchQuery, setExecSearchQuery] = useState('');
+  const execFormRef = useRef<HTMLDivElement | null>(null);
 
   // Documents & Rulings (Executive Body)
   const [unionRulings, setUnionRulings] = useState<UnionDocumentRuling[]>([]);
@@ -403,6 +447,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [orgNotes, setOrgNotes] = useState('');
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
   const [orgFolderFilter, setOrgFolderFilter] = useState('All');
+  const [orgFileMode, setOrgFileMode] = useState<'upload' | 'url'>('upload');
+  const [orgUploadedFileName, setOrgUploadedFileName] = useState('');
+  const [orgUploadedFileSize, setOrgUploadedFileSize] = useState('');
+  const orgFileInputRef = useRef<HTMLInputElement | null>(null);
+  const orgFormRef = useRef<HTMLDivElement | null>(null);
 
   // Load all data when modal opens
   const loadAllData = async () => {
@@ -423,6 +472,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setExecutives(execs);
       setAnnouncements(anns);
       setImportantDocs(docs);
+      setNoticeCirculars(notcs);
       setUnionRulings(rulings);
       setOrdersRulingsGuides(orgs);
       const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
@@ -499,6 +549,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setHeroCtaLink(slide.ctaLink || '#');
     setHeroGradient(slide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]');
     setHeroTargetPage(slide.targetPage || 'home');
+    setTimeout(() => {
+      heroFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditSlide = () => {
@@ -510,12 +563,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setHeroCtaText('Explore Syllabus & Materials');
     setHeroCtaLink('#departmental-exams');
     setHeroTargetPage(heroFilterPage === 'feed' ? 'feed' : 'home');
+    if (heroFileInputRef.current) heroFileInputRef.current.value = '';
   };
 
   const handleSaveHeroSlide = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!heroImageUrl.trim()) {
-      showNotification('⚠️ Please enter Photo URL');
+      showNotification('⚠️ Please enter Photo URL or select an image file');
       return;
     }
 
@@ -539,6 +593,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updatedSlides = await getHeroSlidesFromFirestore();
       setHeroSlides(updatedSlides);
       if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+      window.dispatchEvent(new CustomEvent('hero-slides-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
 
       handleCancelEditSlide();
       const pageName = heroTargetPage === 'feed' ? 'Circular & Feed Page' : heroTargetPage === 'both' ? 'Both Pages' : 'Home Page';
@@ -558,6 +614,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updatedSlides = await getHeroSlidesFromFirestore();
       setHeroSlides(updatedSlides);
       if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+      window.dispatchEvent(new CustomEvent('hero-slides-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
       showNotification(newActive ? '✅ Slide activated' : '⏸️ Slide deactivated');
     } catch (e) {
       console.error(e);
@@ -571,6 +629,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updatedSlides = await getHeroSlidesFromFirestore();
       setHeroSlides(updatedSlides);
       if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+      window.dispatchEvent(new CustomEvent('hero-slides-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
       const pageLabel = target === 'feed' ? 'Circulars & Feed' : target === 'both' ? 'Both Pages' : 'Home Page';
       showNotification(`✅ Assigned to ${pageLabel}`);
     } catch (err) {
@@ -593,6 +653,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updatedSlides = await getHeroSlidesFromFirestore();
           setHeroSlides(updatedSlides);
           if (onHeroSlidesUpdated) onHeroSlidesUpdated();
+          window.dispatchEvent(new CustomEvent('hero-slides-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Hero slide deleted from Firebase.');
         } catch (e) {
           console.error(e);
@@ -620,10 +682,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocPostTitle(circ.title || '');
     setDocPostCategory(circ.categories?.[0] || "GROUP - 'C' AGENDA");
     setDocPostSnippet(circ.snippet || '');
-    setDocPostFileUrl(circ.driveLinks?.[0] || '');
+    const fileUrl = circ.driveLinks?.[0] || circ.url || '';
+    setDocPostFileUrl(fileUrl);
     setDocPostImageUrl(circ.images?.[0] || '');
     setDocPostAuthor(circ.author || 'Divisional Secretary, AIPEU Dhenkanal');
     setDocPostUrgent(!!circ.urgent);
+
+    if (fileUrl && fileUrl.startsWith('data:')) {
+      setDocPostFileMode('upload');
+      setDocPostFileName(circ.title ? `${circ.title.slice(0, 30)}.pdf` : 'attached_document.pdf');
+    } else {
+      setDocPostFileMode(fileUrl ? 'url' : 'upload');
+      setDocPostFileName('');
+    }
+    setDocPostFileSize('');
+    setTimeout(() => {
+      docPostFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditCircular = () => {
@@ -635,6 +710,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocPostImageUrl('');
     setDocPostAuthor('Divisional Secretary, AIPEU Dhenkanal');
     setDocPostUrgent(false);
+    setDocPostFileName('');
+    setDocPostFileSize('');
+    if (docPostFileInputRef.current) docPostFileInputRef.current.value = '';
   };
 
   const handleSaveCircular = async (e: React.FormEvent) => {
@@ -661,6 +739,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         await updateCircularInFirestore(editingCircular.id, circularInput);
         const updated = await getCircularsFromFirestore();
         setCirculars(updated);
+        window.dispatchEvent(new CustomEvent('posts-updated'));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
         showNotification('✅ Document / Circular successfully updated!');
       } else {
         const docId = await addCircularToFirestore(circularInput);
@@ -680,6 +760,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           images: circularInput.imageUrls || [],
           driveLinks: circularInput.fileLinks || [],
         });
+        window.dispatchEvent(new CustomEvent('posts-updated'));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
         showNotification('✅ Document / Circular successfully published to Firebase!');
       }
 
@@ -705,6 +787,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           setCirculars((prev) => prev.filter((c) => c.id !== id));
           await deleteCircularFromFirestore(id);
           if (onCircularDeleted) onCircularDeleted(id);
+          window.dispatchEvent(new CustomEvent('posts-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Document file deleted successfully.');
         } catch (e) {
           console.error(e);
@@ -714,6 +798,171 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   };
 
+  // ================= DOCUMENT DOWNLOAD & FILE UPLOAD HELPERS =================
+  const handleDownloadDoc = (url: string, title: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      const isImg = url.startsWith('data:image') || /\.(png|jpe?g|webp|svg)($|\?)/i.test(url);
+      const isPdf = url.startsWith('data:application/pdf') || /\.pdf($|\?)/i.test(url);
+      const ext = isImg ? '.png' : isPdf ? '.pdf' : '';
+      a.download = `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}${ext}`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.open(url, '_blank');
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Helper to handle file selection for Important Docs
+  const handleDocFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocFileName(file.name);
+    setDocFileSize(formatFileSize(file.size));
+    if (!docTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setDocTitle(baseName);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setDocUrl(ev.target.result as string);
+        showNotification(`📁 File attached: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle file selection for Notice / Circular
+  const handleNoticeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNoticeFileName(file.name);
+    setNoticeFileSize(formatFileSize(file.size));
+    if (!noticeTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setNoticeTitle(baseName);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setNoticeUrl(ev.target.result as string);
+        showNotification(`📁 Notice file attached: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle file selection for Announcements
+  const handleAnnFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAnnFileName(file.name);
+    setAnnFileSize(formatFileSize(file.size));
+    if (!annTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setAnnTitle(baseName);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setAnnLink(ev.target.result as string);
+        showNotification(`📁 Announcement file attached: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle file selection for Documents / Circulars
+  const handleDocPostFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDocPostFileName(file.name);
+    setDocPostFileSize(formatFileSize(file.size));
+    if (!docPostTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setDocPostTitle(baseName);
+    }
+    if (!docPostSnippet.trim()) {
+      setDocPostSnippet(`Official departmental circular: ${file.name}`);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setDocPostFileUrl(ev.target.result as string);
+        showNotification(`📁 Document file attached: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle file selection for Orders / Rulings / Guide
+  const handleOrgFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOrgUploadedFileName(file.name);
+    setOrgUploadedFileSize(formatFileSize(file.size));
+    if (!orgFileName.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setOrgFileName(baseName);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setOrgDocumentUrl(ev.target.result as string);
+        showNotification(`📁 Order / Ruling file attached: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle file selection for News Ticker
+  const handleNewsFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewsFileName(file.name);
+    setNewsFileSize(formatFileSize(file.size));
+    if (!newsTitle.trim()) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setNewsTitle(baseName);
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setNewsLink(ev.target.result as string);
+        showNotification(`📁 News attachment file: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper to handle image selection for Hero Slider Banner
+  const handleHeroImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setHeroImageUrl(ev.target.result as string);
+        if (!heroTitle.trim()) {
+          const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+          setHeroTitle(baseName);
+        }
+        showNotification(`🖼️ Banner image loaded: ${file.name}`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ================= 3. HOMEPAGE DOCS HANDLERS =================
   const handleEditImportantDocClick = (docItem: ImportantDocItem) => {
     setEditingDoc(docItem);
@@ -721,6 +970,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocUrl(docItem.url || '');
     setDocCategory(docItem.category || 'General');
     setDocPublished(docItem.published || new Date().toISOString().split('T')[0]);
+    if (docItem.url && docItem.url.startsWith('data:')) {
+      setDocFileMode('upload');
+      setDocFileName(docItem.title ? `${docItem.title}.pdf` : 'attached_document.pdf');
+    } else {
+      setDocFileMode('url');
+      setDocFileName('');
+    }
+    setDocFileSize('');
+    // Smooth scroll to form
+    setTimeout(() => {
+      docFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditImportantDoc = () => {
@@ -729,12 +990,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocUrl('');
     setDocCategory('General');
     setDocPublished('');
+    setDocFileName('');
+    setDocFileSize('');
+    if (docFileInputRef.current) docFileInputRef.current.value = '';
   };
 
   const handleSaveImportantDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docTitle.trim() || !docUrl.trim()) {
-      showNotification('⚠️ Title and Document URL are required');
+      showNotification('⚠️ Title and Document File/URL are required');
       return;
     }
 
@@ -752,6 +1016,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = await getImportantDocumentsFromFirestore();
       setImportantDocs(updated);
       if (onDocsUpdated) onDocsUpdated();
+      window.dispatchEvent(new CustomEvent('docs-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
 
       handleCancelEditImportantDoc();
       showNotification(editingDoc ? '✅ Homepage Document updated successfully!' : '✅ Homepage Document saved successfully!');
@@ -777,6 +1043,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getImportantDocumentsFromFirestore();
           setImportantDocs(updated);
           if (onDocsUpdated) onDocsUpdated();
+          window.dispatchEvent(new CustomEvent('docs-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Document removed from Homepage.');
         } catch (e) {
           console.error(e);
@@ -793,6 +1061,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setNoticeCategory(nc.category || 'NOTICE');
     setNoticePublished(nc.published || new Date().toISOString().split('T')[0]);
     setNoticeUrl(nc.url || '');
+    if (nc.url && nc.url.startsWith('data:')) {
+      setNoticeFileMode('upload');
+      setNoticeFileName(nc.title ? `${nc.title}.pdf` : 'attached_notice.pdf');
+    } else {
+      setNoticeFileMode('url');
+      setNoticeFileName('');
+    }
+    setNoticeFileSize('');
+    // Smooth scroll to form
+    setTimeout(() => {
+      noticeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditNotice = () => {
@@ -801,12 +1081,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setNoticeCategory('NOTICE');
     setNoticePublished('');
     setNoticeUrl('');
+    setNoticeFileName('');
+    setNoticeFileSize('');
+    if (noticeFileInputRef.current) noticeFileInputRef.current.value = '';
   };
 
   const handleSaveNoticeCircular = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noticeTitle.trim() || !noticeUrl.trim()) {
-      showNotification('⚠️ Notice Title and Document Link are required');
+      showNotification('⚠️ Notice Title and Document File/Link are required');
       return;
     }
 
@@ -824,9 +1107,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = await getNoticeCircularsFromFirestore();
       setNoticeCirculars(updated);
       if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+      window.dispatchEvent(new CustomEvent('notices-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
 
       handleCancelEditNotice();
-      showNotification('✅ Notice / Circular updated successfully in Firebase!');
+      showNotification(editingNotice ? '✅ Notice / Circular updated successfully!' : '✅ Notice / Circular saved successfully!');
     } catch (err) {
       console.error(err);
       showNotification('❌ Failed to save Notice.');
@@ -849,6 +1134,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getNoticeCircularsFromFirestore();
           setNoticeCirculars(updated);
           if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+          window.dispatchEvent(new CustomEvent('notices-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Notice circular deleted.');
         } catch (e) {
           console.error(e);
@@ -864,6 +1151,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setAnnTitle(ann.title || '');
     setAnnLink(ann.link || '');
     setAnnPublished(ann.published || new Date().toISOString().split('T')[0]);
+    if (ann.link && ann.link.startsWith('data:')) {
+      setAnnFileMode('upload');
+      setAnnFileName(ann.title ? `${ann.title.slice(0, 30)}.pdf` : 'attached_file.pdf');
+    } else {
+      setAnnFileMode('url');
+      setAnnFileName('');
+    }
+    setAnnFileSize('');
+    setTimeout(() => {
+      annFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditAnnouncement = () => {
@@ -871,6 +1169,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setAnnTitle('');
     setAnnLink('');
     setAnnPublished('');
+    setAnnFileName('');
+    setAnnFileSize('');
+    if (annFileInputRef.current) annFileInputRef.current.value = '';
   };
 
   const handleSaveAnnouncement = async (e: React.FormEvent) => {
@@ -894,9 +1195,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = await getAnnouncementsFromFirestore();
       setAnnouncements(updated);
       if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+      window.dispatchEvent(new CustomEvent('announcements-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
 
       handleCancelEditAnnouncement();
-      showNotification('✅ Announcement published to banner ticker!');
+      showNotification(editingAnn ? '✅ Announcement updated successfully!' : '✅ Announcement published to banner ticker!');
     } catch (err) {
       console.error(err);
       showNotification('❌ Failed to save announcement.');
@@ -919,6 +1222,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getAnnouncementsFromFirestore();
           setAnnouncements(updated);
           if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+          window.dispatchEvent(new CustomEvent('announcements-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Announcement removed.');
         } catch (e) {
           console.error(e);
@@ -1237,6 +1542,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setNewsCategory(item.category || 'LATEST NEWS');
     setNewsLink(item.link || '');
     setNewsIsUrgent(!!item.isUrgent);
+    if (item.link && item.link.startsWith('data:')) {
+      setNewsFileMode('upload');
+      setNewsFileName(item.title ? `${item.title.slice(0, 30)}.pdf` : 'news_attachment.pdf');
+    } else {
+      setNewsFileMode(item.link ? 'url' : 'upload');
+      setNewsFileName('');
+    }
+    setNewsFileSize('');
+    setTimeout(() => {
+      newsFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditNews = () => {
@@ -1245,6 +1561,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setNewsCategory('LATEST NEWS');
     setNewsLink('');
     setNewsIsUrgent(false);
+    setNewsFileMode('upload');
+    setNewsFileName('');
+    setNewsFileSize('');
+    if (newsFileInputRef.current) newsFileInputRef.current.value = '';
   };
 
   const handleSaveNews = async (e: React.FormEvent) => {
@@ -1265,6 +1585,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = await getNewsItemsFromFirestore();
       setNewsItems(updated);
       if (onNewsItemsUpdated) onNewsItemsUpdated();
+      window.dispatchEvent(new CustomEvent('news-items-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
       handleCancelEditNews();
       showNotification('✅ News headline saved!');
     } catch (e) {
@@ -1288,6 +1610,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getNewsItemsFromFirestore();
           setNewsItems(updated);
           if (onNewsItemsUpdated) onNewsItemsUpdated();
+          window.dispatchEvent(new CustomEvent('news-items-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Headline deleted.');
         } catch (e) {
           console.error(e);
@@ -1304,9 +1628,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setExecDesignation(member.designation || '');
     setExecBranch(member.branch || "AIPEU Group 'C', Dhenkanal Division");
     setExecPhone(member.phone || '');
-    setExecLocation(member.location || 'Dhenkanal HO');
+    setExecLocation(member.location || 'Dhenkanal Division');
     setExecRoleType(member.roleType || 'executive');
     setExecPhotoUrl(member.photoUrl || '');
+    setTimeout(() => {
+      execFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditExecutive = () => {
@@ -1315,7 +1642,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setExecDesignation('');
     setExecBranch("AIPEU Group 'C', Dhenkanal Division");
     setExecPhone('');
-    setExecLocation('Dhenkanal HO');
+    setExecLocation('Dhenkanal Division');
     setExecRoleType('executive');
     setExecPhotoUrl('');
   };
@@ -1334,13 +1661,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         designation: execDesignation.trim(),
         branch: execBranch.trim() || "AIPEU Group 'C', Dhenkanal Division",
         phone: execPhone.trim(),
-        location: execLocation.trim() || 'Dhenkanal HO',
+        location: execLocation.trim() || 'Dhenkanal Division',
         roleType: execRoleType,
         photoUrl: execPhotoUrl.trim(),
       });
       const updated = await getExecutiveMembersFromFirestore();
       setExecutives(updated);
       onExecutiveUpdated();
+      window.dispatchEvent(new CustomEvent('office-bearers-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
       handleCancelEditExecutive();
       showNotification('✅ Office Bearer & photo saved successfully in Firebase!');
     } catch (e) {
@@ -1365,6 +1694,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getExecutiveMembersFromFirestore();
           setExecutives(updated);
           onExecutiveUpdated();
+          window.dispatchEvent(new CustomEvent('office-bearers-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Executive member removed.');
         } catch (e) {
           console.error(e);
@@ -1457,6 +1788,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setOrgDocumentUrl(item.documentUrl || '');
     setOrgPublished(item.published || '');
     setOrgNotes(item.notes || '');
+    if (item.documentUrl && item.documentUrl.startsWith('data:')) {
+      setOrgFileMode('upload');
+      setOrgUploadedFileName(item.fileName ? `${item.fileName}.pdf` : 'attached_order.pdf');
+    } else {
+      setOrgFileMode(item.documentUrl ? 'url' : 'upload');
+      setOrgUploadedFileName('');
+    }
+    setOrgUploadedFileSize('');
+    setTimeout(() => {
+      orgFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleCancelEditOrg = () => {
@@ -1467,6 +1809,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setOrgDocumentUrl('');
     setOrgPublished('');
     setOrgNotes('');
+    setOrgFileMode('upload');
+    setOrgUploadedFileName('');
+    setOrgUploadedFileSize('');
+    if (orgFileInputRef.current) orgFileInputRef.current.value = '';
   };
 
   const handleSaveOrgDocument = async (e: React.FormEvent) => {
@@ -1484,7 +1830,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
     if (!orgDocumentUrl.trim()) {
-      showNotification('⚠️ Please fill Document URL');
+      showNotification('⚠️ Please provide Document URL or attach a file');
       return;
     }
 
@@ -1506,6 +1852,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setOrdersRulingsGuides(updated);
       handleCancelEditOrg();
       window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
       showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
     } catch (err) {
       console.error(err);
@@ -1529,6 +1876,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           const updated = await getOrdersRulingsGuidesFromFirestore();
           setOrdersRulingsGuides(updated);
           window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
           showNotification('✅ Document deleted from Orders/Rullings/Guide.');
         } catch (e) {
           console.error(e);
@@ -1999,7 +2347,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Add/Edit Slide Card */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24">
+                  <div
+                    ref={heroFormRef}
+                    className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24"
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
                         {editingSlide ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -2068,17 +2419,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          PHOTO URL *
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                          <span>PHOTO / BANNER IMAGE *</span>
+                          <span className="text-[10px] text-blue-600 font-semibold">Web URL or Device Upload</span>
                         </label>
-                        <input
-                          type="url"
-                          value={heroImageUrl}
-                          onChange={(e) => setHeroImageUrl(e.target.value)}
-                          placeholder="https://..."
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
-                        />
+                        <div className="space-y-2">
+                          <input
+                            type="url"
+                            value={heroImageUrl}
+                            onChange={(e) => setHeroImageUrl(e.target.value)}
+                            placeholder="https://... or upload below"
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-800 placeholder-slate-400"
+                          />
+                          <div className="flex items-center gap-2">
+                            <label className="flex-1 cursor-pointer py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl border border-red-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>📁 Choose Image File</span>
+                              <input
+                                ref={heroFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleHeroImageUpload}
+                                className="hidden"
+                              />
+                            </label>
+                            {heroImageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingDoc({
+                                  title: heroTitle || 'Hero Slide Banner',
+                                  category: heroTag || 'Hero Banner',
+                                  url: heroImageUrl,
+                                  type: 'Homepage Document'
+                                })}
+                                className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Preview</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       <div>
@@ -2348,26 +2730,49 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
-                                  <button
-                                    onClick={() => handleEditSlideClick(slide)}
-                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1"
-                                    title="Edit Slide"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    <span>Edit</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteHeroSlide(slide.id)}
-                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
-                                    title="Delete Slide"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Delete</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                                 <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                                   <button
+                                     type="button"
+                                     onClick={() => setViewingDoc({
+                                       title: slide.title || 'Hero Slide Banner',
+                                       category: `${slide.tag || 'Hero'} • ${target.toUpperCase()}`,
+                                       url: slide.imageUrl,
+                                       type: 'Homepage Document'
+                                     })}
+                                     className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                     title="View Banner in Modal"
+                                   >
+                                     <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                     <span>View</span>
+                                   </button>
+                                   <button
+                                     type="button"
+                                     onClick={() => handleDownloadDoc(slide.imageUrl, slide.title || 'hero_banner')}
+                                     className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                     title="Download Image"
+                                   >
+                                     <Download className="w-3.5 h-3.5 text-emerald-600" />
+                                     <span>Download</span>
+                                   </button>
+                                   <button
+                                     onClick={() => handleEditSlideClick(slide)}
+                                     className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                     title="Edit Slide"
+                                   >
+                                     <Edit2 className="w-3.5 h-3.5" />
+                                     <span>Edit</span>
+                                   </button>
+                                   <button
+                                     onClick={() => handleDeleteHeroSlide(slide.id)}
+                                     className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                     title="Delete Slide"
+                                   >
+                                     <Trash2 className="w-3.5 h-3.5" />
+                                     <span>Delete</span>
+                                   </button>
+                                 </div>
+                               </div>
+                             </div>
                           );
                         })}
 
@@ -2738,7 +3143,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Upload / Fill-up Form matching user request */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 lg:sticky lg:top-24">
+                  <div
+                    ref={orgFormRef}
+                    className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 lg:sticky lg:top-24"
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
                         {editingOrgItem ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -2840,22 +3248,117 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </div>
                       </div>
 
-                      {/* 4. Document URL */}
+                      {/* 4. Document Source: Upload vs Web Link Toggle */}
                       <div>
-                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
-                          DOCUMENT URL *
-                        </label>
-                        <input
-                          type="url"
-                          value={orgDocumentUrl}
-                          onChange={(e) => setOrgDocumentUrl(e.target.value)}
-                          placeholder="https://drive.google.com/... or https://indiapost.gov.in/..."
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-mono text-xs"
-                        />
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          Direct web link or Google Drive PDF download link.
-                        </span>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            DOCUMENT FILE / SOURCE *
+                          </label>
+                          <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setOrgFileMode('upload')}
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all flex items-center gap-1 ${
+                                orgFileMode === 'upload'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-500 hover:text-slate-800'
+                              }`}
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>Upload File</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOrgFileMode('url')}
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all flex items-center gap-1 ${
+                                orgFileMode === 'url'
+                                  ? 'bg-white text-blue-600 shadow-2xs'
+                                  : 'text-slate-500 hover:text-slate-800'
+                              }`}
+                            >
+                              <LinkIcon className="w-3 h-3" />
+                              <span>Web Link</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {orgFileMode === 'upload' ? (
+                          <div className="space-y-2">
+                            <label className="flex flex-col items-center justify-center border-2 border-dashed border-red-300 hover:border-red-500 bg-red-50/40 hover:bg-red-50/70 p-4 rounded-2xl cursor-pointer transition-all group">
+                              <Upload className="w-6 h-6 text-red-500 mb-1.5 group-hover:scale-110 transition-transform" />
+                              <span className="text-xs font-bold text-slate-800">Choose PDF / Document file</span>
+                              <span className="text-[10px] text-slate-500 mt-0.5">Supports PDF, DOC, Images (up to 15MB)</span>
+                              <input
+                                ref={orgFileInputRef}
+                                type="file"
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                onChange={handleOrgFileUpload}
+                                className="hidden"
+                              />
+                            </label>
+
+                            {orgUploadedFileName && (
+                              <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-bold text-emerald-900 block truncate">
+                                      {orgUploadedFileName}
+                                    </span>
+                                    {orgUploadedFileSize && (
+                                      <span className="text-[10px] text-emerald-600">
+                                        {orgUploadedFileSize} • Attached
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {orgDocumentUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewingDoc({
+                                        title: orgFileName || orgUploadedFileName,
+                                        category: `${orgCategory} • ${orgFolderName}`,
+                                        url: orgDocumentUrl,
+                                        type: 'Order / Ruling'
+                                      })}
+                                      className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-bold border border-emerald-200 transition-colors"
+                                    >
+                                      Preview
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOrgUploadedFileName('');
+                                      setOrgUploadedFileSize('');
+                                      setOrgDocumentUrl('');
+                                      if (orgFileInputRef.current) orgFileInputRef.current.value = '';
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                    title="Remove attachment"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <input
+                              type="url"
+                              value={orgDocumentUrl}
+                              onChange={(e) => setOrgDocumentUrl(e.target.value)}
+                              placeholder="https://drive.google.com/... or https://indiapost.gov.in/..."
+                              required={orgFileMode === 'url'}
+                              className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-mono text-xs"
+                            />
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              Direct web link or Google Drive PDF download link.
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Optional: Brief Note / Summary */}
@@ -2988,16 +3491,44 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               </div>
 
                               {/* Actions bar */}
-                              <div className="mt-4 pt-3 border-t border-black/10 flex items-center justify-between">
-                                <a
-                                  href={item.documentUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors"
-                                >
-                                  <span>Preview</span>
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
+                              <div className="mt-4 pt-3 border-t border-black/10 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingDoc({
+                                      title: item.fileName,
+                                      category: `${item.category} • ${item.folderName}`,
+                                      url: item.documentUrl,
+                                      published: item.published,
+                                      type: 'Order / Ruling'
+                                    })}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-800 bg-white/90 hover:bg-slate-100 border border-slate-300 shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="View Document in Portal"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>View File</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadDoc(item.documentUrl, item.fileName)}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-800 bg-white/90 hover:bg-slate-100 border border-slate-300 shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Download File"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Download</span>
+                                  </button>
+
+                                  <a
+                                    href={item.documentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-white/80 transition-colors"
+                                    title="Open External URL"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
 
                                 <div className="flex items-center gap-1.5">
                                   <button
@@ -3036,173 +3567,424 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             )}
 
             {/* TAB CONTENT: DOCUMENTS (CIRCULARS) */}
-            {activeTab === 'documents' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingCircular ? 'EDIT DOCUMENT / CIRCULAR' : 'ADD NEW DOCUMENT'}
-                    </h2>
-                    {editingCircular && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                        Editing Mode
-                      </span>
-                    )}
-                  </div>
-                  <form onSubmit={handleSaveCircular} className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        DOCUMENT TITLE *
-                      </label>
-                      <input
-                        type="text"
-                        value={docPostTitle}
-                        onChange={(e) => setDocPostTitle(e.target.value)}
-                        placeholder="e.g. Minutes of Bi-Monthly Council Meeting"
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        CATEGORY
-                      </label>
-                      <select
-                        value={docPostCategory}
-                        onChange={(e) => setDocPostCategory(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      >
-                        <option value="GROUP - 'C' AGENDA">GROUP - 'C' AGENDA</option>
-                        <option value="DIVISION ORDERS">DIVISION ORDERS</option>
-                        <option value="DEPARTMENTAL EXAMS">DEPARTMENTAL EXAMS</option>
-                        <option value="POSTMEN / MTS">POSTMEN / MTS</option>
-                        <option value="PENSION & WELFARE">PENSION & WELFARE</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        SUMMARY / SNIPPET *
-                      </label>
-                      <textarea
-                        value={docPostSnippet}
-                        onChange={(e) => setDocPostSnippet(e.target.value)}
-                        placeholder="Enter concise document description..."
-                        rows={3}
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PDF / DOCUMENT LINK (OPTIONAL)
-                      </label>
-                      <input
-                        type="url"
-                        value={docPostFileUrl}
-                        onChange={(e) => setDocPostFileUrl(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                        PHOTO / BANNER URL (OPTIONAL)
-                      </label>
-                      <input
-                        type="url"
-                        value={docPostImageUrl}
-                        onChange={(e) => setDocPostImageUrl(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="checkbox"
-                        id="docUrgent"
-                        checked={docPostUrgent}
-                        onChange={(e) => setDocPostUrgent(e.target.checked)}
-                        className="rounded border-slate-300 text-red-600 focus:ring-red-500"
-                      />
-                      <label htmlFor="docUrgent" className="text-xs font-medium text-slate-700">
-                        Mark as Urgent / Red Flash
-                      </label>
-                    </div>
-                    <div className="flex gap-2.5 pt-1">
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{editingCircular ? 'Update Document' : '+ Add Document'}</span>
-                      </button>
+            {activeTab === 'documents' && (() => {
+              const categories = ['All', ...Array.from(new Set(circulars.map((c) => c.categories?.[0] || 'General')))];
+              const filteredCirculars = circulars.filter((circ) => {
+                const matchesCategory = docPostCategoryFilter === 'All' || circ.categories?.includes(docPostCategoryFilter);
+                const q = docPostSearchQuery.trim().toLowerCase();
+                const matchesSearch =
+                  !q ||
+                  (circ.title && circ.title.toLowerCase().includes(q)) ||
+                  (circ.snippet && circ.snippet.toLowerCase().includes(q)) ||
+                  (circ.author && circ.author.toLowerCase().includes(q));
+                return matchesCategory && matchesSearch;
+              });
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  <div
+                    ref={docPostFormRef}
+                    className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-20"
+                  >
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-red-600" />
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                          {editingCircular ? 'EDIT DOCUMENT / CIRCULAR' : 'ADD NEW DOCUMENT'}
+                        </h2>
+                      </div>
                       {editingCircular && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                          Editing Mode
+                        </span>
+                      )}
+                    </div>
+
+                    {editingCircular && (
+                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="text-xs text-blue-900 font-medium truncate">
+                          Editing: <span className="font-bold">{editingCircular.title}</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleCancelEditCircular}
-                          className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors"
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
                         >
                           Cancel
                         </button>
-                      )}
-                    </div>
-                  </form>
-                </div>
-
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT DOCUMENTS ({circulars.length})
-                  </div>
-                  <div className="space-y-4">
-                    {circulars.map((circ) => (
-                      <div
-                        key={circ.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 uppercase">
-                            {circ.categories[0] || 'CIRCULAR'}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 truncate">
-                            {circ.title}
-                          </h3>
-                          <p className="text-xs text-slate-500 line-clamp-1 mt-1">{circ.snippet}</p>
-                          {circ.driveLinks && circ.driveLinks.length > 0 && (
-                            <a
-                              href={circ.driveLinks[0]}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1 mt-2 w-fit"
-                            >
-                              <span>🔗 View Document</span>
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleEditCircularClick(circ)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Document"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCircular(circ.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete Document"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
-                    ))}
+                    )}
+
+                    <form onSubmit={handleSaveCircular} className="space-y-4">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          DOCUMENT TITLE *
+                        </label>
+                        <input
+                          type="text"
+                          value={docPostTitle}
+                          onChange={(e) => setDocPostTitle(e.target.value)}
+                          placeholder="e.g. Minutes of Bi-Monthly Council Meeting"
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none font-medium text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          CATEGORY
+                        </label>
+                        <select
+                          value={docPostCategory}
+                          onChange={(e) => setDocPostCategory(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none font-medium text-slate-900"
+                        >
+                          <option value="GROUP - 'C' AGENDA">GROUP - 'C' AGENDA</option>
+                          <option value="DIVISION ORDERS">DIVISION ORDERS</option>
+                          <option value="DEPARTMENTAL EXAMS">DEPARTMENTAL EXAMS</option>
+                          <option value="POSTMEN / MTS">POSTMEN / MTS</option>
+                          <option value="PENSION & WELFARE">PENSION & WELFARE</option>
+                          <option value="GENERAL">GENERAL</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          SUMMARY / SNIPPET *
+                        </label>
+                        <textarea
+                          value={docPostSnippet}
+                          onChange={(e) => setDocPostSnippet(e.target.value)}
+                          placeholder="Enter concise document description or order brief..."
+                          rows={3}
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none font-normal text-slate-800"
+                        />
+                      </div>
+
+                      {/* File Source: Upload File vs Web Link */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                            ATTACHED FILE / DOCUMENT (OPTIONAL)
+                          </label>
+                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setDocPostFileMode('upload')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                docPostFileMode === 'upload'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              📁 Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDocPostFileMode('url')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                docPostFileMode === 'url'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🔗 Web Link
+                            </button>
+                          </div>
+                        </div>
+
+                        {docPostFileMode === 'upload' ? (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              ref={docPostFileInputRef}
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt"
+                              onChange={handleDocPostFileUpload}
+                              className="hidden"
+                            />
+                            {docPostFileUrl && (docPostFileUrl.startsWith('data:') || docPostFileName) ? (
+                              <div className="p-3 bg-red-50/70 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-900 truncate">
+                                      {docPostFileName || 'Attached Document File'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium flex items-center gap-2">
+                                      {docPostFileSize && <span>{docPostFileSize}</span>}
+                                      <span className="text-emerald-600 font-bold">Ready to Save</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingDoc({
+                                        title: docPostTitle || 'Document File',
+                                        category: docPostCategory,
+                                        url: docPostFileUrl,
+                                        type: 'Notice / Circular',
+                                      })
+                                    }
+                                    className="p-1.5 rounded-lg bg-white text-slate-600 hover:text-blue-600 border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+                                    title="Preview file"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => docPostFileInputRef.current?.click()}
+                                    className="px-2 py-1 rounded-lg bg-white text-slate-700 hover:text-red-600 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => docPostFileInputRef.current?.click()}
+                                className="border-2 border-dashed border-slate-300 hover:border-red-500 bg-slate-50 hover:bg-red-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                              >
+                                <Upload className="w-6 h-6 text-slate-400 group-hover:text-red-600 mx-auto mb-1 transition-colors" />
+                                <div className="text-xs font-bold text-slate-700 group-hover:text-red-700">
+                                  Click to Select PDF or Document
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  Supports PDF, DOCX, Scanned Circulars, Images
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <input
+                            type="url"
+                            value={docPostFileUrl}
+                            onChange={(e) => setDocPostFileUrl(e.target.value)}
+                            placeholder="https://drive.google.com/... or https://..."
+                            className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none text-slate-900"
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                          PHOTO / BANNER URL (OPTIONAL)
+                        </label>
+                        <input
+                          type="url"
+                          value={docPostImageUrl}
+                          onChange={(e) => setDocPostImageUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="checkbox"
+                          id="docUrgent"
+                          checked={docPostUrgent}
+                          onChange={(e) => setDocPostUrgent(e.target.checked)}
+                          className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                        />
+                        <label htmlFor="docUrgent" className="text-xs font-medium text-slate-700 cursor-pointer">
+                          Mark as Urgent / Red Flash
+                        </label>
+                      </div>
+
+                      <div className="flex gap-2.5 pt-1">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-all active:scale-[0.99]"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{editingCircular ? 'Update Document' : '+ Add Document'}</span>
+                        </button>
+                        {editingCircular && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditCircular}
+                            className="px-4 py-3.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-medium transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                    {/* Header + Search & Filter */}
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                          <span>PUBLIC PORTAL DOCUMENTS ({circulars.length})</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                            Feed &amp; Circulars
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Shown on the Circulars &amp; Feed public portal view
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <div className="relative flex-1 sm:w-56">
+                          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={docPostSearchQuery}
+                            onChange={(e) => setDocPostSearchQuery(e.target.value)}
+                            placeholder="Search documents..."
+                            className="w-full bg-slate-50 border border-slate-200 text-xs pl-8 pr-3 py-2 rounded-xl focus:bg-white focus:ring-1 focus:ring-red-500 outline-none"
+                          />
+                        </div>
+
+                        {categories.length > 2 && (
+                          <select
+                            value={docPostCategoryFilter}
+                            onChange={(e) => setDocPostCategoryFilter(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500 font-semibold"
+                          >
+                            {categories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {filteredCirculars.map((circ) => {
+                        const fileUrl = circ.driveLinks?.[0] || circ.url || '';
+                        return (
+                          <div
+                            key={circ.id}
+                            className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 hover:border-slate-300 transition-all flex flex-col justify-between group space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-50 text-red-600 uppercase border border-red-100">
+                                    {circ.categories?.[0] || 'CIRCULAR'}
+                                  </span>
+                                  {circ.published && (
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {new Date(circ.published).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {circ.urgent && (
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">
+                                      URGENT
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="font-bold text-slate-900 text-sm sm:text-base group-hover:text-red-600 transition-colors">
+                                  {circ.title}
+                                </h3>
+                                <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                  {circ.snippet}
+                                </p>
+                              </div>
+
+                              {circ.images?.[0] && (
+                                <img
+                                  src={circ.images[0]}
+                                  alt={circ.title}
+                                  className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100 shadow-2xs"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                              {fileUrl ? (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingDoc({
+                                        title: circ.title,
+                                        category: circ.categories?.[0] || 'Document',
+                                        url: fileUrl,
+                                        published: circ.published,
+                                        type: 'Notice / Circular',
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50 cursor-pointer"
+                                    title="View / Preview File in Portal"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View File</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadDoc(fileUrl, circ.title)}
+                                    className="p-1 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                    title="Download File"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                  {!fileUrl.startsWith('data:') && (
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                      title="Open in New Tab"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">No file attached</span>
+                              )}
+
+                              <div className="flex items-center gap-1.5 ml-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditCircularClick(circ)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Edit Document"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCircular(circ.id)}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Delete Document"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {filteredCirculars.length === 0 && (
+                      <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-slate-300 text-slate-400 text-sm">
+                        No documents found matching your search.
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* TAB CONTENT: HOMEPAGE DOCS */}
             {activeTab === 'importantDocs' && (() => {
@@ -3223,7 +4005,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               return (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Add / Edit Form */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                  <div
+                    ref={docFormRef}
+                    className={`lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border transition-all sticky top-16 ${
+                      editingDoc ? 'border-blue-400 ring-2 ring-blue-200 shadow-md' : 'border-slate-200/80'
+                    }`}
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <div className="flex items-center gap-2">
                         <FileCheck className="w-5 h-5 text-red-600" />
@@ -3232,21 +4019,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </h2>
                       </div>
                       {editingDoc && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 flex items-center gap-1 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
                           Editing Mode
                         </span>
                       )}
                     </div>
 
                     {editingDoc && (
-                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
-                        <div className="text-xs text-blue-900 font-medium truncate">
-                          Editing: <span className="font-bold">{editingDoc.title}</span>
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase text-blue-600">Modifying Document</div>
+                          <div className="text-xs text-blue-950 font-bold truncate">
+                            {editingDoc.title}
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={handleCancelEditImportantDoc}
-                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-100 shrink-0 cursor-pointer shadow-2xs"
                         >
                           Cancel
                         </button>
@@ -3264,7 +4055,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           onChange={(e) => setDocTitle(e.target.value)}
                           placeholder="e.g. Death Claim Settlement : With Nomination"
                           required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         />
                       </div>
 
@@ -3278,7 +4069,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           value={docCategory}
                           onChange={(e) => setDocCategory(e.target.value)}
                           placeholder="e.g. POSB / Aadhaar / Service Matters / Manuals / General"
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         />
                         <datalist id="homepage-doc-categories">
                           <option value="POSB" />
@@ -3290,21 +4081,119 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </datalist>
                       </div>
 
+                      {/* File Source Selector: Upload File vs Enter URL */}
                       <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          DOCUMENT URL / PDF LINK *
-                        </label>
-                        <input
-                          type="url"
-                          value={docUrl}
-                          onChange={(e) => setDocUrl(e.target.value)}
-                          placeholder="https://drive.google.com/... or https://..."
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          Paste any direct PDF URL, Google Drive share link, or departmental portal URL.
-                        </p>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                            DOCUMENT FILE / ATTACHMENT *
+                          </label>
+                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setDocFileMode('upload')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                docFileMode === 'upload'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              📁 Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDocFileMode('url')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                docFileMode === 'url'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🔗 Web Link
+                            </button>
+                          </div>
+                        </div>
+
+                        {docFileMode === 'upload' ? (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              ref={docFileInputRef}
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt"
+                              onChange={handleDocFileUpload}
+                              className="hidden"
+                            />
+                            {docUrl && (docUrl.startsWith('data:') || docFileName) ? (
+                              <div className="p-3 bg-red-50/70 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-900 truncate">
+                                      {docFileName || 'Attached File'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium flex items-center gap-2">
+                                      {docFileSize && <span>{docFileSize}</span>}
+                                      <span className="text-emerald-600 font-bold">Ready to Save</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingDoc({
+                                        title: docTitle || 'Attached Document',
+                                        category: docCategory,
+                                        url: docUrl,
+                                        published: docPublished,
+                                        type: 'Homepage Document',
+                                      })
+                                    }
+                                    className="p-1.5 rounded-lg bg-white text-slate-600 hover:text-blue-600 border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+                                    title="Preview file"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => docFileInputRef.current?.click()}
+                                    className="px-2 py-1 rounded-lg bg-white text-slate-700 hover:text-red-600 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => docFileInputRef.current?.click()}
+                                className="border-2 border-dashed border-slate-300 hover:border-red-500 bg-slate-50 hover:bg-red-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                              >
+                                <Upload className="w-6 h-6 text-slate-400 group-hover:text-red-600 mx-auto mb-1 transition-colors" />
+                                <div className="text-xs font-bold text-slate-700 group-hover:text-red-700">
+                                  Click to Select Document / PDF
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  Supports PDF, DOCX, Images, Scanned documents
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <input
+                              type="url"
+                              value={docUrl}
+                              onChange={(e) => setDocUrl(e.target.value)}
+                              placeholder="https://drive.google.com/... or https://..."
+                              required
+                              className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Paste direct PDF URL, Google Drive share link, or departmental portal link.
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -3315,7 +4204,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           type="date"
                           value={docPublished}
                           onChange={(e) => setDocPublished(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         />
                       </div>
 
@@ -3323,10 +4212,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-all active:scale-[0.99]"
                         >
                           {editingDoc ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                          <span>{editingDoc ? 'Update Document' : '+ Add Document'}</span>
+                          <span>{editingDoc ? 'Update & Save Document' : '+ Add Document'}</span>
                         </button>
                         {editingDoc && (
                           <button
@@ -3346,11 +4235,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     {/* Header + Search & Filter */}
                     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                          HOMEPAGE DOCUMENTS ({importantDocs.length})
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                          <span>HOMEPAGE DOCUMENTS ({importantDocs.length})</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            Public Home Area
+                          </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Shown under Important Documents on the Homepage
+                          Shown under Important Documents on the Public Homepage
                         </p>
                       </div>
 
@@ -3370,7 +4262,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <select
                             value={docCategoryFilter}
                             onChange={(e) => setDocCategoryFilter(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500"
+                            className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500 font-semibold"
                           >
                             {docCategories.map((cat) => (
                               <option key={cat} value={cat}>
@@ -3384,82 +4276,112 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                     {/* Cards Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {filteredImportantDocs.map((docItem) => (
-                        <div
-                          key={docItem.id}
-                          className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
-                        >
-                          <div className="space-y-2.5">
-                            {/* Badges */}
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
-                                {docItem.category || 'General'}
-                              </span>
-                              {docItem.published && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{docItem.published}</span>
+                      {filteredImportantDocs.map((docItem) => {
+                        const isUploaded = docItem.url?.startsWith('data:');
+                        return (
+                          <div
+                            key={docItem.id}
+                            className={`p-5 rounded-2xl bg-white border shadow-xs hover:shadow-md transition-all flex flex-col justify-between group ${
+                              editingDoc?.id === docItem.id
+                                ? 'border-blue-500 ring-2 ring-blue-100'
+                                : 'border-slate-200/80 hover:border-red-400'
+                            }`}
+                          >
+                            <div className="space-y-2.5">
+                              {/* Badges */}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
+                                  {docItem.category || 'General'}
                                 </span>
-                              )}
+                                <div className="flex items-center gap-1.5">
+                                  {isUploaded ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      Attached File
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200">
+                                      Web Link
+                                    </span>
+                                  )}
+                                  {docItem.published && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                      <Calendar className="w-3 h-3" />
+                                      <span>{docItem.published}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Document Title */}
+                              <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
+                                {docItem.title}
+                              </h4>
+
+                              {/* Link Preview */}
+                              <div className="pt-0.5">
+                                <span className="text-[11px] font-mono text-slate-500 truncate block">
+                                  {isUploaded ? '📎 Stored document file ready for view/download' : docItem.url}
+                                </span>
+                              </div>
                             </div>
 
-                            {/* Document Title */}
-                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
-                              {docItem.title}
-                            </h4>
+                            {/* Actions Bar */}
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                              {/* View / Preview Modal Trigger */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setViewingDoc({
+                                      title: docItem.title,
+                                      category: docItem.category,
+                                      url: docItem.url,
+                                      published: docItem.published,
+                                      type: 'Homepage Document',
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-red-600 bg-slate-100 hover:bg-red-50 transition-colors px-3 py-1.5 rounded-xl cursor-pointer shadow-2xs"
+                                  title="View / Preview File in Portal"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View File</span>
+                                </button>
+                                <a
+                                  href={docItem.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title="Open in New Tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
 
-                            {/* Link Preview */}
-                            <div className="pt-1">
-                              <a
-                                href={docItem.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
-                              >
-                                {docItem.url}
-                              </a>
+                              {/* Edit & Delete Controls */}
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditImportantDocClick(docItem)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer border border-blue-200/60"
+                                  title="Edit / Modify Document"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteImportantDoc(docItem.id)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer border border-red-200/60"
+                                  title="Delete Document"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
-
-                          {/* Actions Bar */}
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            {/* View / Preview */}
-                            <a
-                              href={docItem.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
-                              title="Open Document in New Tab"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View / Preview</span>
-                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
-                            </a>
-
-                            {/* Edit & Delete */}
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleEditImportantDocClick(docItem)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Edit / Modify Document"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteImportantDoc(docItem.id)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Delete Document"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {filteredImportantDocs.length === 0 && (
@@ -3497,7 +4419,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               return (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Add / Edit Form */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                  <div
+                    ref={noticeFormRef}
+                    className={`lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border transition-all sticky top-16 ${
+                      editingNotice ? 'border-amber-400 ring-2 ring-amber-200 shadow-md' : 'border-slate-200/80'
+                    }`}
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <div className="flex items-center gap-2">
                         <Bookmark className="w-5 h-5 text-red-600" />
@@ -3506,21 +4433,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </h2>
                       </div>
                       {editingNotice && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
                           Editing Mode
                         </span>
                       )}
                     </div>
 
                     {editingNotice && (
-                      <div className="mb-4 p-3 bg-blue-50/70 border border-blue-200/70 rounded-2xl flex items-center justify-between gap-2">
-                        <div className="text-xs text-blue-900 font-medium truncate">
-                          Editing: <span className="font-bold">{editingNotice.title}</span>
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase text-amber-700">Modifying Notice</div>
+                          <div className="text-xs text-amber-950 font-bold truncate">
+                            {editingNotice.title}
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={handleCancelEditNotice}
-                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline shrink-0 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-white border border-amber-200 text-[11px] font-bold text-amber-800 hover:bg-amber-100 shrink-0 cursor-pointer shadow-2xs"
                         >
                           Cancel
                         </button>
@@ -3530,7 +4461,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <form onSubmit={handleSaveNoticeCircular} className="space-y-4">
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          TITLE *
+                          NOTICE TITLE *
                         </label>
                         <input
                           type="text"
@@ -3538,7 +4469,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           onChange={(e) => setNoticeTitle(e.target.value)}
                           placeholder="e.g. Schedule of Departmental Examinations 2026"
                           required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         />
                       </div>
 
@@ -3549,7 +4480,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <select
                           value={noticeCategory}
                           onChange={(e) => setNoticeCategory(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         >
                           <option value="NOTICE">NOTICE</option>
                           <option value="CIRCULAR">CIRCULAR</option>
@@ -3561,29 +4492,130 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </select>
                       </div>
 
+                      {/* File Source Selector: Upload File vs Enter URL */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                            NOTICE FILE / DOCUMENT *
+                          </label>
+                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setNoticeFileMode('upload')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                noticeFileMode === 'upload'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              📁 Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNoticeFileMode('url')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                noticeFileMode === 'url'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🔗 Web Link
+                            </button>
+                          </div>
+                        </div>
+
+                        {noticeFileMode === 'upload' ? (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              ref={noticeFileInputRef}
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt"
+                              onChange={handleNoticeFileUpload}
+                              className="hidden"
+                            />
+                            {noticeUrl && (noticeUrl.startsWith('data:') || noticeFileName) ? (
+                              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-900 truncate">
+                                      {noticeFileName || 'Attached Notice File'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium flex items-center gap-2">
+                                      {noticeFileSize && <span>{noticeFileSize}</span>}
+                                      <span className="text-emerald-600 font-bold">Ready to Save</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingDoc({
+                                        title: noticeTitle || 'Attached Notice',
+                                        category: noticeCategory,
+                                        url: noticeUrl,
+                                        published: noticePublished,
+                                        type: 'Notice / Circular',
+                                      })
+                                    }
+                                    className="p-1.5 rounded-lg bg-white text-slate-600 hover:text-amber-700 border border-slate-200 transition-colors shadow-2xs cursor-pointer"
+                                    title="Preview file"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => noticeFileInputRef.current?.click()}
+                                    className="px-2 py-1 rounded-lg bg-white text-slate-700 hover:text-red-600 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onClick={() => noticeFileInputRef.current?.click()}
+                                className="border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50 hover:bg-amber-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                              >
+                                <Upload className="w-6 h-6 text-slate-400 group-hover:text-amber-600 mx-auto mb-1 transition-colors" />
+                                <div className="text-xs font-bold text-slate-700 group-hover:text-amber-800">
+                                  Click to Select Notice File / PDF
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  Supports PDF, DOCX, Official Circular Images
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <input
+                              type="url"
+                              value={noticeUrl}
+                              onChange={(e) => setNoticeUrl(e.target.value)}
+                              placeholder="https://drive.google.com/... or https://..."
+                              required
+                              className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Paste direct notice PDF URL, Google Drive share link, or circular link.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          PUBLISHED DATE
+                          PUBLISHED DATE (OPTIONAL)
                         </label>
                         <input
                           type="date"
                           value={noticePublished}
                           onChange={(e) => setNoticePublished(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          DOCUMENT / PDF URL *
-                        </label>
-                        <input
-                          type="url"
-                          value={noticeUrl}
-                          onChange={(e) => setNoticeUrl(e.target.value)}
-                          placeholder="https://drive.google.com/... or https://..."
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-900"
                         />
                       </div>
 
@@ -3591,10 +4623,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-all active:scale-[0.99]"
                         >
                           {editingNotice ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                          <span>{editingNotice ? 'Update Notice' : '+ Add Notice'}</span>
+                          <span>{editingNotice ? 'Update & Save Notice' : '+ Add Notice'}</span>
                         </button>
                         {editingNotice && (
                           <button
@@ -3614,11 +4646,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     {/* Header + Search & Filter */}
                     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                          NOTICES & CIRCULARS ({noticeCirculars.length})
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                          <span>NOTICES & CIRCULARS ({noticeCirculars.length})</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                            Public Home Area
+                          </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Shown under Notices & Circulars on the Homepage
+                          Shown under Notices & Circulars on the Public Homepage
                         </p>
                       </div>
 
@@ -3637,7 +4672,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <select
                           value={noticeCategoryFilter}
                           onChange={(e) => setNoticeCategoryFilter(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500"
+                          className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl text-slate-700 outline-none focus:ring-1 focus:ring-red-500 font-semibold"
                         >
                           {noticeCategories.map((cat) => (
                             <option key={cat} value={cat}>
@@ -3650,82 +4685,112 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                     {/* Cards Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {filteredNotices.map((nc) => (
-                        <div
-                          key={nc.id}
-                          className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-red-400 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
-                        >
-                          <div className="space-y-2.5">
-                            {/* Badges */}
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-                                {nc.category || 'NOTICE'}
-                              </span>
-                              {nc.published && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{nc.published}</span>
+                      {filteredNotices.map((nc) => {
+                        const isUploaded = nc.url?.startsWith('data:');
+                        return (
+                          <div
+                            key={nc.id}
+                            className={`p-5 rounded-2xl bg-white border shadow-xs hover:shadow-md transition-all flex flex-col justify-between group ${
+                              editingNotice?.id === nc.id
+                                ? 'border-amber-500 ring-2 ring-amber-100'
+                                : 'border-slate-200/80 hover:border-amber-400'
+                            }`}
+                          >
+                            <div className="space-y-2.5">
+                              {/* Badges */}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                                  {nc.category || 'NOTICE'}
                                 </span>
-                              )}
+                                <div className="flex items-center gap-1.5">
+                                  {isUploaded ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                      Attached File
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                      Web Link
+                                    </span>
+                                  )}
+                                  {nc.published && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                                      <Calendar className="w-3 h-3" />
+                                      <span>{nc.published}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Notice Title */}
+                              <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
+                                {nc.title}
+                              </h4>
+
+                              {/* Link Preview */}
+                              <div className="pt-0.5">
+                                <span className="text-[11px] font-mono text-slate-500 truncate block">
+                                  {isUploaded ? '📎 Stored circular file ready for view/download' : nc.url}
+                                </span>
+                              </div>
                             </div>
 
-                            {/* Notice Title */}
-                            <h4 className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
-                              {nc.title}
-                            </h4>
+                            {/* Actions Bar */}
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                              {/* View / Preview */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setViewingDoc({
+                                      title: nc.title,
+                                      category: nc.category,
+                                      url: nc.url || '',
+                                      published: nc.published,
+                                      type: 'Notice / Circular',
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-red-600 bg-slate-100 hover:bg-amber-50 transition-colors px-3 py-1.5 rounded-xl cursor-pointer shadow-2xs"
+                                  title="View / Preview File in Portal"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View File</span>
+                                </button>
+                                <a
+                                  href={nc.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title="Open in New Tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
 
-                            {/* Link Preview */}
-                            <div className="pt-1">
-                              <a
-                                href={nc.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
-                              >
-                                {nc.url}
-                              </a>
+                              {/* Edit & Delete Controls */}
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditNoticeClick(nc)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer border border-blue-200/60"
+                                  title="Edit / Modify Notice"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteNoticeCircular(nc.id)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer border border-red-200/60"
+                                  title="Delete Notice"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
-
-                          {/* Actions Bar */}
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            {/* View / Preview */}
-                            <a
-                              href={nc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
-                              title="Open Document in New Tab"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View / Preview</span>
-                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
-                            </a>
-
-                            {/* Edit & Delete */}
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleEditNoticeClick(nc)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Edit / Modify Notice"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteNoticeCircular(nc.id)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Delete Notice"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {filteredNotices.length === 0 && (
@@ -3758,7 +4823,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               return (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   {/* Left Column: Add / Edit Form */}
-                  <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16">
+                  <div
+                    ref={annFormRef}
+                    className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-16"
+                  >
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
                       <div className="flex items-center gap-2">
                         <Megaphone className="w-5 h-5 text-red-600" />
@@ -3791,7 +4859,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <form onSubmit={handleSaveAnnouncement} className="space-y-4">
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          ANNOUNCEMENT TEXT *
+                          ANNOUNCEMENT TEXT / HEADLINE *
                         </label>
                         <textarea
                           value={annTitle}
@@ -3799,21 +4867,129 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           placeholder="e.g. Submission of Agenda Items for Coming Monthly Meeting on 03.11.2026"
                           rows={3}
                           required
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none resize-none transition-all font-medium text-slate-900"
                         />
                       </div>
 
+                      {/* File Upload vs URL Toggle */}
                       <div>
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                          TARGET LINK / DOCUMENT URL (OPTIONAL)
-                        </label>
-                        <input
-                          type="url"
-                          value={annLink}
-                          onChange={(e) => setAnnLink(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
-                        />
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            ATTACHED FILE OR WEB LINK (OPTIONAL)
+                          </label>
+                          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg">
+                            <button
+                              type="button"
+                              onClick={() => setAnnFileMode('upload')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                annFileMode === 'upload'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              📁 Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAnnFileMode('url')}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                annFileMode === 'url'
+                                  ? 'bg-white text-red-600 shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              🔗 Web Link
+                            </button>
+                          </div>
+                        </div>
+
+                        {annFileMode === 'upload' ? (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              ref={annFileInputRef}
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.txt"
+                              onChange={handleAnnFileUpload}
+                              className="hidden"
+                            />
+                            {annLink && (annLink.startsWith('data:') || annFileName) ? (
+                              <div className="p-3 bg-red-50/70 border border-red-200 rounded-xl flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-slate-900 truncate">
+                                      {annFileName || 'Attached Announcement File'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-medium flex items-center gap-2">
+                                      {annFileSize && <span>{annFileSize}</span>}
+                                      <span className="text-emerald-600 font-bold">Ready to Save</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingDoc({
+                                        title: annTitle || annFileName || 'Announcement Attachment',
+                                        category: 'Announcement',
+                                        url: annLink,
+                                        published: annPublished,
+                                        type: 'Announcement',
+                                      })
+                                    }
+                                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                    title="Preview Uploaded File"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAnnLink('');
+                                      setAnnFileName('');
+                                      setAnnFileSize('');
+                                      if (annFileInputRef.current) annFileInputRef.current.value = '';
+                                    }}
+                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                                    title="Remove Attached File"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => annFileInputRef.current?.click()}
+                                className="w-full border-2 border-dashed border-slate-300 hover:border-red-400 bg-slate-50/70 hover:bg-red-50/30 text-slate-600 rounded-xl p-4 text-center transition-all cursor-pointer group"
+                              >
+                                <Upload className="w-6 h-6 mx-auto mb-1 text-slate-400 group-hover:text-red-600 transition-colors" />
+                                <span className="text-xs font-bold text-slate-700 block">
+                                  Choose PDF, Notice Scan, or Image
+                                </span>
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                                  Supports PDF, Word, JPEG, PNG (stores directly for instant preview)
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <input
+                              type="url"
+                              value={annLink}
+                              onChange={(e) => setAnnLink(e.target.value)}
+                              placeholder="https://drive.google.com/... or circular link"
+                              className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none text-slate-900 transition-all font-mono text-xs"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                              Paste an external link or Google Drive URL
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -3824,7 +5000,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           type="date"
                           value={annPublished}
                           onChange={(e) => setAnnPublished(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all font-medium text-slate-800"
                         />
                       </div>
 
@@ -3832,7 +5008,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer transition-colors active:scale-95 disabled:opacity-50"
                         >
                           {editingAnn ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                           <span>{editingAnn ? 'Update Announcement' : '+ Add Announcement'}</span>
@@ -3902,42 +5078,76 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               {ann.title}
                             </h4>
 
-                            {/* Link Preview if exists */}
+                            {/* Link / File Preview Badge */}
                             {ann.link && (
                               <div className="pt-1">
-                                <a
-                                  href={ann.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
-                                >
-                                  {ann.link}
-                                </a>
+                                {ann.link.startsWith('data:') ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Uploaded Document Attached</span>
+                                  </span>
+                                ) : (
+                                  <a
+                                    href={ann.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] font-mono text-blue-600 hover:underline truncate block"
+                                  >
+                                    {ann.link}
+                                  </a>
+                                )}
                               </div>
                             )}
                           </div>
 
                           {/* Actions Bar */}
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                            {/* View / Open Link */}
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                            {/* View / Open Document */}
                             {ann.link ? (
-                              <a
-                                href={ann.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50"
-                                title="Open Link in New Tab"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>View / Open Link</span>
-                                <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setViewingDoc({
+                                      title: ann.title,
+                                      category: 'Announcement',
+                                      url: ann.link || '',
+                                      published: ann.published,
+                                      type: 'Announcement',
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-red-50 cursor-pointer"
+                                  title="View / Preview File in Portal"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View File</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDoc(ann.link || '', ann.title)}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                  title="Download File"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                                {!ann.link.startsWith('data:') && (
+                                  <a
+                                    href={ann.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                    title="Open Link in New Tab"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-[11px] text-slate-400 italic">No link attached</span>
+                              <span className="text-[11px] text-slate-400 italic">No document</span>
                             )}
 
                             {/* Edit & Delete */}
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 ml-auto">
                               <button
                                 type="button"
                                 onClick={() => handleEditAnnouncementClick(ann)}
@@ -4352,110 +5562,144 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {filteredMyApps.map((app) => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {filteredMyApps.map((app, idx) => {
                         const isCodeApp = app.sourceType === 'code' || !!app.codeSnippet;
+                        const stableIndex = myApps.findIndex((item) => item.id === app.id);
+                        const colorTheme = getMyAppCardTheme(stableIndex >= 0 ? stableIndex : idx);
+                        const AppIcon = getMyAppIcon(app);
+
                         return (
                           <div
                             key={app.id}
-                            className="bg-white rounded-2xl p-5 shadow-2xs border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between group"
+                            className={`relative overflow-hidden rounded-2xl border-2 ${colorTheme.cardBg} ${colorTheme.cardBorder} ${colorTheme.cardHoverBorder} shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group`}
                           >
-                            <div>
-                              {/* Top badges & remove button */}
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase tracking-wider truncate">
-                                  {app.category || 'Others'}
-                                </span>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  {isCodeApp ? (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
-                                      <FileCode className="w-3 h-3 text-amber-600" /> HTML App
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
-                                      <Globe className="w-3 h-3 text-blue-600" /> Web Link
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditAppClick(app)}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                                    title="Edit App"
+                            {/* Top Gradient Accent Bar */}
+                            <div className={`h-2 w-full ${colorTheme.accentBar}`} />
+
+                            {/* Subtle Decorative Glow */}
+                            <div
+                              className={`pointer-events-none absolute -right-8 -top-8 w-28 h-28 rounded-full ${colorTheme.glowBg} blur-xl transition-transform duration-500 group-hover:scale-125`}
+                            />
+
+                            <div className="p-5 flex-1 flex flex-col justify-between relative z-10">
+                              <div>
+                                {/* Header Row: 3D Icon + Badges & Edit/Delete */}
+                                <div className="flex items-start justify-between gap-2 mb-3.5">
+                                  <div
+                                    className={`w-12 h-12 rounded-2xl ${colorTheme.iconBg} flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:rotate-3`}
                                   >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteApp(app.id)}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                                    title="Remove this card"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                    <AppIcon className="w-6 h-6" />
+                                  </div>
+
+                                  <div className="flex flex-col items-end gap-1.5">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditAppClick(app)}
+                                        className="p-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-blue-600 border border-white/90 shadow-2xs transition-colors cursor-pointer"
+                                        title="Edit App"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteApp(app.id)}
+                                        className="p-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-red-600 border border-white/90 shadow-2xs transition-colors cursor-pointer"
+                                        title="Remove this card"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-wrap justify-end">
+                                      <span
+                                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs ${colorTheme.categoryBadge} uppercase tracking-wider`}
+                                      >
+                                        {app.category || 'Utility'}
+                                      </span>
+                                      {isCodeApp ? (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                          <FileCode className="w-3 h-3 text-amber-600" /> HTML App
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorTheme.typeBadge} flex items-center gap-1 shadow-2xs`}
+                                        >
+                                          <Globe className="w-3 h-3" /> Web Link
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
+
+                                {/* App Title */}
+                                <h3
+                                  className={`font-extrabold text-slate-900 ${colorTheme.titleHover} text-base sm:text-lg leading-snug transition-colors line-clamp-1`}
+                                >
+                                  {app.name}
+                                </h3>
+
+                                {/* Meta / Description */}
+                                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
+                                  {app.description || (isCodeApp ? 'Interactive custom HTML tool' : app.url)}
+                                </p>
+
+                                {/* Snippet / Size badge */}
+                                {isCodeApp ? (
+                                  <div
+                                    className={`mt-3.5 flex items-center gap-2 text-[11px] font-mono px-3 py-1.5 rounded-xl border ${colorTheme.metaBg}`}
+                                  >
+                                    <Code className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="font-semibold">{app.fileSize || 'HTML/JS App'}</span>
+                                    {app.createdAt && (
+                                      <span className="ml-auto text-[10px] opacity-75">{app.createdAt}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`mt-3.5 flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-xl border truncate ${colorTheme.metaBg}`}
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="truncate font-medium">{app.url}</span>
+                                  </div>
+                                )}
                               </div>
 
-                              {/* App Title */}
-                              <h3 className="font-bold text-slate-900 text-base mt-3 group-hover:text-red-600 transition-colors line-clamp-1">
-                                {app.name}
-                              </h3>
+                              {/* Card Action Button & Remove Card option */}
+                              <div className="mt-4 pt-3.5 border-t border-slate-200/60 flex items-center gap-2">
+                                {isCodeApp ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRunningApp(app);
+                                      setIframeKey((k) => k + 1);
+                                    }}
+                                    className={`flex-1 ${colorTheme.buttonBg} font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all cursor-pointer active:scale-[0.99]`}
+                                  >
+                                    <Play className="w-3.5 h-3.5 fill-current" />
+                                    <span>Launch / Run App</span>
+                                  </button>
+                                ) : (
+                                  <a
+                                    href={app.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex-1 ${colorTheme.buttonBg} font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all active:scale-[0.99]`}
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <span>Open Website</span>
+                                  </a>
+                                )}
 
-                              {/* Meta / Description */}
-                              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                                {app.description || (isCodeApp ? 'Interactive custom HTML tool' : app.url)}
-                              </p>
-
-                              {/* Snippet / Size badge */}
-                              {isCodeApp ? (
-                                <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
-                                  <Code className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>{app.fileSize || 'HTML/JS File'}</span>
-                                  {app.createdAt && (
-                                    <span className="ml-auto text-[10px] text-slate-400">{app.createdAt}</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 truncate">
-                                  <ExternalLink className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                  <span className="truncate">{app.url}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Card Action Button & Remove Card option */}
-                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                              {isCodeApp ? (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setRunningApp(app);
-                                    setIframeKey((k) => k + 1);
-                                  }}
-                                  className="flex-1 bg-slate-900 hover:bg-red-600 text-white font-medium py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-2xs transition-colors cursor-pointer"
+                                  onClick={() => handleDeleteApp(app.id)}
+                                  className="px-3 py-2.5 rounded-xl bg-white/85 hover:bg-red-50 border border-white/90 hover:border-red-200 text-slate-600 hover:text-red-600 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                                  title="Remove this card"
                                 >
-                                  <Play className="w-3 h-3 fill-current" />
-                                  <span>Launch / Run App</span>
+                                  Remove
                                 </button>
-                              ) : (
-                                <a
-                                  href={app.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-2xs transition-colors"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  <span>Open Website</span>
-                                </a>
-                              )}
-
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteApp(app.id)}
-                                className="px-2.5 py-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
-                                title="Remove this card"
-                              >
-                                Remove
-                              </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -4690,20 +5934,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {/* TAB CONTENT: NEWS TICKER */}
             {activeTab === 'news' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
+                <div
+                  ref={newsFormRef}
+                  className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24"
+                >
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-6">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
-                      {editingNews ? 'EDIT HEADLINE' : 'ADD NEWS TICKER ITEM'}
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
+                      {editingNews ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                      <span>{editingNews ? 'EDIT HEADLINE' : 'ADD NEWS TICKER ITEM'}</span>
                     </h2>
                     {editingNews && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                        Editing Mode
-                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCancelEditNews}
+                        className="text-[11px] font-bold text-slate-400 hover:text-slate-700 uppercase"
+                      >
+                        ✕ Cancel
+                      </button>
                     )}
                   </div>
                   <form onSubmit={handleSaveNews} className="space-y-4">
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
                         HEADLINE TITLE *
                       </label>
                       <textarea
@@ -4716,17 +5968,89 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 block">
                         CATEGORY
                       </label>
                       <input
                         type="text"
                         value={newsCategory}
                         onChange={(e) => setNewsCategory(e.target.value)}
-                        placeholder="e.g. EXAM NOTIFICATION"
-                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-3 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        placeholder="e.g. EXAM NOTIFICATION, NOTICE, BREAKING"
+                        className="w-full bg-slate-50 border border-slate-200 text-sm px-4 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                       />
                     </div>
+
+                    {/* Attachment / Link Toggle */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          ATTACHED DOCUMENT / LINK (OPTIONAL)
+                        </label>
+                        <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setNewsFileMode('upload')}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${
+                              newsFileMode === 'upload' ? 'bg-white text-red-600 shadow-2xs' : 'text-slate-500'
+                            }`}
+                          >
+                            Upload
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewsFileMode('url')}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${
+                              newsFileMode === 'url' ? 'bg-white text-blue-600 shadow-2xs' : 'text-slate-500'
+                            }`}
+                          >
+                            Web Link
+                          </button>
+                        </div>
+                      </div>
+
+                      {newsFileMode === 'upload' ? (
+                        <div className="space-y-2">
+                          <label className="flex items-center justify-center gap-2 border border-dashed border-red-300 hover:border-red-500 bg-red-50/40 hover:bg-red-50/70 p-3 rounded-xl cursor-pointer transition-all">
+                            <Upload className="w-4 h-4 text-red-600" />
+                            <span className="text-xs font-bold text-slate-800">Attach Document / Notice</span>
+                            <input
+                              ref={newsFileInputRef}
+                              type="file"
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                              onChange={handleNewsFileUpload}
+                              className="hidden"
+                            />
+                          </label>
+
+                          {newsFileName && (
+                            <div className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+                              <span className="font-bold text-emerald-900 truncate">{newsFileName}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewsFileName('');
+                                  setNewsFileSize('');
+                                  setNewsLink('');
+                                  if (newsFileInputRef.current) newsFileInputRef.current.value = '';
+                                }}
+                                className="text-slate-400 hover:text-red-600 text-xs px-1"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="url"
+                          value={newsLink}
+                          onChange={(e) => setNewsLink(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
+                        />
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-2 pt-1">
                       <input
                         type="checkbox"
@@ -4739,11 +6063,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         Mark as Urgent / Red Flash
                       </label>
                     </div>
+
                     <div className="flex gap-2.5 pt-1">
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm"
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer disabled:opacity-50"
                       >
                         <Plus className="w-4 h-4" />
                         <span>{editingNews ? 'Update Headline' : '+ Add Headline'}</span>
@@ -4761,48 +6086,115 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </form>
                 </div>
 
-                <div className="lg:col-span-7 xl:col-span-8">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                    CURRENT NEWS HEADLINES ({newsItems.length})
+                <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                  {/* News Search bar */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={newsSearchQuery}
+                        onChange={(e) => setNewsSearchQuery(e.target.value)}
+                        placeholder="Search news ticker items..."
+                        className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-red-500"
+                      />
+                      {newsSearchQuery && (
+                        <button
+                          onClick={() => setNewsSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                      Total: {newsItems.length}
+                    </span>
                   </div>
-                  <div className="space-y-4">
-                    {newsItems.map((n) => (
-                      <div
-                        key={n.id}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                      >
-                        <div className="min-w-0">
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                              n.isUrgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {n.category}
-                          </span>
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 line-clamp-2">
-                            {n.title}
-                          </h3>
+
+                  <div className="space-y-3">
+                    {newsItems
+                      .filter((n) => {
+                        const q = newsSearchQuery.trim().toLowerCase();
+                        return !q || n.title.toLowerCase().includes(q) || (n.category && n.category.toLowerCase().includes(q));
+                      })
+                      .map((n) => (
+                        <div
+                          key={n.id}
+                          className={`bg-white rounded-2xl p-4 sm:p-5 shadow-xs border transition-all ${
+                            editingNews?.id === n.id ? 'border-red-500 ring-2 ring-red-100' : 'border-slate-200/80 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                  n.isUrgent ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}
+                              >
+                                {n.category}
+                              </span>
+                              <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1 line-clamp-2">
+                                {n.title}
+                              </h3>
+                              {n.link && (
+                                <p className="text-[11px] font-mono text-blue-600 truncate mt-1">
+                                  {n.link.startsWith('data:') ? '📁 Attached Document File' : n.link}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                              {n.link && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingDoc({
+                                      title: n.title,
+                                      category: n.category || 'NEWS TICKER',
+                                      url: n.link || '',
+                                      type: 'Notice / Circular'
+                                    })}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="View Attached File"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>View</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadDoc(n.link || '', n.title)}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Download File"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Download</span>
+                                  </button>
+                                </>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleEditNewsClick(n)}
+                                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Edit Headline"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteNews(n.id)}
+                                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Delete Headline"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleEditNewsClick(n)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Edit Headline"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteNews(n.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                            title="Delete Headline"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               </div>
@@ -4851,7 +6243,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {/* Sub-Section 1: Office Bearers */}
                 {executiveSubSection === 'bearers' && (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80">
+                    <div
+                      ref={execFormRef}
+                      className="lg:col-span-5 xl:col-span-4 bg-white rounded-3xl p-6 sm:p-7 shadow-sm border border-slate-200/80 sticky top-24"
+                    >
                       <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
                         <h2 className="text-xs font-bold uppercase tracking-wider text-red-600">
                           {editingMember ? 'EDIT OFFICE BEARER & PHOTO' : 'ADD OFFICE BEARER & PHOTO'}
@@ -5015,7 +6410,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               type="text"
                               value={execLocation}
                               onChange={(e) => setExecLocation(e.target.value)}
-                              placeholder="e.g. Dhenkanal HO"
+                              placeholder="e.g. Dhenkanal Division"
                               className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2.5 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500 outline-none"
                             />
                           </div>
@@ -5075,21 +6470,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </form>
                     </div>
 
-                    <div className="lg:col-span-7 xl:col-span-8">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                          CURRENT EXECUTIVE MEMBERS ({executives.length})
+                    <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                      {/* Search & Header */}
+                      <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div className="relative flex-1">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={execSearchQuery}
+                            onChange={(e) => setExecSearchQuery(e.target.value)}
+                            placeholder="Search office bearers by name, post, or branch..."
+                            className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-red-500"
+                          />
+                          {execSearchQuery && (
+                            <button
+                              onClick={() => setExecSearchQuery('')}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
-                        <span className="text-xs text-slate-400">
-                          Ordered: Group C ➔ Postman/MTS ➔ GDS
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-center sm:text-left">
+                          Total: {executives.length} Bearers
                         </span>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {sortOfficeBearers(executives).map((ex) => (
+                        {sortOfficeBearers(
+                          executives.filter((ex) => {
+                            const q = execSearchQuery.trim().toLowerCase();
+                            return (
+                              !q ||
+                              ex.name.toLowerCase().includes(q) ||
+                              ex.designation.toLowerCase().includes(q) ||
+                              (ex.branch && ex.branch.toLowerCase().includes(q)) ||
+                              (ex.location && ex.location.toLowerCase().includes(q))
+                            );
+                          })
+                        ).map((ex) => (
                           <div
                             key={ex.id || ex.name}
-                            className={`bg-white rounded-2xl p-4 shadow-sm border transition-all ${
+                            className={`bg-white rounded-2xl p-4 shadow-sm border transition-all flex flex-col justify-between ${
                               editingMember?.id === ex.id
                                 ? 'border-red-500 ring-2 ring-red-500/20'
                                 : 'border-slate-200/80 hover:border-slate-300'
@@ -5097,7 +6519,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           >
                             <div className="flex items-start gap-3">
                               {/* Photo Avatar Thumbnail */}
-                              <div className="relative shrink-0">
+                              <div
+                                onClick={() => {
+                                  if (ex.photoUrl) {
+                                    setViewingDoc({
+                                      title: `${ex.name} (${ex.designation})`,
+                                      category: ex.branch || "AIPEU Dhenkanal Division",
+                                      url: ex.photoUrl,
+                                      published: `Location: ${ex.location} • Tel: ${ex.phone || 'N/A'}`,
+                                      type: 'Homepage Document'
+                                    });
+                                  }
+                                }}
+                                className={`relative shrink-0 ${ex.photoUrl ? 'cursor-pointer hover:opacity-90' : ''}`}
+                                title={ex.photoUrl ? 'Click to view photo' : ''}
+                              >
                                 {ex.photoUrl ? (
                                   <img
                                     src={ex.photoUrl}
@@ -5130,24 +6566,47 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   📍 {ex.location} {ex.phone && `· 📞 ${ex.phone}`}
                                 </p>
                               </div>
+                            </div>
 
-                              {/* Action Buttons: Edit and Delete */}
-                              <div className="flex items-center gap-1 shrink-0">
+                            {/* Action Buttons: View Photo, Edit and Delete */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                              {ex.photoUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingDoc({
+                                    title: `${ex.name} (${ex.designation})`,
+                                    category: ex.branch || "AIPEU Dhenkanal Division",
+                                    url: ex.photoUrl!,
+                                    published: `Location: ${ex.location} • Tel: ${ex.phone || 'N/A'}`,
+                                    type: 'Homepage Document'
+                                  })}
+                                  className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View Photo</span>
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">No Photo</span>
+                              )}
+
+                              <div className="flex items-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => handleEditExecutiveClick(ex)}
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  className="px-2 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
                                   title="Edit Member & Photo"
                                 >
-                                  <Edit2 className="w-4 h-4" />
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>Edit</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteExecutive(ex.id)}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  className="px-2 py-1 rounded-lg text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1 cursor-pointer"
                                   title="Delete Bearer"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
                                 </button>
                               </div>
                             </div>
@@ -5477,6 +6936,144 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </a>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* In-Portal Document & File Preview Modal */}
+          {viewingDoc && (
+            <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
+                {/* Modal Header */}
+                <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0 shadow-2xs">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                          {viewingDoc.type}
+                        </span>
+                        {viewingDoc.category && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            {viewingDoc.category}
+                          </span>
+                        )}
+                        {viewingDoc.published && (
+                          <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{viewingDoc.published}</span>
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                        {viewingDoc.title}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDoc(viewingDoc.url, viewingDoc.title)}
+                      className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      title="Download Document"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Download</span>
+                    </button>
+                    {!viewingDoc.url.startsWith('data:') && (
+                      <a
+                        href={viewingDoc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                        title="Open in Browser Tab"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Open in Tab</span>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setViewingDoc(null)}
+                      className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/70 transition-colors cursor-pointer"
+                      title="Close Preview"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Content Body */}
+                <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-100/50 flex flex-col items-center justify-center min-h-[350px]">
+                  {viewingDoc.url.startsWith('data:image/') || viewingDoc.url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                    <div className="w-full flex items-center justify-center p-2">
+                      <img
+                        src={viewingDoc.url}
+                        alt={viewingDoc.title}
+                        className="max-h-[68vh] max-w-full rounded-2xl shadow-md object-contain border border-slate-200 bg-white"
+                      />
+                    </div>
+                  ) : viewingDoc.url.startsWith('data:application/pdf') || viewingDoc.url.toLowerCase().includes('.pdf') ? (
+                    <iframe
+                      src={viewingDoc.url}
+                      title={viewingDoc.title}
+                      className="w-full h-[65vh] rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-full max-w-lg bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-sm space-y-4 my-auto">
+                      <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+                        <FileText className="w-8 h-8 stroke-[1.8]" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-base text-slate-900">{viewingDoc.title}</h4>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto truncate font-mono">
+                          {viewingDoc.url}
+                        </p>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        This document is hosted on an external service or Google Drive. You can open it in a full tab or download directly.
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadDoc(viewingDoc.url, viewingDoc.title)}
+                          className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Download File</span>
+                        </button>
+                        <a
+                          href={viewingDoc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-2 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Open in External Tab</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="px-5 py-3 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="font-semibold text-slate-700">AIPEU Dhenkanal Division Document Portal</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewingDoc(null)}
+                    className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
+                  >
+                    Close Preview
+                  </button>
+                </div>
               </div>
             </div>
           )}

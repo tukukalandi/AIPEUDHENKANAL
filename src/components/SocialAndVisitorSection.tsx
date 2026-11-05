@@ -133,7 +133,7 @@ export const SocialAndVisitorSection: React.FC<SocialAndVisitorSectionProps> = (
           <div className="shrink-0 flex flex-col sm:flex-row md:flex-col gap-2 w-full sm:w-auto">
             <div className="px-5 py-3 rounded-2xl bg-black/50 backdrop-blur-md border border-amber-400/40 text-center shadow-lg">
               <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Division Headquarters</div>
-              <div className="text-sm font-black text-white mt-0.5">Dhenkanal HO, Odisha</div>
+              <div className="text-sm font-black text-white mt-0.5">Dhenkanal Division, Odisha</div>
             </div>
           </div>
         </div>

@@ -17,6 +17,19 @@ import {
   Folder,
   Tag,
   ChevronRight,
+  Calculator,
+  Building2,
+  GraduationCap,
+  Cpu,
+  Landmark,
+  ShieldCheck,
+  Package,
+  HeartPulse,
+  Award,
+  MessageSquareWarning,
+  Globe,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -32,6 +45,271 @@ import {
   getStoredForms,
 } from '../data/portalMenuData';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
+
+export interface AppCardColorTheme {
+  name: string;
+  cardBg: string;
+  cardBorder: string;
+  cardHoverBorder: string;
+  accentBar: string;
+  glowBg: string;
+  iconBg: string;
+  categoryBadge: string;
+  typeBadge: string;
+  titleHover: string;
+  metaBg: string;
+  buttonBg: string;
+}
+
+// 16 Distinct, High-Contrast Attractive Card Color Themes so every card in My Apps has a unique color
+export const MY_APPS_COLOR_PALETTE: AppCardColorTheme[] = [
+  {
+    name: 'Crimson Rose',
+    cardBg: 'bg-gradient-to-br from-rose-50 via-red-50/80 to-pink-100/70 dark:from-rose-950/55 dark:via-red-950/40 dark:to-slate-900',
+    cardBorder: 'border-rose-200/90 dark:border-rose-800/70',
+    cardHoverBorder: 'hover:border-rose-500 dark:hover:border-rose-400',
+    accentBar: 'bg-gradient-to-r from-rose-600 via-red-500 to-pink-600',
+    glowBg: 'bg-rose-400/15',
+    iconBg: 'bg-gradient-to-br from-rose-600 to-red-700 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-200 dark:ring-rose-800',
+    categoryBadge: 'bg-rose-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-700',
+    titleHover: 'group-hover:text-rose-700 dark:group-hover:text-rose-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-rose-200/70 dark:border-rose-800/60 text-rose-900 dark:text-rose-200',
+    buttonBg: 'bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white shadow-md shadow-rose-600/20',
+  },
+  {
+    name: 'Golden Amber',
+    cardBg: 'bg-gradient-to-br from-amber-50 via-yellow-50/85 to-orange-100/70 dark:from-amber-950/55 dark:via-yellow-950/40 dark:to-slate-900',
+    cardBorder: 'border-amber-200/90 dark:border-amber-800/70',
+    cardHoverBorder: 'hover:border-amber-500 dark:hover:border-amber-400',
+    accentBar: 'bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500',
+    glowBg: 'bg-amber-400/15',
+    iconBg: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-200 dark:ring-amber-800',
+    categoryBadge: 'bg-amber-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-700',
+    titleHover: 'group-hover:text-amber-800 dark:group-hover:text-amber-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-amber-200/70 dark:border-amber-800/60 text-amber-950 dark:text-amber-200',
+    buttonBg: 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-md shadow-amber-600/20',
+  },
+  {
+    name: 'Ocean Cobalt',
+    cardBg: 'bg-gradient-to-br from-sky-50 via-blue-50/85 to-indigo-100/70 dark:from-sky-950/55 dark:via-blue-950/40 dark:to-slate-900',
+    cardBorder: 'border-sky-200/90 dark:border-sky-800/70',
+    cardHoverBorder: 'hover:border-sky-500 dark:hover:border-sky-400',
+    accentBar: 'bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600',
+    glowBg: 'bg-sky-400/15',
+    iconBg: 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-md shadow-sky-500/25 ring-2 ring-sky-200 dark:ring-sky-800',
+    categoryBadge: 'bg-sky-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-sky-900 dark:text-sky-200 border-sky-200 dark:border-sky-700',
+    titleHover: 'group-hover:text-sky-800 dark:group-hover:text-sky-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-sky-200/70 dark:border-sky-800/60 text-sky-950 dark:text-sky-200',
+    buttonBg: 'bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white shadow-md shadow-sky-600/20',
+  },
+  {
+    name: 'Emerald Mint',
+    cardBg: 'bg-gradient-to-br from-emerald-50 via-green-50/85 to-teal-100/70 dark:from-emerald-950/55 dark:via-green-950/40 dark:to-slate-900',
+    cardBorder: 'border-emerald-200/90 dark:border-emerald-800/70',
+    cardHoverBorder: 'hover:border-emerald-500 dark:hover:border-emerald-400',
+    accentBar: 'bg-gradient-to-r from-emerald-500 via-green-600 to-teal-600',
+    glowBg: 'bg-emerald-400/15',
+    iconBg: 'bg-gradient-to-br from-emerald-500 to-green-700 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-200 dark:ring-emerald-800',
+    categoryBadge: 'bg-emerald-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700',
+    titleHover: 'group-hover:text-emerald-800 dark:group-hover:text-emerald-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-emerald-200/70 dark:border-emerald-800/60 text-emerald-950 dark:text-emerald-200',
+    buttonBg: 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-500 hover:to-green-600 text-white shadow-md shadow-emerald-600/20',
+  },
+  {
+    name: 'Royal Violet',
+    cardBg: 'bg-gradient-to-br from-violet-50 via-purple-50/85 to-fuchsia-100/65 dark:from-violet-950/55 dark:via-purple-950/40 dark:to-slate-900',
+    cardBorder: 'border-violet-200/90 dark:border-violet-800/70',
+    cardHoverBorder: 'hover:border-violet-500 dark:hover:border-violet-400',
+    accentBar: 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600',
+    glowBg: 'bg-violet-400/15',
+    iconBg: 'bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-md shadow-violet-600/25 ring-2 ring-violet-200 dark:ring-violet-800',
+    categoryBadge: 'bg-violet-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-violet-900 dark:text-violet-200 border-violet-200 dark:border-violet-700',
+    titleHover: 'group-hover:text-violet-800 dark:group-hover:text-violet-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-violet-200/70 dark:border-violet-800/60 text-violet-950 dark:text-violet-200',
+    buttonBg: 'bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white shadow-md shadow-violet-600/20',
+  },
+  {
+    name: 'Tropical Teal',
+    cardBg: 'bg-gradient-to-br from-teal-50 via-cyan-50/85 to-sky-100/70 dark:from-teal-950/55 dark:via-cyan-950/40 dark:to-slate-900',
+    cardBorder: 'border-teal-200/90 dark:border-teal-800/70',
+    cardHoverBorder: 'hover:border-teal-500 dark:hover:border-teal-400',
+    accentBar: 'bg-gradient-to-r from-teal-500 via-cyan-600 to-sky-600',
+    glowBg: 'bg-teal-400/15',
+    iconBg: 'bg-gradient-to-br from-teal-500 to-cyan-700 text-white shadow-md shadow-teal-500/25 ring-2 ring-teal-200 dark:ring-teal-800',
+    categoryBadge: 'bg-teal-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-teal-900 dark:text-teal-200 border-teal-200 dark:border-teal-700',
+    titleHover: 'group-hover:text-teal-800 dark:group-hover:text-teal-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-teal-200/70 dark:border-teal-800/60 text-teal-950 dark:text-teal-200',
+    buttonBg: 'bg-gradient-to-r from-teal-600 to-cyan-700 hover:from-teal-500 hover:to-cyan-600 text-white shadow-md shadow-teal-600/20',
+  },
+  {
+    name: 'Sunset Coral',
+    cardBg: 'bg-gradient-to-br from-orange-50 via-red-50/75 to-amber-100/70 dark:from-orange-950/55 dark:via-red-950/40 dark:to-slate-900',
+    cardBorder: 'border-orange-200/90 dark:border-orange-800/70',
+    cardHoverBorder: 'hover:border-orange-500 dark:hover:border-orange-400',
+    accentBar: 'bg-gradient-to-r from-orange-500 via-red-500 to-amber-500',
+    glowBg: 'bg-orange-400/15',
+    iconBg: 'bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-200 dark:ring-orange-800',
+    categoryBadge: 'bg-orange-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-orange-900 dark:text-orange-200 border-orange-200 dark:border-orange-700',
+    titleHover: 'group-hover:text-orange-800 dark:group-hover:text-orange-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-orange-200/70 dark:border-orange-800/60 text-orange-950 dark:text-orange-200',
+    buttonBg: 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-md shadow-orange-600/20',
+  },
+  {
+    name: 'Berry Fuchsia',
+    cardBg: 'bg-gradient-to-br from-fuchsia-50 via-pink-50/85 to-rose-100/65 dark:from-fuchsia-950/55 dark:via-pink-950/40 dark:to-slate-900',
+    cardBorder: 'border-fuchsia-200/90 dark:border-fuchsia-800/70',
+    cardHoverBorder: 'hover:border-fuchsia-500 dark:hover:border-fuchsia-400',
+    accentBar: 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-500',
+    glowBg: 'bg-fuchsia-400/15',
+    iconBg: 'bg-gradient-to-br from-fuchsia-600 to-pink-700 text-white shadow-md shadow-fuchsia-600/25 ring-2 ring-fuchsia-200 dark:ring-fuchsia-800',
+    categoryBadge: 'bg-fuchsia-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-fuchsia-900 dark:text-fuchsia-200 border-fuchsia-200 dark:border-fuchsia-700',
+    titleHover: 'group-hover:text-fuchsia-800 dark:group-hover:text-fuchsia-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-fuchsia-200/70 dark:border-fuchsia-800/60 text-fuchsia-950 dark:text-fuchsia-200',
+    buttonBg: 'bg-gradient-to-r from-fuchsia-600 to-pink-700 hover:from-fuchsia-500 hover:to-pink-600 text-white shadow-md shadow-fuchsia-600/20',
+  },
+  {
+    name: 'Sapphire Indigo',
+    cardBg: 'bg-gradient-to-br from-indigo-50 via-blue-50/85 to-violet-100/70 dark:from-indigo-950/55 dark:via-blue-950/40 dark:to-slate-900',
+    cardBorder: 'border-indigo-200/90 dark:border-indigo-800/70',
+    cardHoverBorder: 'hover:border-indigo-500 dark:hover:border-indigo-400',
+    accentBar: 'bg-gradient-to-r from-indigo-600 via-blue-600 to-violet-600',
+    glowBg: 'bg-indigo-400/15',
+    iconBg: 'bg-gradient-to-br from-indigo-600 to-blue-800 text-white shadow-md shadow-indigo-600/25 ring-2 ring-indigo-200 dark:ring-indigo-800',
+    categoryBadge: 'bg-indigo-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-700',
+    titleHover: 'group-hover:text-indigo-800 dark:group-hover:text-indigo-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-indigo-200/70 dark:border-indigo-800/60 text-indigo-950 dark:text-indigo-200',
+    buttonBg: 'bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-500 hover:to-blue-600 text-white shadow-md shadow-indigo-600/20',
+  },
+  {
+    name: 'Jade Seafoam',
+    cardBg: 'bg-gradient-to-br from-green-50 via-emerald-50/85 to-lime-100/65 dark:from-green-950/55 dark:via-emerald-950/40 dark:to-slate-900',
+    cardBorder: 'border-green-200/90 dark:border-green-800/70',
+    cardHoverBorder: 'hover:border-green-500 dark:hover:border-green-400',
+    accentBar: 'bg-gradient-to-r from-green-600 via-emerald-500 to-teal-500',
+    glowBg: 'bg-green-400/15',
+    iconBg: 'bg-gradient-to-br from-green-600 to-emerald-700 text-white shadow-md shadow-green-600/25 ring-2 ring-green-200 dark:ring-green-800',
+    categoryBadge: 'bg-green-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-green-900 dark:text-green-200 border-green-200 dark:border-green-700',
+    titleHover: 'group-hover:text-green-800 dark:group-hover:text-green-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-green-200/70 dark:border-green-800/60 text-green-950 dark:text-green-200',
+    buttonBg: 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white shadow-md shadow-green-600/20',
+  },
+  {
+    name: 'Warm Honey Gold',
+    cardBg: 'bg-gradient-to-br from-yellow-50 via-amber-50/85 to-orange-100/60 dark:from-yellow-950/55 dark:via-amber-950/40 dark:to-slate-900',
+    cardBorder: 'border-yellow-300/90 dark:border-yellow-800/70',
+    cardHoverBorder: 'hover:border-amber-500 dark:hover:border-yellow-400',
+    accentBar: 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500',
+    glowBg: 'bg-yellow-400/15',
+    iconBg: 'bg-gradient-to-br from-yellow-500 to-amber-600 text-white shadow-md shadow-amber-500/25 ring-2 ring-yellow-200 dark:ring-yellow-800',
+    categoryBadge: 'bg-amber-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-amber-900 dark:text-amber-200 border-yellow-300 dark:border-yellow-700',
+    titleHover: 'group-hover:text-amber-800 dark:group-hover:text-yellow-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-yellow-300/70 dark:border-yellow-800/60 text-amber-950 dark:text-yellow-200',
+    buttonBg: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-md shadow-amber-500/20',
+  },
+  {
+    name: 'Orchid Plum',
+    cardBg: 'bg-gradient-to-br from-purple-50 via-fuchsia-50/80 to-indigo-100/65 dark:from-purple-950/55 dark:via-fuchsia-950/40 dark:to-slate-900',
+    cardBorder: 'border-purple-200/90 dark:border-purple-800/70',
+    cardHoverBorder: 'hover:border-purple-500 dark:hover:border-purple-400',
+    accentBar: 'bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600',
+    glowBg: 'bg-purple-400/15',
+    iconBg: 'bg-gradient-to-br from-purple-600 to-fuchsia-700 text-white shadow-md shadow-purple-600/25 ring-2 ring-purple-200 dark:ring-purple-800',
+    categoryBadge: 'bg-purple-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-700',
+    titleHover: 'group-hover:text-purple-800 dark:group-hover:text-purple-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-purple-200/70 dark:border-purple-800/60 text-purple-950 dark:text-purple-200',
+    buttonBg: 'bg-gradient-to-r from-purple-600 to-fuchsia-700 hover:from-purple-500 hover:to-fuchsia-600 text-white shadow-md shadow-purple-600/20',
+  },
+  {
+    name: 'Cerulean Azure',
+    cardBg: 'bg-gradient-to-br from-cyan-50 via-sky-50/85 to-blue-100/70 dark:from-cyan-950/55 dark:via-sky-950/40 dark:to-slate-900',
+    cardBorder: 'border-cyan-200/90 dark:border-cyan-800/70',
+    cardHoverBorder: 'hover:border-cyan-500 dark:hover:border-cyan-400',
+    accentBar: 'bg-gradient-to-r from-cyan-500 via-sky-600 to-blue-600',
+    glowBg: 'bg-cyan-400/15',
+    iconBg: 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white shadow-md shadow-cyan-600/25 ring-2 ring-cyan-200 dark:ring-cyan-800',
+    categoryBadge: 'bg-cyan-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-cyan-900 dark:text-cyan-200 border-cyan-200 dark:border-cyan-700',
+    titleHover: 'group-hover:text-cyan-800 dark:group-hover:text-cyan-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-cyan-200/70 dark:border-cyan-800/60 text-cyan-950 dark:text-cyan-200',
+    buttonBg: 'bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white shadow-md shadow-cyan-600/20',
+  },
+  {
+    name: 'Ruby Garnet',
+    cardBg: 'bg-gradient-to-br from-red-50 via-rose-50/85 to-orange-100/65 dark:from-red-950/55 dark:via-rose-950/40 dark:to-slate-900',
+    cardBorder: 'border-red-200/90 dark:border-red-800/70',
+    cardHoverBorder: 'hover:border-red-500 dark:hover:border-red-400',
+    accentBar: 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-500',
+    glowBg: 'bg-red-400/15',
+    iconBg: 'bg-gradient-to-br from-red-600 to-rose-800 text-white shadow-md shadow-red-600/25 ring-2 ring-red-200 dark:ring-red-800',
+    categoryBadge: 'bg-red-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-red-900 dark:text-red-200 border-red-200 dark:border-red-700',
+    titleHover: 'group-hover:text-red-800 dark:group-hover:text-red-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-red-200/70 dark:border-red-800/60 text-red-950 dark:text-red-200',
+    buttonBg: 'bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-md shadow-red-600/20',
+  },
+  {
+    name: 'PinkBlush Coral',
+    cardBg: 'bg-gradient-to-br from-pink-50 via-rose-50/85 to-fuchsia-100/65 dark:from-pink-950/55 dark:via-rose-950/40 dark:to-slate-900',
+    cardBorder: 'border-pink-200/90 dark:border-pink-800/70',
+    cardHoverBorder: 'hover:border-pink-500 dark:hover:border-pink-400',
+    accentBar: 'bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-600',
+    glowBg: 'bg-pink-400/15',
+    iconBg: 'bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-md shadow-pink-500/25 ring-2 ring-pink-200 dark:ring-pink-800',
+    categoryBadge: 'bg-pink-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-pink-900 dark:text-pink-200 border-pink-200 dark:border-pink-700',
+    titleHover: 'group-hover:text-pink-800 dark:group-hover:text-pink-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-pink-200/70 dark:border-pink-800/60 text-pink-950 dark:text-pink-200',
+    buttonBg: 'bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-md shadow-pink-600/20',
+  },
+  {
+    name: 'Periwinkle Blue',
+    cardBg: 'bg-gradient-to-br from-blue-50 via-indigo-50/85 to-sky-100/70 dark:from-blue-950/55 dark:via-indigo-950/40 dark:to-slate-900',
+    cardBorder: 'border-blue-200/90 dark:border-blue-800/70',
+    cardHoverBorder: 'hover:border-blue-500 dark:hover:border-blue-400',
+    accentBar: 'bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500',
+    glowBg: 'bg-blue-400/15',
+    iconBg: 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shadow-blue-600/25 ring-2 ring-blue-200 dark:ring-blue-800',
+    categoryBadge: 'bg-blue-600 text-white',
+    typeBadge: 'bg-white/90 dark:bg-slate-800 text-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-700',
+    titleHover: 'group-hover:text-blue-800 dark:group-hover:text-blue-300',
+    metaBg: 'bg-white/80 dark:bg-slate-800/80 border-blue-200/70 dark:border-blue-800/60 text-blue-950 dark:text-blue-200',
+    buttonBg: 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white shadow-md shadow-blue-600/20',
+  },
+];
+
+export const getMyAppCardTheme = (index: number): AppCardColorTheme => {
+  return MY_APPS_COLOR_PALETTE[Math.abs(index) % MY_APPS_COLOR_PALETTE.length];
+};
+
+export const getMyAppIcon = (app: CustomPortalApp) => {
+  const text = `${app.name} ${app.category}`.toLowerCase();
+  if (text.includes('acg') || text.includes('receipt')) return FileText;
+  if (text.includes('calc') || text.includes('target')) return Calculator;
+  if (text.includes('karmayogi') || text.includes('training') || text.includes('learn')) return GraduationCap;
+  if (text.includes('cept') || text.includes('tech') || text.includes('it')) return Cpu;
+  if (text.includes('cbs') || text.includes('finacle') || text.includes('bank')) return Landmark;
+  if (text.includes('pli') || text.includes('insur')) return ShieldCheck;
+  if (text.includes('track') || text.includes('speed')) return Package;
+  if (text.includes('cghs') || text.includes('health') || text.includes('medical')) return HeartPulse;
+  if (text.includes('bhavishya') || text.includes('pension')) return Award;
+  if (text.includes('griev') || text.includes('cpengrams')) return MessageSquareWarning;
+  if (text.includes('erp') || text.includes('meghdoot') || text.includes('sap')) return Building2;
+  if (text.includes('nfpe') || text.includes('union')) return Users;
+  if (app.sourceType === 'code' || app.codeSnippet) return FileCode;
+  return Globe;
+};
 
 // ================= 1. CONSISTENT INTERNAL PAGE NAVIGATION BAR =================
 
@@ -411,7 +689,7 @@ export const MyAppsPage: React.FC = () => {
               My Apps & Online Portals
             </h1>
             <p className="text-xs sm:text-sm text-slate-100 font-medium leading-relaxed">
-              Interactive postal calculators, ACG-17 receipt generator, SAP ERP, CEPT, Finacle CBS, PLI, CGHS, and pension utilities in one dedicated full-page workspace.
+              Interactive postal calculators, ACG-17 receipt generator, SAP ERP, CEPT, Finacle CBS, PLI, CGHS, and pension utilities in one color-coded workspace.
             </p>
           </div>
           <div className="shrink-0 flex items-center gap-3 bg-black/35 p-3 rounded-2xl border border-amber-400/30">
@@ -462,49 +740,87 @@ export const MyAppsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Full-Page Apps Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-        {filteredApps.map((app) => {
+      {/* Full-Page Apps Grid with Distinct Color Combination for Every Single Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredApps.map((app, idx) => {
           const isCodeApp = app.sourceType === 'code' || !!app.codeSnippet;
+          const stableIdx = myApps.findIndex((item) => item.id === app.id);
+          const theme = getMyAppCardTheme(stableIdx >= 0 ? stableIdx : idx);
+          const AppIcon = getMyAppIcon(app);
+
           return (
             <div
               key={app.id}
-              className={`p-5 rounded-3xl border transition-all flex flex-col justify-between group shadow-sm hover:shadow-xl ${
-                isCodeApp
-                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/70 hover:border-amber-500'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-500'
-              }`}
+              className={`group relative overflow-hidden p-5 sm:p-6 rounded-3xl border-2 ${theme.cardBg} ${theme.cardBorder} ${theme.cardHoverBorder} shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between min-h-[245px]`}
             >
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2 text-xs font-bold">
-                  <span className={isCodeApp ? 'text-amber-800 dark:text-amber-300 uppercase' : 'text-blue-700 dark:text-blue-400 uppercase'}>
-                    {app.category}
-                  </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              {/* Top Gradient Accent Ribbon */}
+              <div className={`absolute top-0 left-0 right-0 h-2 ${theme.accentBar}`} />
+
+              {/* Subtle Decorative Corner Glow */}
+              <div className={`pointer-events-none absolute -top-10 -right-10 w-28 h-28 rounded-full blur-2xl ${theme.glowBg}`} />
+
+              <div className="relative z-10 space-y-3.5 pt-1">
+                {/* Top Header Row: 3D Icon Badge + Category & Type Pills */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${theme.iconBg}`}>
+                      <AppIcon className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-2xs ${theme.categoryBadge}`}>
+                        {app.category || 'Utility'}
+                      </span>
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span className="truncate">{isCodeApp ? 'Instant Built-in Tool' : 'Verified Dept Portal'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-extrabold border shadow-2xs ${theme.typeBadge}`}>
                     {isCodeApp ? (
                       <>
-                        <FileCode className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Interactive App</span>
+                        <FileCode className="w-3 h-3" />
+                        <span>HTML App</span>
                       </>
                     ) : (
                       <>
-                        <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                        <ExternalLink className="w-3 h-3" />
                         <span>Web Portal</span>
                       </>
                     )}
                   </span>
                 </div>
 
-                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-amber-400 transition-colors">
-                  {app.name}
-                </h3>
+                {/* App Title & Description */}
+                <div className="space-y-1.5 pt-0.5">
+                  <h3 className={`text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug transition-colors ${theme.titleHover}`}>
+                    {app.name}
+                  </h3>
 
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
-                  {app.description || 'Official postal utility and service portal.'}
-                </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 font-medium">
+                    {app.description || 'Official postal utility and service portal for Dhenkanal Division.'}
+                  </p>
+                </div>
+
+                {/* Compact Info Pill */}
+                <div className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold flex items-center justify-between gap-2 ${theme.metaBg}`}>
+                  {isCodeApp ? (
+                    <>
+                      <span className="truncate font-mono">⚡ Interactive Workspace</span>
+                      <span className="text-[10px] font-bold opacity-80 shrink-0">{app.fileSize || 'Ready'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="truncate font-mono">{app.url?.replace(/^https?:\/\//, '')}</span>
+                      <span className="text-[10px] font-bold opacity-80 shrink-0">Direct Link</span>
+                    </>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-5 pt-3.5 border-t border-slate-200/60 dark:border-slate-800">
+              {/* Bottom Action Button */}
+              <div className="relative z-10 mt-4 pt-3.5 border-t border-black/5 dark:border-white/10">
                 {isCodeApp ? (
                   <button
                     type="button"
@@ -513,7 +829,7 @@ export const MyAppsPage: React.FC = () => {
                       setIframeKey((k) => k + 1);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${theme.buttonBg}`}
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Launch Interactive Tool</span>
@@ -523,7 +839,7 @@ export const MyAppsPage: React.FC = () => {
                     href={app.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                    className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 ${theme.buttonBg}`}
                   >
                     <span>Open Official Portal</span>
                     <ExternalLink className="w-3.5 h-3.5" />

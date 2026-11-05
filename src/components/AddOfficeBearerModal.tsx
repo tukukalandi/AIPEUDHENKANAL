@@ -46,7 +46,7 @@ export const AddOfficeBearerModal: React.FC<AddOfficeBearerModalProps> = ({
     designation: 'Executive Member',
     branch: "AIPEU Group 'C', Dhenkanal Division",
     phone: '',
-    location: 'Dhenkanal HO',
+    location: 'Dhenkanal Division',
     roleType: 'executive',
     photoUrl: '',
   });
@@ -79,7 +79,7 @@ export const AddOfficeBearerModal: React.FC<AddOfficeBearerModalProps> = ({
         designation: formData.designation.trim(),
         branch: formData.branch || "AIPEU Group 'C', Dhenkanal Division",
         phone: formData.phone?.trim() || '',
-        location: formData.location?.trim() || 'Dhenkanal HO',
+        location: formData.location?.trim() || 'Dhenkanal Division',
         roleType: (formData.roleType as any) || 'executive',
         photoUrl: formData.photoUrl?.trim() || '',
       };
@@ -261,7 +261,7 @@ export const AddOfficeBearerModal: React.FC<AddOfficeBearerModalProps> = ({
                   type="text"
                   value={formData.location || ''}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g. Dhenkanal HO / Hindol SO"
+                  placeholder="e.g. Dhenkanal Division / Hindol SO"
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>

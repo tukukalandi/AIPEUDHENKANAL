@@ -215,7 +215,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
     name: '',
     employeeId: '',
     cadre: 'Postal Assistant (PA)',
-    office: 'Dhenkanal HO',
+    office: 'Dhenkanal Division',
     phone: '',
     category: 'Rule 38 Transfer',
     subject: '',
@@ -419,7 +419,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
             <div className="text-left">
               <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Official Crest</div>
               <div className="text-xs font-black text-white leading-tight">NFPE & AIPEU</div>
-              <div className="text-[10px] text-slate-300">Dhenkanal HO</div>
+              <div className="text-[10px] text-slate-300">Dhenkanal Division</div>
             </div>
           </div>
         </div>
@@ -728,7 +728,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
                       <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs space-y-1.5">
                         <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                           <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{member.office || 'Dhenkanal HO'}</span>
+                          <span className="truncate">{member.office || 'Dhenkanal Division'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -839,7 +839,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
                         name: '',
                         employeeId: '',
                         cadre: 'Postal Assistant (PA)',
-                        office: 'Dhenkanal HO',
+                        office: 'Dhenkanal Division',
                         phone: '',
                         category: 'Rule 38 Transfer',
                         subject: '',

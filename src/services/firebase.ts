@@ -65,78 +65,124 @@ export interface NewCircularInput {
 }
 
 export async function addCircularToFirestore(input: NewCircularInput): Promise<string> {
-  const colRef = collection(db, 'circulars');
+  let docId = `circ-local-${Date.now()}`;
   const publishedDate = new Date().toISOString();
-  
-  const docRef = await addDoc(colRef, {
-    title: input.title,
-    category: input.category,
-    snippet: input.snippet,
-    contentHtml: input.contentHtml || `<p>${input.snippet}</p>`,
-    driveLinks: input.fileLinks || [],
-    images: input.imageUrls || [],
-    published: publishedDate,
-    updated: publishedDate,
-    author: input.author || 'Divisional Secretary, AIPEU Dhenkanal',
-    urgent: !!input.urgent,
-    createdAt: serverTimestamp(),
-  });
 
-  return docRef.id;
+  try {
+    const colRef = collection(db, 'circulars');
+    const docRef = await addDoc(colRef, {
+      title: input.title,
+      category: input.category,
+      snippet: input.snippet,
+      contentHtml: input.contentHtml || `<p>${input.snippet}</p>`,
+      driveLinks: input.fileLinks || [],
+      images: input.imageUrls || [],
+      published: publishedDate,
+      updated: publishedDate,
+      author: input.author || 'Divisional Secretary, AIPEU Dhenkanal',
+      urgent: !!input.urgent,
+      createdAt: serverTimestamp(),
+    });
+    docId = docRef.id;
+  } catch (err) {
+    console.warn('Firestore addDoc failed, persisting locally:', err);
+  }
+
+  // Always persist locally in aipeu_admin_circulars
+  try {
+    const newPost: BlogPost = {
+      id: docId,
+      title: input.title,
+      published: publishedDate,
+      updated: publishedDate,
+      author: input.author || 'Divisional Secretary, AIPEU Dhenkanal',
+      url: '',
+      categories: [input.category],
+      snippet: input.snippet,
+      contentHtml: input.contentHtml || `<p>${input.snippet}</p>`,
+      images: input.imageUrls || [],
+      driveLinks: input.fileLinks || [],
+      isSavedOffline: false,
+    };
+    const raw = localStorage.getItem('aipeu_admin_circulars');
+    const currentList: BlogPost[] = raw ? JSON.parse(raw) : [];
+    currentList.unshift(newPost);
+    localStorage.setItem('aipeu_admin_circulars', JSON.stringify(currentList));
+  } catch (e) {
+    console.warn('LocalStorage save circular error:', e);
+  }
+
+  return docId;
 }
 
 export async function updateCircularInFirestore(id: string, input: Partial<NewCircularInput>): Promise<void> {
-  const docRef = doc(db, 'circulars', id);
-  const updateData: Record<string, any> = {
-    updated: new Date().toISOString(),
-    updatedAt: serverTimestamp(),
-  };
-  if (input.title !== undefined) updateData.title = input.title;
-  if (input.category !== undefined) updateData.category = input.category;
-  if (input.snippet !== undefined) {
-    updateData.snippet = input.snippet;
-    updateData.contentHtml = input.contentHtml || `<p>${input.snippet}</p>`;
-  }
-  if (input.fileLinks !== undefined) updateData.driveLinks = input.fileLinks;
-  if (input.imageUrls !== undefined) updateData.images = input.imageUrls;
-  if (input.author !== undefined) updateData.author = input.author;
-  if (input.urgent !== undefined) updateData.urgent = input.urgent;
+  try {
+    const docRef = doc(db, 'circulars', id);
+    const updateData: Record<string, any> = {
+      updated: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    };
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.category !== undefined) updateData.category = input.category;
+    if (input.snippet !== undefined) {
+      updateData.snippet = input.snippet;
+      updateData.contentHtml = input.contentHtml || `<p>${input.snippet}</p>`;
+    }
+    if (input.fileLinks !== undefined) updateData.driveLinks = input.fileLinks;
+    if (input.imageUrls !== undefined) updateData.images = input.imageUrls;
+    if (input.author !== undefined) updateData.author = input.author;
+    if (input.urgent !== undefined) updateData.urgent = input.urgent;
 
-  await updateDoc(docRef, updateData);
+    await updateDoc(docRef, updateData);
+  } catch (err) {
+    console.warn('Firestore update failed:', err);
+  }
+
+  try {
+    const raw = localStorage.getItem('aipeu_admin_circulars');
+    const currentList: BlogPost[] = raw ? JSON.parse(raw) : [];
+    const idx = currentList.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      currentList[idx] = {
+        ...currentList[idx],
+        title: input.title !== undefined ? input.title : currentList[idx].title,
+        categories: input.category ? [input.category] : currentList[idx].categories,
+        snippet: input.snippet !== undefined ? input.snippet : currentList[idx].snippet,
+        contentHtml: input.contentHtml || (input.snippet ? `<p>${input.snippet}</p>` : currentList[idx].contentHtml),
+        driveLinks: input.fileLinks !== undefined ? input.fileLinks : currentList[idx].driveLinks,
+        images: input.imageUrls !== undefined ? input.imageUrls : currentList[idx].images,
+        author: input.author || currentList[idx].author,
+        updated: new Date().toISOString(),
+      };
+      localStorage.setItem('aipeu_admin_circulars', JSON.stringify(currentList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage update circular error:', e);
+  }
 }
 
 export async function getCircularsFromFirestore(): Promise<BlogPost[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_post_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestorePosts: BlogPost[] = [];
   try {
     const colRef = collection(db, 'circulars');
     const q = query(colRef, orderBy('published', 'desc'));
     const snapshot = await getDocs(q);
 
-    if (snapshot.empty) {
-      // Seed default circulars so all documents have real Firestore records that can be modified & deleted
-      for (const p of (fallbackPosts as BlogPost[])) {
-        await addDoc(colRef, {
-          title: p.title,
-          category: p.categories?.[0] || 'UNION NEWS',
-          snippet: p.snippet || '',
-          contentHtml: p.contentHtml || `<p>${p.snippet || ''}</p>`,
-          driveLinks: p.driveLinks || [],
-          images: p.images || [],
-          published: p.published || new Date().toISOString(),
-          updated: p.updated || p.published || new Date().toISOString(),
-          author: p.author || 'Divisional Secretary, AIPEU Dhenkanal',
-          urgent: false,
-          createdAt: serverTimestamp(),
-        });
-      }
-      const seededSnap = await getDocs(q);
-      return seededSnap.docs.map((d) => {
+    if (!snapshot.empty) {
+      firestorePosts = snapshot.docs.map((d) => {
         const data = d.data();
         return {
           id: d.id,
           title: data.title || '',
           published: data.published || new Date().toISOString(),
           updated: data.updated || data.published || '',
-          author: data.author || 'AIPEU Dhenkanal',
+          author: data.author || 'Divisional Secretary, AIPEU Dhenkanal',
           url: data.url || '',
           categories: data.category ? [data.category] : ['UNION NEWS'],
           snippet: data.snippet || '',
@@ -147,28 +193,32 @@ export async function getCircularsFromFirestore(): Promise<BlogPost[]> {
         };
       });
     }
-
-    return snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        published: data.published || new Date().toISOString(),
-        updated: data.updated || data.published || '',
-        author: data.author || 'AIPEU Dhenkanal',
-        url: data.url || '',
-        categories: data.category ? [data.category] : ['UNION NEWS'],
-        snippet: data.snippet || '',
-        contentHtml: data.contentHtml || '',
-        images: data.images || [],
-        driveLinks: data.driveLinks || [],
-        isSavedOffline: false,
-      };
-    });
   } catch (err) {
-    console.error('Error fetching circulars from Firestore:', err);
-    return [];
+    console.warn('Firestore fetch circulars error:', err);
   }
+
+  // Also read local custom circulars saved by admin
+  let localCustomPosts: BlogPost[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_admin_circulars');
+    if (raw) localCustomPosts = JSON.parse(raw);
+  } catch {}
+
+  // Merge map: priority to localCustom, then firestore, then fallbackPosts
+  const map = new Map<string, BlogPost>();
+  (fallbackPosts as BlogPost[]).forEach((p) => {
+    if (!deletedIds.has(p.id)) map.set(p.id, p);
+  });
+  firestorePosts.forEach((p) => {
+    if (!deletedIds.has(p.id)) map.set(p.id, p);
+  });
+  localCustomPosts.forEach((p) => {
+    if (!deletedIds.has(p.id)) map.set(p.id, p);
+  });
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.published || '').getTime() - new Date(a.published || '').getTime()
+  );
 }
 
 export async function deleteCircularFromFirestore(id: string): Promise<void> {
@@ -177,53 +227,91 @@ export async function deleteCircularFromFirestore(id: string): Promise<void> {
   } catch (err) {
     console.warn(`Could not delete document ${id} directly from circulars collection:`, err);
   }
+  try {
+    const raw = localStorage.getItem('aipeu_admin_circulars');
+    if (raw) {
+      const currentList: BlogPost[] = JSON.parse(raw);
+      const filtered = currentList.filter((p) => p.id !== id);
+      localStorage.setItem('aipeu_admin_circulars', JSON.stringify(filtered));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_post_ids');
+    const deletedList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!deletedList.includes(id)) {
+      deletedList.push(id);
+      localStorage.setItem('aipeu_deleted_post_ids', JSON.stringify(deletedList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete circular error:', e);
+  }
 }
 
 // ================= EXECUTIVE MEMBERS =================
 
 export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]> {
+  let firestoreList: (OfficeBearer & { id: string })[] = [];
   try {
     const colRef = collection(db, 'executiveMembers');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      // Seed initial members into Firestore if empty
-      for (const m of DEFAULT_OFFICE_BEARERS) {
-        await addDoc(colRef, m);
-      }
-      return DEFAULT_OFFICE_BEARERS;
+    if (!snapshot.empty) {
+      firestoreList = snapshot.docs.map((d) => {
+        const data = d.data();
+        const matchedDefault = DEFAULT_OFFICE_BEARERS.find(
+          (def) => def.name.trim().toLowerCase() === (data.name || '').trim().toLowerCase()
+        );
+
+        return {
+          id: d.id,
+          name: data.name || '',
+          designation: data.designation || '',
+          branch: data.branch || '',
+          phone: data.phone || '',
+          location: data.location || '',
+          roleType: data.roleType || 'executive',
+          photoUrl: data.photoUrl || matchedDefault?.photoUrl || '',
+        } as OfficeBearer & { id: string };
+      });
     }
-
-    const sortedList = snapshot.docs.map((d) => {
-      const data = d.data();
-      // If photoUrl not stored in Firestore document, check if default seed has a photo for this member
-      const matchedDefault = DEFAULT_OFFICE_BEARERS.find(
-        (def) => def.name.trim().toLowerCase() === (data.name || '').trim().toLowerCase()
-      );
-
-      return {
-        id: d.id,
-        name: data.name || '',
-        designation: data.designation || '',
-        branch: data.branch || '',
-        phone: data.phone || '',
-        location: data.location || '',
-        roleType: data.roleType || 'executive',
-        photoUrl: data.photoUrl || matchedDefault?.photoUrl || '',
-      } as OfficeBearer & { id: string };
-    });
-
-    return sortOfficeBearers(sortedList);
   } catch (err) {
-    console.error('Error fetching executive members from Firestore:', err);
-    return sortOfficeBearers(DEFAULT_OFFICE_BEARERS);
+    console.warn('Firestore fetch executive members error:', err);
   }
+
+  let localList: (OfficeBearer & { id: string })[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_office_bearers');
+    if (raw) localList = JSON.parse(raw);
+  } catch {}
+
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_bearer_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  const map = new Map<string, OfficeBearer>();
+  DEFAULT_OFFICE_BEARERS.forEach((m, idx) => {
+    const mid = m.id || `bearer-${idx}`;
+    if (!deletedIds.has(mid)) map.set(mid, { ...m, id: mid });
+  });
+  firestoreList.forEach((m) => {
+    if (!deletedIds.has(m.id)) map.set(m.id, m);
+  });
+  localList.forEach((m) => {
+    if (!deletedIds.has(m.id)) map.set(m.id, m);
+  });
+
+  const sorted = sortOfficeBearers(Array.from(map.values()));
+  try {
+    localStorage.setItem('aipeu_office_bearers', JSON.stringify(sorted));
+  } catch {}
+
+  return sorted;
 }
 
 export async function saveExecutiveMemberToFirestore(
   member: OfficeBearer & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'executiveMembers');
+  let savedId = member.id;
   const payload = {
     name: member.name || '',
     designation: member.designation || '',
@@ -235,79 +323,141 @@ export async function saveExecutiveMemberToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (member.id && !member.id.startsWith('temp-')) {
-    const memberDoc = doc(db, 'executiveMembers', member.id);
-    await updateDoc(memberDoc, payload);
-    return member.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...payload,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'executiveMembers');
+    if (member.id && !member.id.startsWith('temp-') && !member.id.startsWith('exec-local-')) {
+      const memberDoc = doc(db, 'executiveMembers', member.id);
+      await updateDoc(memberDoc, payload);
+      savedId = member.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save executive member failed, persisting locally:', err);
+    if (!savedId) savedId = `exec-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `exec-local-${Date.now()}`;
+
+  try {
+    const raw = localStorage.getItem('aipeu_office_bearers');
+    const list: (OfficeBearer & { id: string })[] = raw ? JSON.parse(raw) : [...DEFAULT_OFFICE_BEARERS];
+    const existingIdx = list.findIndex((m) => m.id === finalId);
+    const newMember: OfficeBearer & { id: string } = {
+      id: finalId,
+      name: payload.name,
+      designation: payload.designation,
+      branch: payload.branch,
+      phone: payload.phone,
+      location: payload.location,
+      roleType: payload.roleType as any,
+      photoUrl: payload.photoUrl,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newMember;
+    } else {
+      list.push(newMember);
+    }
+    localStorage.setItem('aipeu_office_bearers', JSON.stringify(sortOfficeBearers(list)));
+  } catch (e) {
+    console.warn('LocalStorage save executive member error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteExecutiveMemberFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'executiveMembers', id));
+  try {
+    await deleteDoc(doc(db, 'executiveMembers', id));
+  } catch (err) {
+    console.warn('Error deleting executive member from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_office_bearers');
+    if (raw) {
+      const list: (OfficeBearer & { id: string })[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_office_bearers', JSON.stringify(list.filter((m) => m.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_bearer_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_bearer_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete executive member error:', e);
+  }
 }
 
 // ================= HERO SLIDER (DAKSHIKSHA) =================
 
 export async function getHeroSlidesFromFirestore(): Promise<HeroSlide[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_slide_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreSlides: HeroSlide[] = [];
   try {
     const colRef = collection(db, 'heroSlides');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      // Seed default slides into Firestore
-      for (const slide of DEFAULT_HERO_SLIDES) {
-        await addDoc(colRef, {
-          title: slide.title,
-          subtitle: slide.subtitle,
-          tag: slide.tag || 'DAKSHIKSHA',
-          imageUrl: slide.imageUrl,
-          ctaText: slide.ctaText || 'Learn More',
-          ctaLink: slide.ctaLink || '#',
-          gradient: slide.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
-          order: slide.order || 0,
-          active: slide.active !== false,
-          targetPage: slide.targetPage || 'home',
-          createdAt: serverTimestamp(),
-        });
-      }
-      return DEFAULT_HERO_SLIDES;
+    if (!snapshot.empty) {
+      firestoreSlides = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          subtitle: data.subtitle || '',
+          tag: data.tag || 'DAKSHIKSHA',
+          imageUrl: data.imageUrl || '',
+          ctaText: data.ctaText || 'Learn More',
+          ctaLink: data.ctaLink || '#',
+          gradient: data.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
+          order: data.order ?? 0,
+          active: data.active !== false,
+          targetPage: data.targetPage || 'home',
+        };
+      });
     }
-
-    const slides: HeroSlide[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        subtitle: data.subtitle || '',
-        tag: data.tag || 'DAKSHIKSHA',
-        imageUrl: data.imageUrl || '',
-        ctaText: data.ctaText || 'Learn More',
-        ctaLink: data.ctaLink || '#',
-        gradient: data.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
-        order: data.order ?? 0,
-        active: data.active !== false,
-        targetPage: data.targetPage || 'home',
-      };
-    });
-
-    // Sort by order ascending
-    return slides.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
-    console.error('Error fetching hero slides from Firestore:', err);
-    return DEFAULT_HERO_SLIDES;
+    console.warn('Firestore fetch hero slides error:', err);
   }
+
+  let localSlides: HeroSlide[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_hero_slides');
+    if (raw) localSlides = JSON.parse(raw);
+  } catch {}
+
+  const map = new Map<string, HeroSlide>();
+  DEFAULT_HERO_SLIDES.forEach((s) => {
+    if (!deletedIds.has(s.id)) map.set(s.id, s);
+  });
+  firestoreSlides.forEach((s) => {
+    if (!deletedIds.has(s.id)) map.set(s.id, s);
+  });
+  localSlides.forEach((s) => {
+    if (!deletedIds.has(s.id)) map.set(s.id, s);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+  try {
+    localStorage.setItem('aipeu_hero_slides', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveHeroSlideToFirestore(
   slide: Partial<HeroSlide> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'heroSlides');
+  let savedId = slide.id;
   const slideData = {
     title: slide.title || '',
     subtitle: slide.subtitle || '',
@@ -322,70 +472,146 @@ export async function saveHeroSlideToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (slide.id && !slide.id.startsWith('slide-') && !slide.id.startsWith('temp-') && !slide.id.startsWith('feed-slide-')) {
-    const slideDoc = doc(db, 'heroSlides', slide.id);
-    await updateDoc(slideDoc, slideData);
-    return slide.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...slideData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'heroSlides');
+    if (slide.id && !slide.id.startsWith('slide-') && !slide.id.startsWith('temp-') && !slide.id.startsWith('feed-slide-') && !slide.id.startsWith('slide-local-')) {
+      const slideDoc = doc(db, 'heroSlides', slide.id);
+      await updateDoc(slideDoc, slideData);
+      savedId = slide.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...slideData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save hero slide failed, persisting locally:', err);
+    if (!savedId) savedId = `slide-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `slide-local-${Date.now()}`;
+
+  try {
+    const raw = localStorage.getItem('aipeu_hero_slides');
+    const list: HeroSlide[] = raw ? JSON.parse(raw) : [...DEFAULT_HERO_SLIDES];
+    const existingIdx = list.findIndex((s) => s.id === finalId);
+    const newSlide: HeroSlide = {
+      id: finalId,
+      title: slideData.title,
+      subtitle: slideData.subtitle,
+      tag: slideData.tag,
+      imageUrl: slideData.imageUrl,
+      ctaText: slideData.ctaText,
+      ctaLink: slideData.ctaLink,
+      gradient: slideData.gradient,
+      order: slideData.order,
+      active: slideData.active,
+      targetPage: slideData.targetPage,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newSlide;
+    } else {
+      list.push(newSlide);
+    }
+    localStorage.setItem('aipeu_hero_slides', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_slide_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_slide_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save hero slide error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteHeroSlideFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'heroSlides', id));
+  try {
+    await deleteDoc(doc(db, 'heroSlides', id));
+  } catch (err) {
+    console.warn('Error deleting hero slide from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_hero_slides');
+    if (raw) {
+      const list: HeroSlide[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_hero_slides', JSON.stringify(list.filter((s) => s.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_slide_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_slide_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete hero slide error:', e);
+  }
 }
 
 // ================= MOVING NEWS SLIDER & TICKER =================
 
 export async function getNewsItemsFromFirestore(): Promise<NewsSliderItem[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_news_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreItems: NewsSliderItem[] = [];
   try {
     const colRef = collection(db, 'newsSliderItems');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      // Seed default news items into Firestore
-      for (const item of DEFAULT_NEWS_ITEMS) {
-        await addDoc(colRef, {
-          title: item.title,
-          category: item.category || 'LATEST NEWS',
-          link: item.link || '',
-          isUrgent: !!item.isUrgent,
-          published: item.published || new Date().toISOString(),
-          order: item.order || 0,
-          createdAt: serverTimestamp(),
-        });
-      }
-      return DEFAULT_NEWS_ITEMS;
+    if (!snapshot.empty) {
+      firestoreItems = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          category: data.category || 'LATEST NEWS',
+          link: data.link || '',
+          isUrgent: !!data.isUrgent,
+          published: data.published || '',
+          order: data.order ?? 0,
+        };
+      });
     }
-
-    const items: NewsSliderItem[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        category: data.category || 'LATEST NEWS',
-        link: data.link || '',
-        isUrgent: !!data.isUrgent,
-        published: data.published || '',
-        order: data.order ?? 0,
-      };
-    });
-
-    return items;
   } catch (err) {
-    console.error('Error fetching news items from Firestore:', err);
-    return DEFAULT_NEWS_ITEMS;
+    console.warn('Firestore fetch news items error:', err);
   }
+
+  let localItems: NewsSliderItem[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_news_items');
+    if (raw) localItems = JSON.parse(raw);
+  } catch {}
+
+  const map = new Map<string, NewsSliderItem>();
+  DEFAULT_NEWS_ITEMS.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+  firestoreItems.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+  localItems.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+  try {
+    localStorage.setItem('aipeu_news_items', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveNewsItemToFirestore(
   item: Partial<NewsSliderItem> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'newsSliderItems');
+  let savedId = item.id;
   const itemData = {
     title: item.title || '',
     category: item.category || 'LATEST NEWS',
@@ -396,57 +622,145 @@ export async function saveNewsItemToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (item.id && !item.id.startsWith('news-') && !item.id.startsWith('temp-')) {
-    const itemDoc = doc(db, 'newsSliderItems', item.id);
-    await updateDoc(itemDoc, itemData);
-    return item.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...itemData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'newsSliderItems');
+    if (item.id && !item.id.startsWith('news-') && !item.id.startsWith('temp-') && !item.id.startsWith('news-local-')) {
+      const itemDoc = doc(db, 'newsSliderItems', item.id);
+      await updateDoc(itemDoc, itemData);
+      savedId = item.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...itemData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save news item failed, persisting locally:', err);
+    if (!savedId) savedId = `news-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `news-local-${Date.now()}`;
+
+  try {
+    const raw = localStorage.getItem('aipeu_news_items');
+    const list: NewsSliderItem[] = raw ? JSON.parse(raw) : [...DEFAULT_NEWS_ITEMS];
+    const existingIdx = list.findIndex((n) => n.id === finalId);
+    const newItem: NewsSliderItem = {
+      id: finalId,
+      title: itemData.title,
+      category: itemData.category,
+      link: itemData.link,
+      isUrgent: itemData.isUrgent,
+      published: itemData.published,
+      order: itemData.order,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newItem;
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem('aipeu_news_items', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_news_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_news_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save news item error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteNewsItemFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'newsSliderItems', id));
+  try {
+    await deleteDoc(doc(db, 'newsSliderItems', id));
+  } catch (err) {
+    console.warn('Error deleting news item from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_news_items');
+    if (raw) {
+      const list: NewsSliderItem[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_news_items', JSON.stringify(list.filter((n) => n.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_news_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_news_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete news item error:', e);
+  }
 }
 
 // ================= ANNOUNCEMENTS =================
 
 export async function getAnnouncementsFromFirestore(): Promise<AnnouncementItem[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_announcement_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreItems: AnnouncementItem[] = [];
   try {
     const colRef = collection(db, 'announcements');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      return [];
+    if (!snapshot.empty) {
+      firestoreItems = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          link: data.link || '',
+          published: data.published || '',
+          order: data.order ?? 0,
+          active: data.active !== false,
+        };
+      });
     }
-
-    const items: AnnouncementItem[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        link: data.link || '',
-        published: data.published || '',
-        order: data.order ?? 0,
-        active: data.active !== false,
-      };
-    });
-
-    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
-    console.error('Error fetching announcements from Firestore:', err);
-    return [];
+    console.warn('Firestore fetch announcements failed, using local/defaults:', err);
   }
+
+  // Load from local storage
+  let localItems: AnnouncementItem[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_announcements');
+    if (raw) localItems = JSON.parse(raw);
+  } catch {}
+
+  // Merge map: defaults -> firestore -> local
+  const map = new Map<string, AnnouncementItem>();
+  DEFAULT_ANNOUNCEMENTS.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+  firestoreItems.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+  localItems.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Sync back to local storage
+  try {
+    localStorage.setItem('aipeu_announcements', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveAnnouncementToFirestore(
   ann: Partial<AnnouncementItem> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'announcements');
+  let savedId = ann.id;
   const annData = {
     title: ann.title || '',
     link: ann.link || '',
@@ -456,57 +770,146 @@ export async function saveAnnouncementToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (ann.id && !ann.id.startsWith('ann-') && !ann.id.startsWith('temp-')) {
-    const annDoc = doc(db, 'announcements', ann.id);
-    await updateDoc(annDoc, annData);
-    return ann.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...annData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'announcements');
+    if (ann.id && !ann.id.startsWith('ann-') && !ann.id.startsWith('temp-') && !ann.id.startsWith('ann-local-')) {
+      const annDoc = doc(db, 'announcements', ann.id);
+      await updateDoc(annDoc, annData);
+      savedId = ann.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...annData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save announcement failed, persisting locally:', err);
+    if (!savedId) savedId = `ann-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `ann-local-${Date.now()}`;
+
+  // Always update local cache
+  try {
+    const raw = localStorage.getItem('aipeu_announcements');
+    const list: AnnouncementItem[] = raw ? JSON.parse(raw) : [...DEFAULT_ANNOUNCEMENTS];
+    const existingIdx = list.findIndex((a) => a.id === finalId);
+    const newItem: AnnouncementItem = {
+      id: finalId,
+      title: annData.title,
+      link: annData.link,
+      published: annData.published,
+      order: annData.order,
+      active: annData.active,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newItem;
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem('aipeu_announcements', JSON.stringify(list));
+
+    // Remove from deleted list if re-added
+    const rawDel = localStorage.getItem('aipeu_deleted_announcement_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_announcement_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save announcement error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteAnnouncementFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'announcements', id));
+  try {
+    await deleteDoc(doc(db, 'announcements', id));
+  } catch (err) {
+    console.warn('Error deleting announcement from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_announcements');
+    if (raw) {
+      const list: AnnouncementItem[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_announcements', JSON.stringify(list.filter((a) => a.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_announcement_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_announcement_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete announcement error:', e);
+  }
 }
 
 // ================= IMPORTANT DOCUMENTS =================
 
 export async function getImportantDocumentsFromFirestore(): Promise<ImportantDocItem[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_doc_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreItems: ImportantDocItem[] = [];
   try {
     const colRef = collection(db, 'importantDocuments');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      return [];
+    if (!snapshot.empty) {
+      firestoreItems = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          url: data.url || '',
+          category: data.category || 'General',
+          order: data.order ?? 0,
+          published: data.published || '',
+        };
+      });
     }
-
-    const items: ImportantDocItem[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        url: data.url || '',
-        category: data.category || 'General',
-        order: data.order ?? 0,
-        published: data.published || '',
-      };
-    });
-
-    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
-    console.error('Error fetching important documents from Firestore:', err);
-    return [];
+    console.warn('Firestore fetch important documents failed, using local/defaults:', err);
   }
+
+  // Load from local storage
+  let localItems: ImportantDocItem[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_important_documents');
+    if (raw) localItems = JSON.parse(raw);
+  } catch {}
+
+  // Merge map: defaults -> firestore -> local
+  const map = new Map<string, ImportantDocItem>();
+  DEFAULT_IMPORTANT_DOCUMENTS.forEach((d) => {
+    if (!deletedIds.has(d.id)) map.set(d.id, d);
+  });
+  firestoreItems.forEach((d) => {
+    if (!deletedIds.has(d.id)) map.set(d.id, d);
+  });
+  localItems.forEach((d) => {
+    if (!deletedIds.has(d.id)) map.set(d.id, d);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Sync back to local storage
+  try {
+    localStorage.setItem('aipeu_important_documents', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveImportantDocumentToFirestore(
   docItem: Partial<ImportantDocItem> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'importantDocuments');
+  let savedId = docItem.id;
   const docData = {
     title: docItem.title || '',
     url: docItem.url || '',
@@ -516,57 +919,145 @@ export async function saveImportantDocumentToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (docItem.id && !docItem.id.startsWith('doc-') && !docItem.id.startsWith('temp-')) {
-    const docRef = doc(db, 'importantDocuments', docItem.id);
-    await updateDoc(docRef, docData);
-    return docItem.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...docData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'importantDocuments');
+    if (docItem.id && !docItem.id.startsWith('doc-') && !docItem.id.startsWith('temp-') && !docItem.id.startsWith('doc-local-')) {
+      const docRef = doc(db, 'importantDocuments', docItem.id);
+      await updateDoc(docRef, docData);
+      savedId = docItem.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...docData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save important document failed, persisting locally:', err);
+    if (!savedId) savedId = `doc-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `doc-local-${Date.now()}`;
+
+  // Always update local cache
+  try {
+    const raw = localStorage.getItem('aipeu_important_documents');
+    const list: ImportantDocItem[] = raw ? JSON.parse(raw) : [...DEFAULT_IMPORTANT_DOCUMENTS];
+    const existingIdx = list.findIndex((d) => d.id === finalId);
+    const newItem: ImportantDocItem = {
+      id: finalId,
+      title: docData.title,
+      url: docData.url,
+      category: docData.category,
+      order: docData.order,
+      published: docData.published,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newItem;
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem('aipeu_important_documents', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_doc_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_doc_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save important document error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteImportantDocumentFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'importantDocuments', id));
+  try {
+    await deleteDoc(doc(db, 'importantDocuments', id));
+  } catch (err) {
+    console.warn('Error deleting important document from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_important_documents');
+    if (raw) {
+      const list: ImportantDocItem[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_important_documents', JSON.stringify(list.filter((d) => d.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_doc_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_doc_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete important doc error:', e);
+  }
 }
 
 // ================= NOTICE / CIRCULARS =================
 
 export async function getNoticeCircularsFromFirestore(): Promise<NoticeCircularItem[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_notice_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreItems: NoticeCircularItem[] = [];
   try {
     const colRef = collection(db, 'noticeCirculars');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      return [];
+    if (!snapshot.empty) {
+      firestoreItems = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          category: data.category || 'NOTICE',
+          published: data.published || '',
+          url: data.url || '',
+          order: data.order ?? 0,
+        };
+      });
     }
-
-    const items: NoticeCircularItem[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        category: data.category || 'NOTICE',
-        published: data.published || '',
-        url: data.url || '',
-        order: data.order ?? 0,
-      };
-    });
-
-    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
-    console.error('Error fetching notice circulars from Firestore:', err);
-    return [];
+    console.warn('Firestore fetch notice circulars failed, using local/defaults:', err);
   }
+
+  // Load from local storage
+  let localItems: NoticeCircularItem[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_notice_circulars');
+    if (raw) localItems = JSON.parse(raw);
+  } catch {}
+
+  // Merge map: defaults -> firestore -> local
+  const map = new Map<string, NoticeCircularItem>();
+  DEFAULT_NOTICE_CIRCULARS.forEach((nc) => {
+    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+  });
+  firestoreItems.forEach((nc) => {
+    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+  });
+  localItems.forEach((nc) => {
+    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Sync back to local storage
+  try {
+    localStorage.setItem('aipeu_notice_circulars', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveNoticeCircularToFirestore(
   nc: Partial<NoticeCircularItem> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'noticeCirculars');
+  let savedId = nc.id;
   const ncData = {
     title: nc.title || '',
     category: nc.category || 'NOTICE',
@@ -576,74 +1067,142 @@ export async function saveNoticeCircularToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (nc.id && !nc.id.startsWith('nc-') && !nc.id.startsWith('temp-')) {
-    const ncDoc = doc(db, 'noticeCirculars', nc.id);
-    await updateDoc(ncDoc, ncData);
-    return nc.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...ncData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'noticeCirculars');
+    if (nc.id && !nc.id.startsWith('nc-') && !nc.id.startsWith('temp-') && !nc.id.startsWith('nc-local-')) {
+      const ncDoc = doc(db, 'noticeCirculars', nc.id);
+      await updateDoc(ncDoc, ncData);
+      savedId = nc.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...ncData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save notice circular failed, persisting locally:', err);
+    if (!savedId) savedId = `nc-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `nc-local-${Date.now()}`;
+
+  // Always update local cache
+  try {
+    const raw = localStorage.getItem('aipeu_notice_circulars');
+    const list: NoticeCircularItem[] = raw ? JSON.parse(raw) : [...DEFAULT_NOTICE_CIRCULARS];
+    const existingIdx = list.findIndex((n) => n.id === finalId);
+    const newItem: NoticeCircularItem = {
+      id: finalId,
+      title: ncData.title,
+      category: ncData.category,
+      published: ncData.published,
+      url: ncData.url,
+      order: ncData.order,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newItem;
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem('aipeu_notice_circulars', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_notice_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_notice_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save notice circular error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteNoticeCircularFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'noticeCirculars', id));
+  try {
+    await deleteDoc(doc(db, 'noticeCirculars', id));
+  } catch (err) {
+    console.warn('Error deleting notice circular from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_notice_circulars');
+    if (raw) {
+      const list: NoticeCircularItem[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_notice_circulars', JSON.stringify(list.filter((n) => n.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_notice_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_notice_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete notice circular error:', e);
+  }
 }
 
 // ================= UNION DOCUMENTS & RULINGS (EXECUTIVE BODY) =================
 
 export async function getUnionDocumentsAndRulingsFromFirestore(): Promise<UnionDocumentRuling[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_ruling_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreItems: UnionDocumentRuling[] = [];
   try {
     const colRef = collection(db, 'unionDocumentsAndRulings');
     const snapshot = await getDocs(colRef);
 
-    if (snapshot.empty) {
-      // Seed default union documents and rulings into Firestore
-      try {
-        for (const item of DEFAULT_UNION_DOCUMENTS_AND_RULINGS) {
-          await addDoc(colRef, {
-            title: item.title,
-            desc: item.desc || '',
-            link: item.link || '',
-            type: item.type || 'Legal',
-            order: item.order || 0,
-            published: item.published || new Date().toISOString().split('T')[0],
-            createdAt: serverTimestamp(),
-          });
-        }
-      } catch (seedErr) {
-        console.warn('Could not auto-seed union documents to Firestore (using default list):', seedErr);
-      }
-      return DEFAULT_UNION_DOCUMENTS_AND_RULINGS;
+    if (!snapshot.empty) {
+      firestoreItems = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          desc: data.desc || '',
+          link: data.link || '',
+          type: data.type || 'Legal',
+          order: data.order ?? 0,
+          published: data.published || '',
+        };
+      });
     }
-
-    const items: UnionDocumentRuling[] = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || '',
-        desc: data.desc || '',
-        link: data.link || '',
-        type: data.type || 'Legal',
-        order: data.order ?? 0,
-        published: data.published || '',
-      };
-    });
-
-    return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (err) {
-    console.error('Error fetching union documents & rulings from Firestore:', err);
-    return DEFAULT_UNION_DOCUMENTS_AND_RULINGS;
+    console.warn('Firestore fetch union documents error:', err);
   }
+
+  let localItems: UnionDocumentRuling[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_union_documents_rulings');
+    if (raw) localItems = JSON.parse(raw);
+  } catch {}
+
+  const map = new Map<string, UnionDocumentRuling>();
+  DEFAULT_UNION_DOCUMENTS_AND_RULINGS.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+  firestoreItems.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+  localItems.forEach((item) => {
+    if (!deletedIds.has(item.id)) map.set(item.id, item);
+  });
+
+  const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+  try {
+    localStorage.setItem('aipeu_union_documents_rulings', JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function saveUnionDocumentRulingToFirestore(
   item: Partial<UnionDocumentRuling> & { id?: string }
 ): Promise<string> {
-  const colRef = collection(db, 'unionDocumentsAndRulings');
+  let savedId = item.id;
   const docData = {
     title: item.title || '',
     desc: item.desc || '',
@@ -654,21 +1213,79 @@ export async function saveUnionDocumentRulingToFirestore(
     updatedAt: serverTimestamp(),
   };
 
-  if (item.id && !item.id.startsWith('doc-ruling-') && !item.id.startsWith('temp-')) {
-    const docItem = doc(db, 'unionDocumentsAndRulings', item.id);
-    await updateDoc(docItem, docData);
-    return item.id;
-  } else {
-    const docRef = await addDoc(colRef, {
-      ...docData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+  try {
+    const colRef = collection(db, 'unionDocumentsAndRulings');
+    if (item.id && !item.id.startsWith('doc-ruling-') && !item.id.startsWith('temp-') && !item.id.startsWith('ruling-local-')) {
+      const docItem = doc(db, 'unionDocumentsAndRulings', item.id);
+      await updateDoc(docItem, docData);
+      savedId = item.id;
+    } else {
+      const docRef = await addDoc(colRef, {
+        ...docData,
+        createdAt: serverTimestamp(),
+      });
+      savedId = docRef.id;
+    }
+  } catch (err) {
+    console.warn('Firestore save union document failed, persisting locally:', err);
+    if (!savedId) savedId = `ruling-local-${Date.now()}`;
   }
+
+  const finalId = savedId || `ruling-local-${Date.now()}`;
+
+  try {
+    const raw = localStorage.getItem('aipeu_union_documents_rulings');
+    const list: UnionDocumentRuling[] = raw ? JSON.parse(raw) : [...DEFAULT_UNION_DOCUMENTS_AND_RULINGS];
+    const existingIdx = list.findIndex((r) => r.id === finalId);
+    const newItem: UnionDocumentRuling = {
+      id: finalId,
+      title: docData.title,
+      desc: docData.desc,
+      link: docData.link,
+      type: docData.type,
+      order: docData.order,
+      published: docData.published,
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = newItem;
+    } else {
+      list.push(newItem);
+    }
+    localStorage.setItem('aipeu_union_documents_rulings', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_ruling_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_ruling_ids', JSON.stringify(delList.filter((x) => x !== finalId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save union document error:', e);
+  }
+
+  return finalId;
 }
 
 export async function deleteUnionDocumentRulingFromFirestore(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'unionDocumentsAndRulings', id));
+  try {
+    await deleteDoc(doc(db, 'unionDocumentsAndRulings', id));
+  } catch (err) {
+    console.warn('Error deleting union document from Firestore:', err);
+  }
+  try {
+    const raw = localStorage.getItem('aipeu_union_documents_rulings');
+    if (raw) {
+      const list: UnionDocumentRuling[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_union_documents_rulings', JSON.stringify(list.filter((r) => r.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_ruling_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_ruling_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete union document error:', e);
+  }
 }
 
 // ================= ORDERS / RULINGS / GUIDE =================
@@ -737,6 +1354,12 @@ export const DEFAULT_ORDERS_RULINGS_GUIDES: OrderRulingGuideItem[] = [
 ];
 
 export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRulingGuideItem[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_org_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
   let firestoreItems: OrderRulingGuideItem[] = [];
   try {
     const colRef = collection(db, 'ordersRulingsGuides');
@@ -760,21 +1383,23 @@ export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRuling
       // Auto-seed defaults if Firestore collection is brand new
       try {
         for (const item of DEFAULT_ORDERS_RULINGS_GUIDES) {
-          await addDoc(colRef, {
-            fileName: item.fileName,
-            folderName: item.folderName,
-            category: item.category,
-            documentUrl: item.documentUrl,
-            published: item.published || new Date().toISOString().split('T')[0],
-            order: item.order || 0,
-            notes: item.notes || '',
-            createdAt: serverTimestamp(),
-          });
+          if (!deletedIds.has(item.id)) {
+            await addDoc(colRef, {
+              fileName: item.fileName,
+              folderName: item.folderName,
+              category: item.category,
+              documentUrl: item.documentUrl,
+              published: item.published || new Date().toISOString().split('T')[0],
+              order: item.order || 0,
+              notes: item.notes || '',
+              createdAt: serverTimestamp(),
+            });
+          }
         }
       } catch (seedErr) {
         console.warn('Could not auto-seed orders rulings guides to Firestore:', seedErr);
       }
-      firestoreItems = [...DEFAULT_ORDERS_RULINGS_GUIDES];
+      firestoreItems = DEFAULT_ORDERS_RULINGS_GUIDES.filter((i) => !deletedIds.has(i.id));
     }
   } catch (err) {
     console.warn('Error fetching orders, rulings & guides from Firestore:', err);
@@ -787,15 +1412,17 @@ export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRuling
     );
     const mergedMap = new Map<string, OrderRulingGuideItem>();
 
-    firestoreItems.forEach((item) => mergedMap.set(item.id, item));
+    DEFAULT_ORDERS_RULINGS_GUIDES.forEach((item) => {
+      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
+    });
+    firestoreItems.forEach((item) => {
+      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
+    });
     localItems.forEach((item) => {
-      mergedMap.set(item.id, item);
+      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
     });
 
     const result = Array.from(mergedMap.values());
-    if (result.length === 0) {
-      return DEFAULT_ORDERS_RULINGS_GUIDES;
-    }
     return result.sort((a, b) => {
       if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
       return (b.published || '').localeCompare(a.published || '');
@@ -883,6 +1510,12 @@ export async function deleteOrderRulingGuideFromFirestore(id: string): Promise<v
     );
     const updated = localList.filter((x) => x.id !== id);
     localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updated));
+    const rawDel = localStorage.getItem('aipeu_deleted_org_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_org_ids', JSON.stringify(delList));
+    }
   } catch (e) {
     console.warn('LocalStorage delete error:', e);
   }

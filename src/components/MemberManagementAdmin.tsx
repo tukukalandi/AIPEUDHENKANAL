@@ -983,7 +983,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                   type="text"
                   value={addOffice}
                   onChange={(e) => setAddOffice(e.target.value)}
-                  placeholder="e.g. Dhenkanal HO or Kamakhyanagar SO"
+                  placeholder="e.g. Dhenkanal Division or Kamakhyanagar SO"
                   required
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
                 />

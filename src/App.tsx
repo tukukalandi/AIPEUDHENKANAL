@@ -74,11 +74,56 @@ import { changeGoogleLanguage } from './services/translator';
 
 export default function App() {
   const [posts, setPosts] = useState<BlogPost[]>(fallbackPosts as BlogPost[]);
-  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
-  const [newsItems, setNewsItems] = useState<NewsSliderItem[]>(DEFAULT_NEWS_ITEMS);
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(DEFAULT_ANNOUNCEMENTS);
-  const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>(DEFAULT_IMPORTANT_DOCUMENTS);
-  const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>(DEFAULT_NOTICE_CIRCULARS);
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_hero_slides');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_HERO_SLIDES;
+  });
+  const [newsItems, setNewsItems] = useState<NewsSliderItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_news_items');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_NEWS_ITEMS;
+  });
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_announcements');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_ANNOUNCEMENTS;
+  });
+  const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_important_documents');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_IMPORTANT_DOCUMENTS;
+  });
+  const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('aipeu_notice_circulars');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_NOTICE_CIRCULARS;
+  });
   const [officeBearers, setOfficeBearers] = useState<OfficeBearer[]>(() => {
     try {
       const stored = localStorage.getItem('aipeu_office_bearers');
@@ -268,12 +313,22 @@ export default function App() {
     const handleNotifUpdate = () => updateUnreadCount();
     const handleBearersUpdated = () => loadOfficeBearers();
 
+    const handleDynamicContentUpdate = () => loadDynamicContent();
+    const handlePostsUpdate = () => fetchPosts();
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('offline-storage-updated', handleStorageUpdate);
     window.addEventListener('online-status-changed', handleStorageUpdate);
     window.addEventListener('notifications-updated', handleNotifUpdate);
     window.addEventListener('office-bearers-updated', handleBearersUpdated);
+    window.addEventListener('dynamic-content-updated', handleDynamicContentUpdate);
+    window.addEventListener('docs-updated', handleDynamicContentUpdate);
+    window.addEventListener('notices-updated', handleDynamicContentUpdate);
+    window.addEventListener('announcements-updated', handleDynamicContentUpdate);
+    window.addEventListener('news-items-updated', handleDynamicContentUpdate);
+    window.addEventListener('hero-slides-updated', handleDynamicContentUpdate);
+    window.addEventListener('posts-updated', handlePostsUpdate);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -282,6 +337,13 @@ export default function App() {
       window.removeEventListener('online-status-changed', handleStorageUpdate);
       window.removeEventListener('notifications-updated', handleNotifUpdate);
       window.removeEventListener('office-bearers-updated', handleBearersUpdated);
+      window.removeEventListener('dynamic-content-updated', handleDynamicContentUpdate);
+      window.removeEventListener('docs-updated', handleDynamicContentUpdate);
+      window.removeEventListener('notices-updated', handleDynamicContentUpdate);
+      window.removeEventListener('announcements-updated', handleDynamicContentUpdate);
+      window.removeEventListener('news-items-updated', handleDynamicContentUpdate);
+      window.removeEventListener('hero-slides-updated', handleDynamicContentUpdate);
+      window.removeEventListener('posts-updated', handlePostsUpdate);
     };
   }, []);
 
@@ -379,8 +441,8 @@ export default function App() {
         getImportantDocumentsFromFirestore(),
         getNoticeCircularsFromFirestore(),
       ]);
-      if (slides && slides.length > 0) setHeroSlides(slides);
-      if (news && news.length > 0) setNewsItems(news);
+      if (slides) setHeroSlides(slides);
+      if (news) setNewsItems(news);
       if (anns) setAnnouncements(anns);
       if (docs) setImportantDocs(docs);
       if (notcs) setNoticeCirculars(notcs);

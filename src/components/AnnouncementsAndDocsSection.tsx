@@ -22,13 +22,14 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
   noticeCirculars,
   onViewAllAnnouncements,
 }) => {
-  const [selectedNoticeCategory, setSelectedNoticeCategory] = useState<string>('NOTICE');
+  const [selectedNoticeCategory, setSelectedNoticeCategory] = useState<string>('ALL');
 
   const annScrollRef = useRef<HTMLDivElement | null>(null);
   const docsScrollRef = useRef<HTMLDivElement | null>(null);
   const noticesScrollRef = useRef<HTMLDivElement | null>(null);
 
   const noticeCategories = [
+    'ALL',
     'NOTICE',
     'ACCOMMODATION',
     'CGHS',
@@ -38,6 +39,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
 
   // Filter notice circulars by active category (matching PENSION to PENSION/SALARY & MISC to MISCELLANEOUS too)
   const filteredNotices = noticeCirculars.filter((item) => {
+    if (selectedNoticeCategory === 'ALL') return true;
     const itemCat = (item.category || 'NOTICE').toUpperCase().trim();
     const activeCat = selectedNoticeCategory.toUpperCase().trim();
     if (activeCat === 'PENSION/SALARY') {
@@ -49,14 +51,40 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
     return itemCat === activeCat;
   });
 
-  const handleOpenLink = (url?: string) => {
+  const handleOpenLink = (url?: string, title?: string) => {
     if (!url) return;
     if (url.startsWith('#')) {
       const el = document.querySelector(url);
       if (el) el.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      window.open(url, '_blank');
+      return;
     }
+    if (url.startsWith('data:')) {
+      try {
+        const arr = url.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank');
+        if (!win) {
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${(title || 'document').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+        return;
+      } catch (err) {
+        console.error('Error handling data URL:', err);
+      }
+    }
+    window.open(url, '_blank');
   };
 
   /**
@@ -153,7 +181,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
             announcements.map((item) => (
               <div
                 key={item.id}
-                onClick={() => handleOpenLink(item.link || '#')}
+                onClick={() => handleOpenLink(item.link || '#', item.title)}
                 className="group cursor-pointer border-l-4 border-amber-500 hover:border-red-600 pl-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-r-2xl border border-slate-200/60 dark:border-slate-700/60 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -233,7 +261,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
               importantDocs.map((docItem) => (
                 <div
                   key={docItem.id}
-                  onClick={() => handleOpenLink(docItem.url)}
+                  onClick={() => handleOpenLink(docItem.url, docItem.title)}
                   className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:border-blue-500 hover:shadow-md cursor-pointer group transition-all duration-200"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -335,7 +363,7 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
               filteredNotices.map((nc) => (
                 <div
                   key={nc.id}
-                  onClick={() => handleOpenLink(nc.url || '#')}
+                  onClick={() => handleOpenLink(nc.url || '#', nc.title)}
                   className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:border-amber-500 hover:shadow-md cursor-pointer group space-y-1.5 transition-all duration-200"
                 >
                   <div className="flex items-start gap-3">

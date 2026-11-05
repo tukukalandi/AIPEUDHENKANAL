@@ -463,7 +463,7 @@ export const FeedTab: React.FC<FeedTabProps> = ({
                 <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
                 {filteredPosts.length} Circulars & Notices
               </span>
-              <span className="text-[11px] text-slate-400 font-medium">Updated from Dhenkanal HO</span>
+              <span className="text-[11px] text-slate-400 font-medium">Updated from Dhenkanal Division</span>
             </div>
 
             {filteredPosts.length === 0 ? (

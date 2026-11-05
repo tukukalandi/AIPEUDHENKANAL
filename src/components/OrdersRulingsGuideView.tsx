@@ -17,7 +17,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { OrderRulingGuideItem, PlatformStyle } from '../types';
-import { getOrdersRulingsGuidesFromFirestore } from '../services/firebase';
+import { getOrdersRulingsGuidesFromFirestore, DEFAULT_ORDERS_RULINGS_GUIDES } from '../services/firebase';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
 
 interface OrdersRulingsGuideViewProps {
@@ -203,8 +203,17 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
   platform = 'android',
   onOpenAdmin,
 }) => {
-  const [items, setItems] = useState<OrderRulingGuideItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [items, setItems] = useState<OrderRulingGuideItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_orders_rulings_guides');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_ORDERS_RULINGS_GUIDES;
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<string>('All');
@@ -215,7 +224,9 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
     try {
       setIsRefreshing(true);
       const data = await getOrdersRulingsGuidesFromFirestore();
-      setItems(data);
+      if (data && data.length > 0) {
+        setItems(data);
+      }
     } catch (err) {
       console.error('Failed to load Orders/Rulings/Guide items:', err);
     } finally {

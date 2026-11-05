@@ -221,7 +221,7 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
           <div className="mb-5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-2xl p-3 text-xs text-slate-700 dark:text-slate-300">
             <div className="flex items-center gap-1.5 font-bold text-[#022A61] dark:text-blue-300 mb-1">
               <KeyRound className="w-3.5 h-3.5" />
-              <span>Registered Member Credentials (Dhenkanal HO):</span>
+              <span>Registered Member Credentials (Dhenkanal Division):</span>
             </div>
             <div className="font-mono text-[11px] space-y-0.5 text-slate-600 dark:text-slate-400">
               <p>ID: <span className="font-bold text-slate-900 dark:text-white">AIPEU-DKL-1001</span> or Mob: <span className="font-bold text-slate-900 dark:text-white">9861184651</span></p>
