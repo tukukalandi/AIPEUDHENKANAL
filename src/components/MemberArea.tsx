@@ -30,6 +30,7 @@ import {
   getLiveMemberProfile,
   logoutMember,
   requestPasswordReset,
+  changeMemberPassword,
 } from '../services/memberAuth';
 import {
   submitProfileUpdateRequest,
@@ -57,6 +58,17 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
+
+  // Mandatory First Login Change Password State
+  const [currentPassInput, setCurrentPassInput] = useState('');
+  const [newPassInput, setNewPassInput] = useState('');
+  const [confirmPassInput, setConfirmPassInput] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [changePassLoading, setChangePassLoading] = useState(false);
+  const [changePassError, setChangePassError] = useState('');
+  const [changePassSuccess, setChangePassSuccess] = useState('');
 
   // Forgot Password State
   const [isForgotOpen, setIsForgotOpen] = useState(false);
@@ -106,6 +118,16 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
     }
   }, [session?.memberId]);
 
+  useEffect(() => {
+    const handleMembersUpdated = () => {
+      if (session) {
+        refreshMember(session);
+      }
+    };
+    window.addEventListener('members-updated', handleMembersUpdated);
+    return () => window.removeEventListener('members-updated', handleMembersUpdated);
+  }, [session?.memberId]);
+
   // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +140,7 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
       if (res.success && res.member && res.session) {
         setSession(res.session);
         setMember(res.member);
-        setLoginSuccessMsg('Login successful! Welcome Comrade.');
+        setLoginSuccessMsg(`Login successful! Welcome ${res.member.name}.`);
         // Populate update form defaults
         setUpdateCadre(res.member.cadre);
         setUpdateOffice(res.member.office);
@@ -135,6 +157,57 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
       setLoginError(err?.message || 'An unexpected error occurred during login. Please try again.');
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  // Handle Force Password Change on First Login
+  const handleForcePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePassError('');
+    setChangePassSuccess('');
+
+    if (!currentPassInput) {
+      setChangePassError('Please enter your current/default password.');
+      return;
+    }
+
+    if (!newPassInput || newPassInput.length < 6) {
+      setChangePassError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassInput !== confirmPassInput) {
+      setChangePassError('New password and confirm password do not match.');
+      return;
+    }
+
+    if (currentPassInput === newPassInput) {
+      setChangePassError('New password cannot be the same as your current/default password.');
+      return;
+    }
+
+    setChangePassLoading(true);
+    try {
+      const activeId = session?.membershipId || member?.membershipId || identifier;
+      const res = await changeMemberPassword(activeId, currentPassInput, newPassInput);
+      if (res.success) {
+        setChangePassSuccess(res.message || 'Password changed successfully! Redirecting...');
+        setTimeout(() => {
+          setSession((prev) => (prev ? { ...prev, mustChangePassword: false, passwordStatus: 'Updated' } : null));
+          setMember((prev) => (prev ? { ...prev, mustChangePassword: false, passwordStatus: 'Updated' } : null));
+          setCurrentPassInput('');
+          setNewPassInput('');
+          setConfirmPassInput('');
+          setChangePassSuccess('');
+          setChangePassError('');
+        }, 1000);
+      } else {
+        setChangePassError(res.message || 'Failed to update password. Please check your current password.');
+      }
+    } catch (err: any) {
+      setChangePassError(err?.message || 'An unexpected error occurred while updating password.');
+    } finally {
+      setChangePassLoading(false);
     }
   };
 
@@ -180,17 +253,19 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
       if (updatePhotoUrl.trim() !== (member.photoUrl || '')) proposed.photoUrl = updatePhotoUrl.trim();
 
       if (Object.keys(proposed).length === 0) {
-        alert('No changes were detected in the form.');
+        setUpdateSuccessMsg('No changes were detected in the form.');
+        setIsUpdateModalOpen(false);
         setSubmittingUpdate(false);
         return;
       }
 
       await submitProfileUpdateRequest(member, proposed);
-      setUpdateSuccessMsg('Your profile update request has been submitted for Divisional Executive approval.');
+      setUpdateSuccessMsg('Your profile has been updated and synchronized with the Divisional Member Register.');
       setIsUpdateModalOpen(false);
       refreshMember();
     } catch (err: any) {
-      alert(err.message || 'Failed to submit update request.');
+      setUpdateSuccessMsg(`Error: ${err.message || 'Failed to submit update request.'}`);
+      setIsUpdateModalOpen(false);
     } finally {
       setSubmittingUpdate(false);
     }
@@ -400,7 +475,152 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
     );
   }
 
-  // ================= 2. AUTHENTICATED MEMBER DASHBOARD =================
+  // ================= 2. MANDATORY FIRST LOGIN / CHANGE DEFAULT PASSWORD SCREEN =================
+  if (session && member && session.mustChangePassword) {
+    return (
+      <div className="max-w-md mx-auto py-4 sm:py-8 animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border-2 border-amber-300 dark:border-amber-700 shadow-2xl">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center mx-auto mb-3 shadow-md ring-4 ring-amber-100 dark:ring-amber-950">
+              <KeyRound className="w-7 h-7 stroke-[2.2]" />
+            </div>
+            <span className="text-[10px] font-black tracking-widest uppercase text-amber-600 dark:text-amber-400 block">
+              MANDATORY SECURITY REQUIREMENT
+            </span>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+              Change Default Password
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              <span className="font-bold text-slate-900 dark:text-white">{member.name}</span> ({member.membershipId}), you are logging in with a default or administrator-assigned temporary password. For your account security, you must set a personalized password to continue to the User Portal.
+            </p>
+          </div>
+
+          {/* Error & Success Messages */}
+          {changePassError && (
+            <div className="mb-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-3 rounded-xl text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{changePassError}</span>
+            </div>
+          )}
+
+          {changePassSuccess && (
+            <div className="mb-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200 p-3 rounded-xl text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{changePassSuccess}</span>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleForcePasswordChange} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
+                Current / Default Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showCurrentPass ? 'text' : 'password'}
+                  value={currentPassInput}
+                  onChange={(e) => setCurrentPassInput(e.target.value)}
+                  placeholder="Enter current default password"
+                  required
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title={showCurrentPass ? 'Hide password' : 'Show password'}
+                >
+                  {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
+                New Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPass ? 'text' : 'password'}
+                  value={newPassInput}
+                  onChange={(e) => setNewPassInput(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  required
+                  minLength={6}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPass(!showNewPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title={showNewPass ? 'Hide password' : 'Show password'}
+                >
+                  {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
+                Confirm New Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPass ? 'text' : 'password'}
+                  value={confirmPassInput}
+                  onChange={(e) => setConfirmPassInput(e.target.value)}
+                  placeholder="Re-enter your new password"
+                  required
+                  minLength={6}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title={showConfirmPass ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <button
+                type="submit"
+                disabled={changePassLoading}
+                className="w-full bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-60 text-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {changePassLoading ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    <span>Updating Password...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Update Password &amp; Enter Portal</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel &amp; Sign Out
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= 3. AUTHENTICATED MEMBER DASHBOARD =================
   const isActive = member.status === 'Active';
   const isPending = member.status === 'Pending';
   const isExpired = member.status === 'Expired';

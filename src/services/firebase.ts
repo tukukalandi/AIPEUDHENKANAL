@@ -25,8 +25,10 @@ import {
 } from '../data/dakshikshaData';
 import fallbackPosts from '../data/posts.json';
 
+import { getAuth, Auth } from 'firebase/auth';
+
 // Initialize Firebase App
-const app = getApps().length > 0 ? getApp() : initializeApp({
+export const app = getApps().length > 0 ? getApp() : initializeApp({
   projectId: firebaseConfig.projectId,
   appId: firebaseConfig.appId,
   apiKey: firebaseConfig.apiKey,
@@ -35,9 +37,27 @@ const app = getApps().length > 0 ? getApp() : initializeApp({
   messagingSenderId: firebaseConfig.messagingSenderId,
 });
 
+// Initialize Firebase Auth
+export const auth: Auth = getAuth(app);
+
 // Initialize Firestore using the designated databaseId from config if present
 const dbId = (firebaseConfig as Record<string, any>).firestoreDatabaseId;
 export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
+
+// Helper to get an isolated secondary Firebase app for admin creating member auth accounts
+export function getSecondaryAdminAuth(): Auth {
+  const secondaryAppName = 'aipeu-member-admin-provisioner';
+  const existing = getApps().find((a) => a.name === secondaryAppName);
+  const secApp = existing || initializeApp({
+    projectId: firebaseConfig.projectId,
+    appId: firebaseConfig.appId,
+    apiKey: firebaseConfig.apiKey,
+    authDomain: firebaseConfig.authDomain,
+    storageBucket: firebaseConfig.storageBucket,
+    messagingSenderId: firebaseConfig.messagingSenderId,
+  }, secondaryAppName);
+  return getAuth(secApp);
+}
 
 // Test connection on boot
 export async function testFirestoreConnection() {

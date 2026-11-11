@@ -1,5 +1,11 @@
 import { MemberProfile, MemberCredential, CardStatus } from '../types';
-import { db } from './firebase';
+import { db, auth, getSecondaryAdminAuth } from './firebase';
+import {
+  signInWithEmailAndPassword,
+  updatePassword as fbUpdatePassword,
+  signOut as fbSignOut,
+  createUserWithEmailAndPassword,
+} from 'firebase/auth';
 import {
   collection,
   doc,
@@ -20,14 +26,35 @@ const LOGIN_RATE_LIMIT_KEY = 'aipeu_login_attempts';
 export interface MemberSession {
   memberId: string;
   membershipId: string;
+  uid?: string;
   name: string;
   cadre: string;
   office: string;
   division: string;
   status: 'Active' | 'Pending' | 'Expired';
+  mustChangePassword?: boolean;
+  passwordStatus?: 'Default' | 'Updated';
   token: string;
   loginAt: string;
   expiresAt: number;
+}
+
+// Fast timeout wrapper so Auth/Firestore calls never hang on slow mobile connections
+function withTimeout<T>(promise: Promise<T>, ms = 2200): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Operation timed out after ${ms}ms`));
+    }, ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 // ================= PASSWORD HASHING (PBKDF2 SHA-256) =================
@@ -120,14 +147,11 @@ function recordFailedAttempt(identifier: string): void {
     const record = data[identifier] || { attempts: 0, lockedUntil: 0 };
     record.attempts += 1;
     if (record.attempts >= 5) {
-      // Lock for 15 minutes
       record.lockedUntil = Date.now() + 15 * 60 * 1000;
     }
     data[identifier] = record;
     sessionStorage.setItem(LOGIN_RATE_LIMIT_KEY, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 function clearRateLimitRecord(identifier: string): void {
@@ -135,9 +159,7 @@ function clearRateLimitRecord(identifier: string): void {
     const data = JSON.parse(sessionStorage.getItem(LOGIN_RATE_LIMIT_KEY) || '{}');
     delete data[identifier];
     sessionStorage.setItem(LOGIN_RATE_LIMIT_KEY, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 // ================= SECURE MEMBER LOGIN FLOW =================
@@ -156,7 +178,7 @@ export async function loginMember(identifierInput: string, passwordInput: string
   if (!cleanId) {
     return {
       success: false,
-      message: 'Please enter your Membership ID or registered mobile number.',
+      message: 'Please enter your registered 10-digit Mobile Number or Membership ID.',
     };
   }
 
@@ -179,19 +201,19 @@ export async function loginMember(identifierInput: string, passwordInput: string
     };
   }
 
-  // Ensure initial seed members are created if empty
   try {
-    const { seedInitialMembersIfEmpty } = await import('./memberService');
-    await seedInitialMembersIfEmpty();
-  } catch (seedErr) {
-    console.warn('Seed verification notice during login:', seedErr);
-  }
+    const {
+      getCachedMembers,
+      saveCachedMembers,
+      getCachedCredentials,
+      saveCachedCredential,
+      INITIAL_SAMPLE_MEMBERS,
+      getDeletedMemberIds,
+    } = await import('./memberService');
 
-  try {
     const normalizedMobile = normalizeMobileNumber(cleanId);
     let upperId = cleanId.toUpperCase();
 
-    // Support numeric shorthand like '1001' or 'DKL-1001' -> 'AIPEU-DKL-1001'
     if (/^\d{4}$/.test(cleanId)) {
       upperId = `AIPEU-DKL-${cleanId}`;
     } else if (/^DKL-\d{4}$/i.test(cleanId)) {
@@ -199,162 +221,264 @@ export async function loginMember(identifierInput: string, passwordInput: string
     }
 
     const cleanEmail = cleanId.toLowerCase();
-    let memberDoc: MemberProfile | null = null;
+    const deletedSet = getDeletedMemberIds();
+
+    // 1. Check local cached members first (contains instant Admin Portal additions & edits)
+    const cachedList = getCachedMembers();
+    let localDoc = cachedList.find(
+      (m) =>
+        !deletedSet.has(m.id) &&
+        !deletedSet.has(m.membershipId.toUpperCase()) &&
+        (m.membershipId.toUpperCase() === upperId ||
+          (normalizedMobile.length === 10 && normalizeMobileNumber(m.mobile) === normalizedMobile) ||
+          (cleanEmail.includes('@') && (m.email || '').toLowerCase() === cleanEmail))
+    );
+
+    // 2. Also query Firestore with fast timeout
+    let firestoreDoc: MemberProfile | null = null;
     const membersCol = collection(db, 'members');
 
-    // 1. Search by membershipId first
     try {
       const qById = query(membersCol, where('membershipId', '==', upperId), limit(1));
-      const snapById = await getDocs(qById);
+      const snapById = await withTimeout(getDocs(qById), 2000);
       if (!snapById.empty) {
         const d = snapById.docs[0];
-        memberDoc = { id: d.id, ...d.data() } as MemberProfile;
+        firestoreDoc = { id: d.id, ...d.data() } as MemberProfile;
       }
-    } catch (e) {
-      console.warn('Query by membershipId failed:', e);
-    }
+    } catch {}
 
-    // 2. Search by mobile number if not found yet
-    if (!memberDoc && normalizedMobile.length === 10) {
+    if (!firestoreDoc && normalizedMobile.length === 10) {
       try {
         const qByMobile = query(membersCol, where('mobile', '==', normalizedMobile), limit(1));
-        const snapByMobile = await getDocs(qByMobile);
+        const snapByMobile = await withTimeout(getDocs(qByMobile), 2000);
         if (!snapByMobile.empty) {
           const d = snapByMobile.docs[0];
-          memberDoc = { id: d.id, ...d.data() } as MemberProfile;
+          firestoreDoc = { id: d.id, ...d.data() } as MemberProfile;
         }
-      } catch (e) {
-        console.warn('Query by mobile failed:', e);
-      }
+      } catch {}
     }
 
-    // 3. Search by email if applicable
-    if (!memberDoc && cleanEmail.includes('@')) {
-      try {
-        const qByEmail = query(membersCol, where('email', '==', cleanEmail), limit(1));
-        const snapByEmail = await getDocs(qByEmail);
-        if (!snapByEmail.empty) {
-          const d = snapByEmail.docs[0];
-          memberDoc = { id: d.id, ...d.data() } as MemberProfile;
-        }
-      } catch (e) {
-        console.warn('Query by email failed:', e);
-      }
+    // Choose whichever record is more recent between localDoc and firestoreDoc
+    let memberDoc: MemberProfile | null = null;
+    if (localDoc && firestoreDoc) {
+      memberDoc =
+        (localDoc.updatedAt || '') >= (firestoreDoc.updatedAt || '') ? localDoc : firestoreDoc;
+    } else {
+      memberDoc = localDoc || firestoreDoc || null;
     }
 
-    // 4. Fallback: check localStorage cached members or INITIAL_SAMPLE_MEMBERS if Firestore was empty or offline
+    // 3. Fallback to initial sample members if neither had it and not deleted
     if (!memberDoc) {
-      try {
-        const cachedRaw = localStorage.getItem('aipeu_cached_members');
-        const cachedList: MemberProfile[] = cachedRaw ? JSON.parse(cachedRaw) : [];
-        const { INITIAL_SAMPLE_MEMBERS } = await import('./memberService');
-        const searchPool = [...cachedList, ...INITIAL_SAMPLE_MEMBERS];
-
-        const match = searchPool.find(
-          (m) =>
-            m.membershipId.toUpperCase() === upperId ||
-            (normalizedMobile.length === 10 && normalizeMobileNumber(m.mobile) === normalizedMobile) ||
-            (cleanEmail.includes('@') && (m.email || '').toLowerCase() === cleanEmail)
-        );
-        if (match) {
-          memberDoc = match;
-        }
-      } catch (poolErr) {
-        console.warn('Local search pool fallback note:', poolErr);
+      const sampleMatch = INITIAL_SAMPLE_MEMBERS.find(
+        (m) =>
+          !deletedSet.has(m.id) &&
+          !deletedSet.has(m.membershipId.toUpperCase()) &&
+          (m.membershipId.toUpperCase() === upperId ||
+            (normalizedMobile.length === 10 && normalizeMobileNumber(m.mobile) === normalizedMobile))
+      );
+      if (sampleMatch) {
+        memberDoc = { ...sampleMatch };
       }
     }
 
-    // If member still cannot be resolved
-    if (!memberDoc) {
+    if (!memberDoc || deletedSet.has(memberDoc.id) || deletedSet.has(memberDoc.membershipId.toUpperCase())) {
       recordFailedAttempt(normalizedKey);
       return {
         success: false,
-        message: 'No member found matching this Membership ID, Mobile number, or Email. Please check your details or contact the Union Office.',
+        message: 'Account not found. No member is registered with this Mobile Number or Membership ID.',
       };
     }
 
-    // Password verification
-    let isPasswordValid = false;
-
-    // A. Check Firestore memberCredentials collection
-    try {
-      const credDocRef = doc(db, 'memberCredentials', memberDoc.membershipId);
-      const credSnap = await getDoc(credDocRef);
-
-      if (credSnap.exists()) {
-        const credData = credSnap.data() as MemberCredential;
-        if (credData.passwordHash && credData.salt) {
-          isPasswordValid = await verifyPassword(cleanPass, credData.salt, credData.passwordHash);
-        }
-      }
-    } catch (credErr) {
-      console.warn('Firestore credential check error, checking fallback:', credErr);
+    // Check account status: only active accounts can log in
+    if (memberDoc.status !== 'Active') {
+      return {
+        success: false,
+        message:
+          memberDoc.status === 'Pending'
+            ? 'Your membership account is pending verification and approval by the Divisional Secretary.'
+            : 'Your member account has been deactivated or expired. Please contact the Divisional Office to reactivate.',
+      };
     }
 
-    // B. Default password fallback for newly registered or seeded comrades ('Member@1234')
-    if (!isPasswordValid && cleanPass === 'Member@1234') {
-      isPasswordValid = true;
-      // Auto-provision or heal credential record in background
-      try {
-        const salt = generateSalt();
-        const passwordHash = await hashPassword('Member@1234', salt);
-        await setDoc(doc(db, 'memberCredentials', memberDoc.membershipId), {
-          membershipId: memberDoc.membershipId,
-          mobile: memberDoc.mobile,
-          email: memberDoc.email,
-          passwordHash,
-          salt,
-          failedAttempts: 0,
-          updatedAt: new Date().toISOString(),
-        });
-      } catch (healErr) {
-        console.warn('Auto credential healing note:', healErr);
+    // ================= PASSWORD VERIFICATION =================
+    let isPasswordValid = false;
+    let authUserUid = memberDoc.uid || '';
+
+    // Check cached credentials & Firestore memberCredentials
+    const cachedCreds = getCachedCredentials();
+    const localCred: MemberCredential | undefined =
+      cachedCreds[memberDoc.membershipId.toUpperCase()] || cachedCreds[memberDoc.mobile];
+
+    let firestoreCred: MemberCredential | null = null;
+    try {
+      const credDocRef = doc(db, 'memberCredentials', memberDoc.membershipId);
+      const credSnap = await withTimeout(getDoc(credDocRef), 2000);
+      if (credSnap.exists()) {
+        firestoreCred = credSnap.data() as MemberCredential;
       }
+    } catch {}
+
+    // Pick newest credential record
+    let credData: MemberCredential | null = null;
+    if (localCred && firestoreCred) {
+      credData =
+        (localCred.updatedAt || '') >= (firestoreCred.updatedAt || '') ? localCred : firestoreCred;
+    } else {
+      credData = localCred || firestoreCred || null;
+    }
+
+    const mobileAuthEmail =
+      credData?.authEmail ||
+      (memberDoc.authEpoch && memberDoc.authEpoch > 1
+        ? `${memberDoc.mobile || normalizedMobile}_v${memberDoc.authEpoch}@member.aipeudhenkanal.org`
+        : `${memberDoc.mobile || normalizedMobile}@member.aipeudhenkanal.org`);
+
+    // 1. Check PBKDF2 hash first (fast, offline-capable, and reflects immediate admin password resets)
+    if (credData && credData.passwordHash && credData.salt) {
+      isPasswordValid = await verifyPassword(cleanPass, credData.salt, credData.passwordHash);
+    }
+
+    // 2. Also verify or sign in with Firebase Authentication
+    try {
+      const userCredential = await withTimeout(
+        signInWithEmailAndPassword(auth, mobileAuthEmail, cleanPass),
+        2200
+      );
+      if (userCredential.user) {
+        isPasswordValid = true;
+        authUserUid = userCredential.user.uid;
+      }
+    } catch {
+      // If Firebase Auth wasn't provisioned yet or timed out, rely on verified PBKDF2 hash
+    }
+
+    // 3. Fallback for default password 'Member@1234' on initial seed accounts without custom credentials
+    if (
+      !isPasswordValid &&
+      cleanPass === 'Member@1234' &&
+      (!credData || credData.passwordStatus === 'Default') &&
+      memberDoc.passwordStatus !== 'Updated'
+    ) {
+      isPasswordValid = true;
     }
 
     if (!isPasswordValid) {
       recordFailedAttempt(normalizedKey);
       return {
         success: false,
-        message: 'Incorrect password. Default union access password is Member@1234 (case-sensitive).',
+        message: 'Incorrect password. Please verify and try again.',
       };
     }
 
-    // Login successful: clear rate limits
+    // Clear rate limits upon successful login
     clearRateLimitRecord(normalizedKey);
+
+    const nowIso = new Date().toISOString();
+    const mustChangePassword =
+      credData?.mustChangePassword ??
+      memberDoc.mustChangePassword ??
+      (credData?.passwordStatus !== 'Updated' && memberDoc.passwordStatus !== 'Updated');
+    const passwordStatus = mustChangePassword ? 'Default' : 'Updated';
+
+    // Update member record locally & in Firestore with lastLogin
+    memberDoc.lastLogin = nowIso;
+    if (authUserUid) memberDoc.uid = authUserUid;
+    memberDoc.mustChangePassword = mustChangePassword;
+    memberDoc.passwordStatus = passwordStatus;
+    memberDoc.updatedAt = nowIso;
+
+    // Update cached members list
+    const updatedList = [
+      memberDoc,
+      ...cachedList.filter(
+        (m) => m.id !== memberDoc!.id && m.membershipId !== memberDoc!.membershipId
+      ),
+    ];
+    saveCachedMembers(updatedList);
+
+    if (credData) {
+      credData.lastLogin = nowIso;
+      credData.updatedAt = nowIso;
+      saveCachedCredential(credData);
+    }
+
+    // Non-blocking background sync to Firestore & Firebase Auth
+    (async () => {
+      try {
+        if (!authUserUid) {
+          const secAuth = getSecondaryAdminAuth();
+          const created = await withTimeout(
+            createUserWithEmailAndPassword(secAuth, mobileAuthEmail, cleanPass),
+            2000
+          );
+          authUserUid = created.user.uid;
+          await fbSignOut(secAuth);
+        }
+      } catch {}
+
+      try {
+        await withTimeout(
+          Promise.all([
+            setDoc(
+              doc(db, 'members', memberDoc!.id),
+              {
+                lastLogin: nowIso,
+                uid: authUserUid || memberDoc!.uid || '',
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            ),
+            setDoc(
+              doc(db, 'memberCredentials', memberDoc!.membershipId),
+              {
+                uid: authUserUid || memberDoc!.uid || '',
+                authEmail: mobileAuthEmail,
+                lastLogin: nowIso,
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            ),
+          ]),
+          2200
+        );
+      } catch {}
+    })();
 
     // Create secure member session (8 hours validity)
     const sessionToken = generateUnguessableToken();
     const session: MemberSession = {
       memberId: memberDoc.id,
       membershipId: memberDoc.membershipId,
+      uid: authUserUid || memberDoc.uid,
       name: memberDoc.name,
       cadre: memberDoc.cadre,
       office: memberDoc.office,
       division: memberDoc.division || 'Dhenkanal',
       status: memberDoc.status,
+      mustChangePassword,
+      passwordStatus,
       token: sessionToken,
-      loginAt: new Date().toISOString(),
+      loginAt: nowIso,
       expiresAt: Date.now() + 8 * 60 * 60 * 1000,
     };
 
     sessionStorage.setItem(MEMBER_SESSION_KEY, JSON.stringify(session));
-
-    // Cache active profile locally for offline continuity
     try {
       localStorage.setItem('aipeu_last_active_member', JSON.stringify(memberDoc));
     } catch {}
+
+    window.dispatchEvent(new CustomEvent('members-updated'));
 
     return {
       success: true,
       member: memberDoc,
       session,
     };
-  } catch (err) {
+  } catch (err: any) {
     console.error('Member login error:', err);
     return {
       success: false,
-      message: 'A connection issue occurred during authentication. Please try again.',
+      message: err?.message || 'A connection issue occurred during authentication. Please try again.',
     };
   }
 }
@@ -376,41 +500,46 @@ export function getActiveMemberSession(): MemberSession | null {
 }
 
 export async function getLiveMemberProfile(memberId: string): Promise<MemberProfile | null> {
-  // 1. Try Firestore lookup
+  // 1. Check local cached members first for instant UI response
+  let localMatch: MemberProfile | null = null;
   try {
-    const docRef = doc(db, 'members', memberId);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return { id: snap.id, ...snap.data() } as MemberProfile;
-    }
-  } catch (err) {
-    console.warn('Firestore member lookup note:', err);
-  }
-
-  // 2. Try cached member
-  try {
-    const lastActive = localStorage.getItem('aipeu_last_active_member');
-    if (lastActive) {
-      const parsed: MemberProfile = JSON.parse(lastActive);
-      if (parsed.id === memberId || parsed.membershipId === memberId) {
-        return parsed;
-      }
-    }
-
     const cachedRaw = localStorage.getItem('aipeu_cached_members');
     if (cachedRaw) {
       const list: MemberProfile[] = JSON.parse(cachedRaw);
-      const found = list.find((m) => m.id === memberId || m.membershipId === memberId);
-      if (found) return found;
+      localMatch = list.find((m) => m.id === memberId || m.membershipId === memberId) || null;
     }
+    if (!localMatch) {
+      const lastActive = localStorage.getItem('aipeu_last_active_member');
+      if (lastActive) {
+        const parsed: MemberProfile = JSON.parse(lastActive);
+        if (parsed.id === memberId || parsed.membershipId === memberId) {
+          localMatch = parsed;
+        }
+      }
+    }
+  } catch {}
 
-    // 3. Try initial sample members
+  // 2. Try Firestore lookup with fast timeout
+  try {
+    const docRef = doc(db, 'members', memberId);
+    const snap = await withTimeout(getDoc(docRef), 2000);
+    if (snap.exists()) {
+      const fbDoc = { id: snap.id, ...snap.data() } as MemberProfile;
+      if (!localMatch || (fbDoc.updatedAt || '') >= (localMatch.updatedAt || '')) {
+        return fbDoc;
+      }
+    }
+  } catch {}
+
+  if (localMatch) return localMatch;
+
+  try {
     const { INITIAL_SAMPLE_MEMBERS } = await import('./memberService');
-    const sample = INITIAL_SAMPLE_MEMBERS.find((m) => m.id === memberId || m.membershipId === memberId);
+    const sample = INITIAL_SAMPLE_MEMBERS.find(
+      (m) => m.id === memberId || m.membershipId === memberId
+    );
     if (sample) return sample;
-  } catch (fallbackErr) {
-    console.warn('Local member fallback error:', fallbackErr);
-  }
+  } catch {}
 
   return null;
 }
@@ -418,9 +547,7 @@ export async function getLiveMemberProfile(memberId: string): Promise<MemberProf
 export function logoutMember(): void {
   try {
     sessionStorage.removeItem(MEMBER_SESSION_KEY);
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 // ================= PASSWORD RESET & RECOVERY =================
@@ -433,7 +560,6 @@ export async function requestPasswordReset(identifier: string): Promise<{ succes
     };
   }
 
-  // Generic response to prevent enumeration
   const genericResponse = {
     success: true,
     message:
@@ -443,38 +569,239 @@ export async function requestPasswordReset(identifier: string): Promise<{ succes
   try {
     const normalizedMobile = normalizeMobileNumber(cleanId);
     const upperId = cleanId.toUpperCase();
-    const membersCol = collection(db, 'members');
-
-    let memberFound: MemberProfile | null = null;
-    const qById = query(membersCol, where('membershipId', '==', upperId), limit(1));
-    const snapById = await getDocs(qById);
-
-    if (!snapById.empty) {
-      memberFound = { id: snapById.docs[0].id, ...snapById.docs[0].data() } as MemberProfile;
-    } else if (normalizedMobile.length === 10) {
-      const qByMob = query(membersCol, where('mobile', '==', normalizedMobile), limit(1));
-      const snapByMob = await getDocs(qByMob);
-      if (!snapByMob.empty) {
-        memberFound = { id: snapByMob.docs[0].id, ...snapByMob.docs[0].data() } as MemberProfile;
-      }
-    }
+    const { getCachedMembers } = await import('./memberService');
+    const memberFound = getCachedMembers().find(
+      (m) => m.membershipId.toUpperCase() === upperId || normalizeMobileNumber(m.mobile) === normalizedMobile
+    );
 
     if (memberFound) {
-      // Record a reset request in Firestore for administrator audit & assistance
-      await setDoc(doc(db, 'passwordResetRequests', memberFound.membershipId), {
-        memberId: memberFound.id,
-        membershipId: memberFound.membershipId,
-        memberName: memberFound.name,
-        mobile: memberFound.mobile,
-        email: memberFound.email || '',
-        requestedAt: new Date().toISOString(),
-        status: 'PendingAdminAssistance',
-        updatedAt: serverTimestamp(),
-      });
+      await withTimeout(
+        setDoc(doc(db, 'passwordResetRequests', memberFound.membershipId), {
+          memberId: memberFound.id,
+          membershipId: memberFound.membershipId,
+          memberName: memberFound.name,
+          mobile: memberFound.mobile,
+          email: memberFound.email || '',
+          requestedAt: new Date().toISOString(),
+          status: 'PendingAdminAssistance',
+          updatedAt: serverTimestamp(),
+        }),
+        2000
+      );
     }
-
     return genericResponse;
   } catch {
     return genericResponse;
+  }
+}
+
+// ================= MEMBER PASSWORD CHANGE (FIRST-LOGIN & REGULAR) =================
+export async function changeMemberPassword(
+  identifier: string,
+  currentPasswordInput: string,
+  newPasswordInput: string
+): Promise<{ success: boolean; message: string }> {
+  const cleanId = (identifier || '').trim();
+  const cleanCurrent = (currentPasswordInput || '').trim();
+  const cleanNew = (newPasswordInput || '').trim();
+
+  if (!cleanCurrent) {
+    return { success: false, message: 'Please enter your current/default password.' };
+  }
+  if (!cleanNew) {
+    return { success: false, message: 'Please enter a new password.' };
+  }
+  if (cleanNew.length < 6) {
+    return { success: false, message: 'New password must be at least 6 characters long.' };
+  }
+  if (cleanCurrent === cleanNew) {
+    return {
+      success: false,
+      message: 'New password must be different from your current/default password.',
+    };
+  }
+
+  try {
+    const {
+      getCachedMembers,
+      saveCachedMembers,
+      getCachedCredentials,
+      saveCachedCredential,
+      INITIAL_SAMPLE_MEMBERS,
+    } = await import('./memberService');
+
+    const normalizedMobile = normalizeMobileNumber(cleanId);
+    let upperId = cleanId.toUpperCase();
+    if (/^\d{4}$/.test(cleanId)) upperId = `AIPEU-DKL-${cleanId}`;
+
+    const cachedList = getCachedMembers();
+    let memberDoc: MemberProfile | null =
+      cachedList.find(
+        (m) =>
+          m.membershipId.toUpperCase() === upperId ||
+          m.id === cleanId ||
+          (normalizedMobile.length === 10 && normalizeMobileNumber(m.mobile) === normalizedMobile)
+      ) || null;
+
+    if (!memberDoc) {
+      memberDoc =
+        INITIAL_SAMPLE_MEMBERS.find(
+          (m) =>
+            m.membershipId.toUpperCase() === upperId ||
+            (normalizedMobile.length === 10 && normalizeMobileNumber(m.mobile) === normalizedMobile)
+        ) || null;
+    }
+
+    if (!memberDoc) {
+      return { success: false, message: 'Member account not found. Please log in again.' };
+    }
+
+    // Fetch credential from local cache & Firestore
+    const cachedCreds = getCachedCredentials();
+    let credData: MemberCredential | null =
+      cachedCreds[memberDoc.membershipId.toUpperCase()] || cachedCreds[memberDoc.mobile] || null;
+
+    const credRef = doc(db, 'memberCredentials', memberDoc.membershipId);
+    if (!credData) {
+      try {
+        const credSnap = await withTimeout(getDoc(credRef), 2000);
+        if (credSnap.exists()) {
+          credData = credSnap.data() as MemberCredential;
+        }
+      } catch {}
+    }
+
+    const mobileAuthEmail =
+      credData?.authEmail ||
+      (memberDoc.authEpoch && memberDoc.authEpoch > 1
+        ? `${memberDoc.mobile || normalizedMobile}_v${memberDoc.authEpoch}@member.aipeudhenkanal.org`
+        : `${memberDoc.mobile || normalizedMobile}@member.aipeudhenkanal.org`);
+
+    // Verify current password
+    let isCurrentValid = false;
+
+    if (credData && credData.salt && credData.passwordHash) {
+      isCurrentValid = await verifyPassword(cleanCurrent, credData.salt, credData.passwordHash);
+    }
+
+    if (!isCurrentValid && cleanCurrent === 'Member@1234' && memberDoc.passwordStatus !== 'Updated') {
+      isCurrentValid = true;
+    }
+
+    if (!isCurrentValid) {
+      try {
+        await withTimeout(signInWithEmailAndPassword(auth, mobileAuthEmail, cleanCurrent), 2000);
+        isCurrentValid = true;
+      } catch {}
+    }
+
+    if (!isCurrentValid) {
+      return { success: false, message: 'The current/default password you entered is incorrect.' };
+    }
+
+    // Compute new PBKDF2 salted hash
+    const newSalt = generateSalt();
+    const newPasswordHash = await hashPassword(cleanNew, newSalt);
+    const nowIso = new Date().toISOString();
+
+    const updatedCred: MemberCredential = {
+      membershipId: memberDoc.membershipId,
+      uid: memberDoc.uid || credData?.uid || '',
+      mobile: memberDoc.mobile,
+      email: memberDoc.email || '',
+      authEmail: mobileAuthEmail,
+      authEpoch: memberDoc.authEpoch || credData?.authEpoch || 1,
+      passwordHash: newPasswordHash,
+      salt: newSalt,
+      mustChangePassword: false,
+      passwordStatus: 'Updated',
+      failedAttempts: 0,
+      updatedAt: nowIso,
+    };
+
+    // 1. Save immediately to localStorage & sessionStorage
+    saveCachedCredential(updatedCred);
+
+    memberDoc.mustChangePassword = false;
+    memberDoc.passwordStatus = 'Updated';
+    memberDoc.updatedAt = nowIso;
+
+    const updatedMembers = [
+      memberDoc,
+      ...cachedList.filter(
+        (m) => m.id !== memberDoc!.id && m.membershipId !== memberDoc!.membershipId
+      ),
+    ];
+    saveCachedMembers(updatedMembers);
+    try {
+      localStorage.setItem('aipeu_last_active_member', JSON.stringify(memberDoc));
+    } catch {}
+
+    const currentSession = getActiveMemberSession();
+    if (
+      currentSession &&
+      (currentSession.membershipId === memberDoc.membershipId || currentSession.memberId === memberDoc.id)
+    ) {
+      currentSession.mustChangePassword = false;
+      currentSession.passwordStatus = 'Updated';
+      sessionStorage.setItem(MEMBER_SESSION_KEY, JSON.stringify(currentSession));
+    }
+
+    window.dispatchEvent(new CustomEvent('members-updated'));
+
+    // 2. Sync to Firebase Auth & Firestore with timeout protection
+    try {
+      if (auth.currentUser) {
+        await withTimeout(fbUpdatePassword(auth.currentUser, cleanNew), 2000);
+      } else {
+        try {
+          const res = await withTimeout(
+            signInWithEmailAndPassword(auth, mobileAuthEmail, cleanCurrent),
+            2000
+          );
+          await withTimeout(fbUpdatePassword(res.user, cleanNew), 2000);
+        } catch {}
+      }
+    } catch {}
+
+    try {
+      await withTimeout(
+        Promise.all([
+          setDoc(
+            credRef,
+            {
+              passwordHash: newPasswordHash,
+              salt: newSalt,
+              mustChangePassword: false,
+              passwordStatus: 'Updated',
+              failedAttempts: 0,
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          ),
+          setDoc(
+            doc(db, 'members', memberDoc.id),
+            {
+              mustChangePassword: false,
+              passwordStatus: 'Updated',
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          ),
+        ]),
+        2200
+      );
+    } catch {}
+
+    return {
+      success: true,
+      message: 'Password updated successfully! Welcome to the User Portal.',
+    };
+  } catch (err: any) {
+    console.error('Password change error:', err);
+    return {
+      success: false,
+      message: err?.message || 'Failed to update password. Please try again.',
+    };
   }
 }

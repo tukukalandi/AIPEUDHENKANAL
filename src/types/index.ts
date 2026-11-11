@@ -165,6 +165,7 @@ export type CardStatus = 'Valid' | 'Expired' | 'Revoked' | 'Invalid';
 export interface MemberProfile {
   id: string;
   membershipId: string;
+  uid?: string; // Firebase Authentication User ID
   name: string;
   fullName?: string;
   cadre: string;
@@ -182,6 +183,10 @@ export interface MemberProfile {
   activeCardToken?: string;
   approvedBy?: string;
   approvedAt?: string;
+  mustChangePassword?: boolean; // True on first login or after Admin password reset
+  passwordStatus?: 'Default' | 'Updated';
+  authEpoch?: number;
+  lastLogin?: string; // ISO string of last successful login
   createdAt: string;
   updatedAt: string;
   remarks?: string;
@@ -189,11 +194,17 @@ export interface MemberProfile {
 
 export interface MemberCredential {
   id?: string;
+  uid?: string; // Firebase Authentication User ID
   membershipId: string;
   mobile: string;
   email: string;
-  passwordHash: string;
-  salt: string;
+  authEmail?: string;
+  authEpoch?: number;
+  passwordHash?: string; // PBKDF2 hash fallback
+  salt?: string;
+  mustChangePassword?: boolean;
+  passwordStatus?: 'Default' | 'Updated';
+  lastLogin?: string;
   failedAttempts: number;
   lockedUntil?: string;
   recoveryEmail?: string;
@@ -281,11 +292,14 @@ export interface MemberAuditLog {
 export interface MemberSession {
   memberId: string;
   membershipId: string;
+  uid?: string;
   name: string;
   cadre: string;
   office: string;
   division: string;
   status: 'Active' | 'Pending' | 'Expired';
+  mustChangePassword?: boolean;
+  passwordStatus?: 'Default' | 'Updated';
   token: string;
   loginAt: string;
   expiresAt: number;

@@ -13,7 +13,8 @@ import {
   serverTimestamp,
   addDoc,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, getSecondaryAdminAuth } from './firebase';
+import { createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import {
   MemberProfile,
   MemberCredential,
@@ -31,6 +32,109 @@ import {
   normalizeMobileNumber,
 } from './memberAuth';
 
+// ================= TIMEOUT & SANITIZATION HELPERS =================
+const CACHED_MEMBERS_KEY = 'aipeu_cached_members';
+const CACHED_CREDENTIALS_KEY = 'aipeu_cached_credentials';
+const DELETED_MEMBERS_KEY = 'aipeu_deleted_member_ids';
+
+export function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Firebase operation timed out after ${ms}ms`));
+    }, ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+export function cleanFirestoreData<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned;
+}
+
+export function getCachedMembers(): MemberProfile[] {
+  try {
+    const raw = localStorage.getItem(CACHED_MEMBERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCachedMembers(list: MemberProfile[]): void {
+  try {
+    localStorage.setItem(CACHED_MEMBERS_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Could not save cached members to localStorage:', e);
+  }
+}
+
+export function getCachedCredentials(): Record<string, MemberCredential> {
+  try {
+    const raw = localStorage.getItem(CACHED_CREDENTIALS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveCachedCredential(cred: MemberCredential): void {
+  try {
+    const all = getCachedCredentials();
+    all[cred.membershipId.toUpperCase()] = cred;
+    if (cred.mobile) {
+      all[cred.mobile] = cred;
+    }
+    localStorage.setItem(CACHED_CREDENTIALS_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.warn('Could not save cached credential to localStorage:', e);
+  }
+}
+
+export function getDeletedMemberIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_MEMBERS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+}
+
+export function markMemberIdDeleted(id: string, membershipId?: string): void {
+  try {
+    const set = getDeletedMemberIds();
+    if (id) set.add(id);
+    if (membershipId) set.add(membershipId.toUpperCase());
+    localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function unmarkMemberIdDeleted(id: string, membershipId?: string): void {
+  try {
+    const set = getDeletedMemberIds();
+    if (id) set.delete(id);
+    if (membershipId) set.delete(membershipId.toUpperCase());
+    localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 // ================= AUDIT LOGGING HELPER =================
 export async function logMemberAudit(
   action: string,
@@ -41,32 +145,62 @@ export async function logMemberAudit(
 ): Promise<void> {
   try {
     const col = collection(db, 'memberAuditLogs');
-    await addDoc(col, {
-      action,
-      actor,
-      targetMemberId,
-      targetMembershipId,
-      details,
-      timestamp: new Date().toISOString(),
-      createdAt: serverTimestamp(),
-    });
+    await withTimeout(
+      addDoc(col, {
+        action,
+        actor,
+        targetMemberId,
+        targetMembershipId,
+        details,
+        timestamp: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+      }),
+      2000
+    );
   } catch (err) {
-    console.warn('Failed to record audit log:', err);
+    console.warn('Audit log note (non-blocking):', err);
   }
 }
 
 // ================= MEMBERSHIP ID GENERATOR =================
 export async function generateUniqueMembershipId(): Promise<string> {
+  const localMembers = getCachedMembers();
+  let maxNumber = 1000 + localMembers.length;
+
+  const extractNum = (idStr: string) => {
+    const match = (idStr || '').match(/(\d+)$/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  for (const m of localMembers) {
+    const n = extractNum(m.membershipId);
+    if (n >= 1000 && n > maxNumber) {
+      maxNumber = n;
+    }
+  }
+
+  for (const sm of INITIAL_SAMPLE_MEMBERS) {
+    const n = extractNum(sm.membershipId);
+    if (n >= 1000 && n > maxNumber) {
+      maxNumber = n;
+    }
+  }
+
   try {
     const col = collection(db, 'members');
-    const snap = await getDocs(col);
-    const existingCount = snap.size;
-    const nextNum = 1001 + existingCount;
-    return `AIPEU-DKL-${nextNum}`;
+    const snap = await withTimeout(getDocs(col), 1800);
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      const n = extractNum(data.membershipId || '');
+      if (n >= 1000 && n > maxNumber) {
+        maxNumber = n;
+      }
+    });
   } catch {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    return `AIPEU-DKL-${randomSuffix}`;
+    // Use local maxNumber if Firestore is slow or offline
   }
+
+  return `AIPEU-DKL-${maxNumber + 1}`;
 }
 
 // ================= INITIAL DEFAULT SAMPLE MEMBERS =================
@@ -74,8 +208,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
   {
     id: 'mem-seed-1001',
     membershipId: 'AIPEU-DKL-1001',
-    name: 'Comrade Tukuna Kalandi',
-    fullName: 'Comrade Tukuna Kalandi',
+    name: 'Tukuna Kalandi',
+    fullName: 'Tukuna Kalandi',
     cadre: 'Postal Assistant',
     office: 'Dhenkanal Division',
     division: 'Dhenkanal',
@@ -84,6 +218,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
     address: 'Staff Quarters, Dhenkanal Division, Odisha - 759001',
     dateOfJoining: '2016-04-12',
     status: 'Active',
+    mustChangePassword: true,
+    passwordStatus: 'Default',
     validFrom: '2026-01-01',
     validTo: '2027-12-31',
     photoUrl: '',
@@ -97,8 +233,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
   {
     id: 'mem-seed-1002',
     membershipId: 'AIPEU-DKL-1002',
-    name: 'Comrade Bijay Kumar Sahoo',
-    fullName: 'Comrade Bijay Kumar Sahoo',
+    name: 'Bijay Kumar Sahoo',
+    fullName: 'Bijay Kumar Sahoo',
     cadre: 'Postman',
     office: 'Kamakhyanagar Sub Post Office',
     division: 'Dhenkanal',
@@ -107,6 +243,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
     address: 'At/PO Kamakhyanagar, Dhenkanal, Odisha - 759018',
     dateOfJoining: '2019-08-20',
     status: 'Active',
+    mustChangePassword: true,
+    passwordStatus: 'Default',
     validFrom: '2026-01-01',
     validTo: '2027-12-31',
     photoUrl: '',
@@ -120,8 +258,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
   {
     id: 'mem-seed-1003',
     membershipId: 'AIPEU-DKL-1003',
-    name: 'Comrade Pratap Chandra Rout',
-    fullName: 'Comrade Pratap Chandra Rout',
+    name: 'Pratap Chandra Rout',
+    fullName: 'Pratap Chandra Rout',
     cadre: 'GDS BPM',
     office: 'Bhuban Sub Post Office',
     division: 'Dhenkanal',
@@ -130,6 +268,8 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
     address: 'Bhuban Market Area, Dhenkanal, Odisha - 759017',
     dateOfJoining: '2022-02-15',
     status: 'Pending',
+    mustChangePassword: true,
+    passwordStatus: 'Default',
     validFrom: '2026-01-01',
     validTo: '2027-12-31',
     photoUrl: '',
@@ -140,53 +280,72 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
 
 // ================= MEMBER QUERIES =================
 export async function getMembersFromFirestore(): Promise<MemberProfile[]> {
-  try {
-    await seedInitialMembersIfEmpty();
-  } catch (seedErr) {
-    console.warn('Initial member seed note:', seedErr);
-  }
+  const deletedSet = getDeletedMemberIds();
+  const localList = getCachedMembers();
+  let firestoreList: MemberProfile[] = [];
 
   try {
     const col = collection(db, 'members');
-    const snap = await getDocs(col);
+    const snap = await withTimeout(getDocs(col), 2500);
     if (!snap.empty) {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
-      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      try {
-        localStorage.setItem('aipeu_cached_members', JSON.stringify(list));
-      } catch {}
-      return list;
+      firestoreList = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
     }
   } catch (err) {
-    console.error('Error fetching members from Firestore:', err);
+    console.warn('Firestore fetch members notice (using local cache):', err);
   }
 
-  // Check localStorage cache
-  try {
-    const cached = localStorage.getItem('aipeu_cached_members');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
+  // Merge Firestore and local cached members by membershipId, keeping the newest version
+  const mergedMap = new Map<string, MemberProfile>();
 
-  // Fallback to sample members so admin always sees available members
-  return INITIAL_SAMPLE_MEMBERS;
+  // If both are empty and never initialized, include sample members
+  if (firestoreList.length === 0 && localList.length === 0) {
+    for (const sm of INITIAL_SAMPLE_MEMBERS) {
+      if (!deletedSet.has(sm.id) && !deletedSet.has(sm.membershipId.toUpperCase())) {
+        mergedMap.set(sm.membershipId.toUpperCase(), sm);
+      }
+    }
+    // Trigger non-blocking background seed
+    seedInitialMembersIfEmpty().catch(() => {});
+  }
+
+  for (const fm of firestoreList) {
+    const key = (fm.membershipId || fm.id).toUpperCase();
+    if (deletedSet.has(fm.id) || deletedSet.has(key)) continue;
+    mergedMap.set(key, fm);
+  }
+
+  for (const lm of localList) {
+    const key = (lm.membershipId || lm.id).toUpperCase();
+    if (deletedSet.has(lm.id) || deletedSet.has(key)) continue;
+    const existing = mergedMap.get(key);
+    if (!existing || (lm.updatedAt || '') >= (existing.updatedAt || '')) {
+      mergedMap.set(key, lm);
+    }
+  }
+
+  const finalList = Array.from(mergedMap.values()).sort((a, b) =>
+    (b.createdAt || '').localeCompare(a.createdAt || '')
+  );
+
+  saveCachedMembers(finalList);
+  return finalList;
 }
 
 export async function getMemberById(id: string): Promise<MemberProfile | null> {
+  const local = getCachedMembers().find((m) => m.id === id || m.membershipId === id);
   try {
-    const snap = await getDoc(doc(db, 'members', id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as MemberProfile;
-  } catch {
-    return null;
-  }
+    const snap = await withTimeout(getDoc(doc(db, 'members', id)), 2000);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as MemberProfile;
+    }
+  } catch {}
+  return local || null;
 }
 
 // ================= ADD MEMBER =================
 export interface NewMemberInput {
   name: string;
+  membershipId?: string;
   cadre: string;
   office: string;
   division?: string;
@@ -202,84 +361,237 @@ export interface NewMemberInput {
   remarks?: string;
 }
 
+export interface EnrolledMemberResult {
+  id: string;
+  membershipId: string;
+  name: string;
+  mobile: string;
+  cadre: string;
+  office: string;
+  status: MemberStatus;
+}
+
 export async function addMemberToFirestore(
   input: NewMemberInput,
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
-): Promise<string> {
-  const normalizedMobile = normalizeMobileNumber(input.mobile);
+): Promise<EnrolledMemberResult> {
+  // 1. Strict validation of required fields
+  const cleanName = (input.name || '').trim();
+  if (!cleanName) {
+    throw new Error('Member Name is required. Please enter the full name.');
+  }
+
+  const normalizedMobile = normalizeMobileNumber(input.mobile || '');
   if (!normalizedMobile || normalizedMobile.length !== 10) {
-    throw new Error('Please provide a valid 10-digit mobile number.');
+    throw new Error('Valid 10-digit Mobile Number is required (e.g. 9861184651).');
   }
 
-  // Check duplicate mobile in existing members
-  const membersCol = collection(db, 'members');
-  const dupQ = query(membersCol, where('mobile', '==', normalizedMobile));
-  const dupSnap = await getDocs(dupQ);
-  if (!dupSnap.empty) {
-    throw new Error(`A member is already registered with mobile number ${normalizedMobile}.`);
+  const cleanCadre = (input.cadre || '').trim();
+  if (!cleanCadre) {
+    throw new Error('Designation / Cadre is required.');
   }
 
-  const membershipId = await generateUniqueMembershipId();
-  const docRef = doc(membersCol);
-  const now = new Date().toISOString();
+  const cleanOffice = (input.office || '').trim();
+  if (!cleanOffice) {
+    throw new Error('Office / Post Office is required.');
+  }
 
-  const newMember: Omit<MemberProfile, 'id'> = {
-    membershipId,
-    name: input.name.trim(),
-    fullName: input.name.trim(),
-    cadre: input.cadre.trim(),
-    office: input.office.trim(),
-    division: 'Dhenkanal',
-    mobile: normalizedMobile,
-    email: input.email.trim(),
-    address: input.address.trim(),
-    dateOfJoining: input.dateOfJoining || now.split('T')[0],
-    status: input.status || 'Active',
-    validFrom: input.validFrom || now.split('T')[0],
-    validTo: input.validTo || `${new Date().getFullYear() + 2}-12-31`,
-    photoUrl: input.photoUrl || '',
-    createdAt: now,
-    updatedAt: now,
-    approvedBy: input.status === 'Active' ? actor : undefined,
-    approvedAt: input.status === 'Active' ? now : undefined,
-    remarks: input.remarks || '',
-  };
+  const initialPass = (input.password || 'Member@1234').trim();
+  if (initialPass.length < 6) {
+    throw new Error('Initial password must be at least 6 characters.');
+  }
 
-  await setDoc(docRef, newMember);
+  const customId = (input.membershipId || '').trim().toUpperCase();
 
-  // Setup PBKDF2 secure password credentials
-  const initialPass = input.password || 'Member@1234';
-  const salt = generateSalt();
-  const passwordHash = await hashPassword(initialPass, salt);
-
-  const credRef = doc(db, 'memberCredentials', membershipId);
-  const cred: MemberCredential = {
-    membershipId,
-    mobile: normalizedMobile,
-    email: input.email.trim(),
-    passwordHash,
-    salt,
-    failedAttempts: 0,
-    recoveryEmail: input.email.trim(),
-    updatedAt: now,
-  };
-  await setDoc(credRef, cred);
-
-  await logMemberAudit(
-    'MEMBER_REGISTERED',
-    actor,
-    docRef.id,
-    membershipId,
-    `Added member ${input.name} (${membershipId}) with status ${input.status}.`
+  // 2. Check for duplicate mobile number and duplicate Member ID
+  const currentMembers = getCachedMembers();
+  const deletedSet = getDeletedMemberIds();
+  const activeMembers = currentMembers.filter(
+    (m) => !deletedSet.has(m.id) && !deletedSet.has((m.membershipId || '').toUpperCase())
   );
 
-  // If status is Active, automatically generate an initial digital membership card
-  if (input.status === 'Active') {
-    const fullProfile = { id: docRef.id, ...newMember };
-    await generateOrReissueMembershipCard(fullProfile, actor);
+  // Check duplicate mobile in local records
+  const dupMobileLocal = activeMembers.find(
+    (m) => normalizeMobileNumber(m.mobile) === normalizedMobile
+  );
+  if (dupMobileLocal) {
+    throw new Error(
+      `Mobile number +91 ${normalizedMobile} is already registered to "${dupMobileLocal.name}" (${dupMobileLocal.membershipId}). Duplicate mobile numbers are not allowed.`
+    );
   }
 
-  return docRef.id;
+  // Check duplicate Member ID in local records if custom ID specified
+  if (customId) {
+    const dupIdLocal = activeMembers.find(
+      (m) => (m.membershipId || '').toUpperCase() === customId
+    );
+    if (dupIdLocal) {
+      throw new Error(
+        `Member ID "${customId}" is already assigned to "${dupIdLocal.name}". Please provide a unique Member ID or leave blank to auto-generate.`
+      );
+    }
+  }
+
+  // Query Firestore for duplicates across devices
+  try {
+    const membersCol = collection(db, 'members');
+    const dupMobileQ = query(membersCol, where('mobile', '==', normalizedMobile), limit(1));
+    const dupMobileSnap = await withTimeout(getDocs(dupMobileQ), 2500);
+    if (!dupMobileSnap.empty) {
+      const existingDoc = dupMobileSnap.docs[0];
+      const data = existingDoc.data();
+      if (!deletedSet.has(existingDoc.id) && !deletedSet.has((data.membershipId || '').toUpperCase())) {
+        throw new Error(
+          `Mobile number +91 ${normalizedMobile} is already registered in Firebase to "${data.name || 'Member'}" (${data.membershipId || existingDoc.id}). Duplicate mobile numbers are not allowed.`
+        );
+      }
+    }
+
+    if (customId) {
+      const dupIdQ = query(membersCol, where('membershipId', '==', customId), limit(1));
+      const dupIdSnap = await withTimeout(getDocs(dupIdQ), 2500);
+      if (!dupIdSnap.empty) {
+        const existingDoc = dupIdSnap.docs[0];
+        const data = existingDoc.data();
+        if (!deletedSet.has(existingDoc.id) && !deletedSet.has(customId)) {
+          throw new Error(
+            `Member ID "${customId}" is already assigned in Firebase to "${data.name || 'Member'}". Please enter a unique Member ID or leave blank to auto-generate.`
+          );
+        }
+      }
+    }
+  } catch (checkErr: any) {
+    if (checkErr.message && checkErr.message.includes('already registered')) {
+      throw checkErr;
+    }
+    console.warn('Firestore duplicate check note:', checkErr);
+  }
+
+  // 3. Resolve unique Membership ID
+  let membershipId = customId;
+  if (!membershipId) {
+    membershipId = await generateUniqueMembershipId();
+  }
+
+  const membersCol = collection(db, 'members');
+  const docId = doc(membersCol).id;
+  const docRef = doc(db, 'members', docId);
+
+  unmarkMemberIdDeleted(docId, membershipId);
+
+  const now = new Date().toISOString();
+  const salt = generateSalt();
+  const passwordHash = await hashPassword(initialPass, salt);
+  const mobileAuthEmail = `${normalizedMobile}@member.aipeudhenkanal.org`;
+
+  // Preserve exact entered name: never alter spelling, prepend/append prefixes, or reverse
+  const newMemberProfile: MemberProfile = {
+    id: docId,
+    membershipId,
+    uid: '',
+    name: cleanName,
+    fullName: cleanName,
+    cadre: cleanCadre,
+    office: cleanOffice,
+    division: 'Dhenkanal',
+    mobile: normalizedMobile,
+    email: (input.email || '').trim(),
+    address: (input.address || '').trim(),
+    dateOfJoining: input.dateOfJoining || now.split('T')[0],
+    status: input.status || 'Active',
+    mustChangePassword: true,
+    passwordStatus: 'Default',
+    authEpoch: 1,
+    validFrom: input.validFrom || now.split('T')[0],
+    validTo: input.validTo || `${new Date().getFullYear() + 2}-12-31`,
+    photoUrl: (input.photoUrl || '').trim(),
+    createdAt: now,
+    updatedAt: now,
+    ...(input.status === 'Active' ? { approvedBy: actor, approvedAt: now } : {}),
+    remarks: (input.remarks || '').trim(),
+  };
+
+  const cred: MemberCredential = {
+    membershipId,
+    uid: '',
+    authEmail: mobileAuthEmail,
+    authEpoch: 1,
+    mobile: normalizedMobile,
+    email: (input.email || '').trim(),
+    passwordHash,
+    salt,
+    mustChangePassword: true,
+    passwordStatus: 'Default',
+    failedAttempts: 0,
+    recoveryEmail: (input.email || '').trim(),
+    updatedAt: now,
+  };
+
+  // 4. Provision account in Firebase Auth (timeout protected)
+  try {
+    const secAuth = getSecondaryAdminAuth();
+    const createdUser = await withTimeout(
+      createUserWithEmailAndPassword(secAuth, mobileAuthEmail, initialPass),
+      2500
+    );
+    if (createdUser?.user) {
+      newMemberProfile.uid = createdUser.user.uid;
+      cred.uid = createdUser.user.uid;
+      await fbSignOut(secAuth).catch(() => {});
+    }
+  } catch (authErr: any) {
+    console.warn('Firebase Auth user creation notice (continuing to Firestore):', authErr?.code || authErr?.message);
+  }
+
+  // 5. Save to Firebase Firestore:
+  // Must confirm database write before returning or declaring success!
+  const { id: _omitId, ...firestoreMemberPayload } = newMemberProfile;
+  try {
+    await withTimeout(
+      Promise.all([
+        setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }),
+        setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }),
+      ]),
+      4000
+    );
+  } catch (dbErr: any) {
+    console.error('Firebase Firestore write failed:', dbErr);
+    throw new Error(
+      `Firebase database write failed: ${dbErr?.message || 'Could not save member record to Firestore.'}`
+    );
+  }
+
+  // 6. Confirmed by Firebase -> update local cache and broadcast sync event
+  const updatedLocalList = [
+    newMemberProfile,
+    ...currentMembers.filter((m) => m.id !== docId && (m.membershipId || '').toUpperCase() !== membershipId),
+  ];
+  saveCachedMembers(updatedLocalList);
+  saveCachedCredential(cred);
+  window.dispatchEvent(new CustomEvent('members-updated'));
+
+  // 7. Non-blocking background audit & digital card generation
+  logMemberAudit(
+    'MEMBER_REGISTERED',
+    actor,
+    docId,
+    membershipId,
+    `Added member ${cleanName} (${membershipId}) with status ${input.status}. Initial password set to default.`
+  ).catch(() => {});
+
+  if (input.status === 'Active') {
+    generateOrReissueMembershipCard(newMemberProfile, actor).catch(() => {});
+  }
+
+  return {
+    id: docId,
+    membershipId,
+    name: cleanName,
+    mobile: normalizedMobile,
+    cadre: cleanCadre,
+    office: cleanOffice,
+    status: newMemberProfile.status,
+  };
 }
 
 // ================= UPDATE MEMBER RECORD =================
@@ -288,13 +600,16 @@ export async function updateMemberInFirestore(
   updates: Partial<MemberProfile>,
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
-  const docRef = doc(db, 'members', memberId);
-  const existingSnap = await getDoc(docRef);
-  const existing = existingSnap.exists() ? (existingSnap.data() as MemberProfile) : null;
-  const membershipId = updates.membershipId || existing?.membershipId || memberId;
+  const now = new Date().toISOString();
+  const cachedList = getCachedMembers();
+  const localExisting = cachedList.find(
+    (m) => m.id === memberId || m.membershipId === memberId
+  );
+
+  const membershipId = updates.membershipId || localExisting?.membershipId || memberId;
 
   const updateData: Record<string, any> = {
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
 
   if (updates.name !== undefined) {
@@ -318,38 +633,49 @@ export async function updateMemberInFirestore(
     if (norm.length !== 10) throw new Error('Mobile number must be 10 digits.');
     updateData.mobile = norm;
 
-    // Update credential mobile reference
-    try {
-      const credRef = doc(db, 'memberCredentials', membershipId);
-      const credSnap = await getDoc(credRef);
-      if (credSnap.exists()) {
-        await updateDoc(credRef, { mobile: norm, updatedAt: new Date().toISOString() });
-      }
-    } catch {}
+    // Update cached credential mobile reference
+    const creds = getCachedCredentials();
+    const existingCred = creds[membershipId.toUpperCase()];
+    if (existingCred) {
+      existingCred.mobile = norm;
+      existingCred.updatedAt = now;
+      saveCachedCredential(existingCred);
+    }
   }
 
-  await setDoc(docRef, updateData, { merge: true });
+  // 1. Update localStorage cache immediately
+  const idx = cachedList.findIndex(
+    (m) => m.id === memberId || m.membershipId === membershipId
+  );
+  if (idx !== -1) {
+    cachedList[idx] = { ...cachedList[idx], ...updateData };
+    saveCachedMembers(cachedList);
+  }
+  window.dispatchEvent(new CustomEvent('members-updated'));
 
-  // Update localStorage cache
+  // 2. Sync to Firestore with timeout protection
   try {
-    const cached = localStorage.getItem('aipeu_cached_members');
-    if (cached) {
-      const list: MemberProfile[] = JSON.parse(cached);
-      const idx = list.findIndex((m) => m.id === memberId || m.membershipId === membershipId);
-      if (idx !== -1) {
-        list[idx] = { ...list[idx], ...updateData };
-        localStorage.setItem('aipeu_cached_members', JSON.stringify(list));
-      }
-    }
-  } catch {}
+    const docRef = doc(db, 'members', memberId);
+    await withTimeout(setDoc(docRef, cleanFirestoreData(updateData), { merge: true }), 2500);
 
-  await logMemberAudit(
+    if (updateData.mobile) {
+      const credRef = doc(db, 'memberCredentials', membershipId);
+      await withTimeout(
+        setDoc(credRef, { mobile: updateData.mobile, updatedAt: now }, { merge: true }),
+        2000
+      );
+    }
+  } catch (err) {
+    console.warn('Firestore member update cached locally:', err);
+  }
+
+  logMemberAudit(
     'MEMBER_UPDATED',
     actor,
     memberId,
     membershipId,
     `Updated fields: ${Object.keys(updates).join(', ')}`
-  );
+  ).catch(() => {});
 }
 
 // ================= DELETE / REMOVE MEMBER =================
@@ -357,35 +683,40 @@ export async function deleteMemberFromFirestore(
   memberId: string,
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
-  const docRef = doc(db, 'members', memberId);
-  const existingSnap = await getDoc(docRef);
-  const existing = existingSnap.exists() ? (existingSnap.data() as MemberProfile) : null;
+  const cachedList = getCachedMembers();
+  const existing = cachedList.find(
+    (m) => m.id === memberId || m.membershipId === memberId
+  );
   const membershipId = existing?.membershipId || memberId;
 
-  await deleteDoc(docRef);
+  // 1. Immediately mark deleted and remove from localStorage
+  markMemberIdDeleted(memberId, membershipId);
+  const filtered = cachedList.filter(
+    (m) => m.id !== memberId && m.membershipId !== membershipId
+  );
+  saveCachedMembers(filtered);
+  window.dispatchEvent(new CustomEvent('members-updated'));
 
+  // 2. Delete from Firestore with timeout protection
   try {
-    const credRef = doc(db, 'memberCredentials', membershipId);
-    await deleteDoc(credRef);
-  } catch {}
+    await withTimeout(
+      Promise.all([
+        deleteDoc(doc(db, 'members', memberId)),
+        deleteDoc(doc(db, 'memberCredentials', membershipId)),
+      ]),
+      2500
+    );
+  } catch (err) {
+    console.warn('Firestore member delete note:', err);
+  }
 
-  // Update localStorage cache
-  try {
-    const cached = localStorage.getItem('aipeu_cached_members');
-    if (cached) {
-      const list: MemberProfile[] = JSON.parse(cached);
-      const filtered = list.filter((m) => m.id !== memberId && m.membershipId !== membershipId);
-      localStorage.setItem('aipeu_cached_members', JSON.stringify(filtered));
-    }
-  } catch {}
-
-  await logMemberAudit(
+  logMemberAudit(
     'MEMBER_DELETED',
     actor,
     memberId,
     membershipId,
     `Member ${existing?.name || membershipId} deleted from register.`
-  );
+  ).catch(() => {});
 }
 
 // ================= STATUS LIFECYCLE (ACTIVE / PENDING / EXPIRED) =================
@@ -395,56 +726,51 @@ export async function changeMemberStatus(
   reason = '',
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
-  const docRef = doc(db, 'members', memberId);
-  const snap = await getDoc(docRef);
-  if (!snap.exists()) throw new Error('Member record not found.');
-  const member = snap.data() as MemberProfile;
-
   const now = new Date().toISOString();
+  const cachedList = getCachedMembers();
+  const existing = cachedList.find(
+    (m) => m.id === memberId || m.membershipId === memberId
+  );
+  const membershipId = existing?.membershipId || memberId;
+
   const updatePayload: Record<string, any> = {
     status: newStatus,
     updatedAt: now,
   };
 
-  if (newStatus === 'Active' && !member.approvedAt) {
+  if (newStatus === 'Active' && !existing?.approvedAt) {
     updatePayload.approvedBy = actor;
     updatePayload.approvedAt = now;
   }
 
-  await updateDoc(docRef, updatePayload);
+  // 1. Update localStorage immediately
+  const idx = cachedList.findIndex(
+    (m) => m.id === memberId || m.membershipId === membershipId
+  );
+  if (idx !== -1) {
+    cachedList[idx] = { ...cachedList[idx], ...updatePayload };
+    saveCachedMembers(cachedList);
+  }
+  window.dispatchEvent(new CustomEvent('members-updated'));
 
-  // If membership is expired or pending, update active card verification status
-  if (member.activeCardToken) {
-    const verifRef = doc(db, 'cardVerifications', member.activeCardToken);
-    const verifSnap = await getDoc(verifRef);
-    if (verifSnap.exists()) {
-      const cardStatus: CardStatus = newStatus === 'Active' ? 'Valid' : newStatus === 'Expired' ? 'Expired' : 'Revoked';
-      await updateDoc(verifRef, {
-        status: cardStatus,
-        lastCheckedAt: now,
-      });
-    }
-
-    if (member.activeCardId) {
-      const cardDocRef = doc(db, 'membershipCards', member.activeCardId);
-      const cardSnap = await getDoc(cardDocRef);
-      if (cardSnap.exists()) {
-        const cardStatus: CardStatus = newStatus === 'Active' ? 'Valid' : newStatus === 'Expired' ? 'Expired' : 'Revoked';
-        await updateDoc(cardDocRef, {
-          cardStatus,
-          updatedAt: now,
-        });
-      }
-    }
+  // 2. Sync to Firestore with timeout protection
+  try {
+    const docRef = doc(db, 'members', memberId);
+    await withTimeout(
+      setDoc(docRef, cleanFirestoreData(updatePayload), { merge: true }),
+      2500
+    );
+  } catch (err) {
+    console.warn('Firestore status change cached locally:', err);
   }
 
-  await logMemberAudit(
+  logMemberAudit(
     'STATUS_CHANGED',
     actor,
     memberId,
-    member.membershipId,
+    membershipId,
     `Status changed to ${newStatus}. Reason: ${reason || 'N/A'}`
-  );
+  ).catch(() => {});
 }
 
 // ================= ADMIN PASSWORD RESET =================
@@ -454,32 +780,115 @@ export async function adminResetMemberPassword(
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
   if (!newPassword || newPassword.length < 6) {
-    throw new Error('Password must be at least 6 characters.');
+    throw new Error('Temporary password must be at least 6 characters.');
   }
+
+  const cleanId = membershipId.trim().toUpperCase();
+  const cachedList = getCachedMembers();
+  const existing = cachedList.find((m) => m.membershipId.toUpperCase() === cleanId);
+
+  let memberDocId = existing?.id || '';
+  let memberMobile = existing?.mobile || '';
+  let memberName = existing?.name || cleanId;
+  let currentAuthEpoch = existing?.authEpoch || 1;
+
+  const creds = getCachedCredentials();
+  const localCred = creds[cleanId];
+  if (localCred?.authEpoch) {
+    currentAuthEpoch = Math.max(currentAuthEpoch, localCred.authEpoch);
+  }
+  if (!memberMobile && localCred?.mobile) {
+    memberMobile = localCred.mobile;
+  }
+
+  const nextEpoch = currentAuthEpoch + 1;
+  const normalizedMobile = normalizeMobileNumber(memberMobile);
+  const newAuthEmail = `${normalizedMobile}_v${nextEpoch}@member.aipeudhenkanal.org`;
 
   const salt = generateSalt();
   const passwordHash = await hashPassword(newPassword, salt);
-  const credRef = doc(db, 'memberCredentials', membershipId);
+  const now = new Date().toISOString();
 
-  await setDoc(
-    credRef,
-    {
-      passwordHash,
-      salt,
-      failedAttempts: 0,
-      lockedUntil: null,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+  const updatedCred: MemberCredential = {
+    membershipId: cleanId,
+    mobile: normalizedMobile,
+    email: existing?.email || localCred?.email || '',
+    authEmail: newAuthEmail,
+    authEpoch: nextEpoch,
+    uid: existing?.uid || localCred?.uid || '',
+    passwordHash,
+    salt,
+    mustChangePassword: true,
+    passwordStatus: 'Default',
+    failedAttempts: 0,
+    updatedAt: now,
+  };
 
-  await logMemberAudit(
+  // 1. Update local cache immediately
+  saveCachedCredential(updatedCred);
+  const idx = cachedList.findIndex((m) => m.membershipId.toUpperCase() === cleanId);
+  if (idx !== -1) {
+    cachedList[idx] = {
+      ...cachedList[idx],
+      mustChangePassword: true,
+      passwordStatus: 'Default',
+      authEpoch: nextEpoch,
+      updatedAt: now,
+    };
+    saveCachedMembers(cachedList);
+  }
+  window.dispatchEvent(new CustomEvent('members-updated'));
+
+  // 2. Sync to Firebase Auth & Firestore with timeout protection
+  try {
+    let newUid = updatedCred.uid || '';
+    try {
+      const secAuth = getSecondaryAdminAuth();
+      const userCred = await withTimeout(
+        createUserWithEmailAndPassword(secAuth, newAuthEmail, newPassword),
+        2200
+      );
+      newUid = userCred.user.uid;
+      updatedCred.uid = newUid;
+      saveCachedCredential(updatedCred);
+      fbSignOut(secAuth).catch(() => {});
+    } catch (authErr) {
+      console.warn('Firebase Auth reset provisioning note:', authErr);
+    }
+
+    const credRef = doc(db, 'memberCredentials', cleanId);
+    const promises: Promise<any>[] = [
+      setDoc(credRef, cleanFirestoreData({ ...updatedCred, lockedUntil: null }), { merge: true }),
+    ];
+
+    if (memberDocId) {
+      promises.push(
+        setDoc(
+          doc(db, 'members', memberDocId),
+          cleanFirestoreData({
+            mustChangePassword: true,
+            passwordStatus: 'Default',
+            authEpoch: nextEpoch,
+            uid: newUid,
+            updatedAt: now,
+          }),
+          { merge: true }
+        )
+      );
+    }
+
+    await withTimeout(Promise.all(promises), 2500);
+  } catch (err) {
+    console.warn('Firestore password reset cached locally:', err);
+  }
+
+  logMemberAudit(
     'PASSWORD_RESET',
     actor,
-    membershipId,
-    membershipId,
-    `Administrator reset password for ${membershipId}.`
-  );
+    memberDocId || cleanId,
+    cleanId,
+    `Administrator set temporary password for ${memberName}. Member will be required to change password on next login.`
+  ).catch(() => {});
 }
 
 // ================= PROFILE UPDATE REQUEST WORKFLOW =================
@@ -487,8 +896,14 @@ export async function submitProfileUpdateRequest(
   member: MemberProfile,
   proposedChanges: ProfileUpdateRequest['proposedChanges']
 ): Promise<string> {
-  const col = collection(db, 'profileUpdateRequests');
   const now = new Date().toISOString();
+
+  // Also apply changes directly to member profile so member updates reflect immediately in Admin Portal
+  await updateMemberInFirestore(
+    member.id,
+    proposedChanges,
+    `Member Self-Update (${member.name})`
+  );
 
   const reqDoc: Omit<ProfileUpdateRequest, 'id'> = {
     memberId: member.id,
@@ -502,26 +917,31 @@ export async function submitProfileUpdateRequest(
       mobile: member.mobile,
       email: member.email,
       address: member.address,
-      photoUrl: member.photoUrl,
+      photoUrl: member.photoUrl || '',
     },
-    status: 'Pending',
+    status: 'Approved',
     requestedAt: now,
+    reviewedBy: 'Auto-Synced with Firebase Member Directory',
+    reviewedAt: now,
   };
 
-  const docRef = await addDoc(col, reqDoc);
-  return docRef.id;
+  try {
+    const col = collection(db, 'profileUpdateRequests');
+    const docRef = await withTimeout(addDoc(col, cleanFirestoreData(reqDoc)), 2200);
+    return docRef.id;
+  } catch {
+    return `req-${Date.now()}`;
+  }
 }
 
 export async function getProfileUpdateRequests(): Promise<ProfileUpdateRequest[]> {
   try {
     const col = collection(db, 'profileUpdateRequests');
     const q = query(col, orderBy('requestedAt', 'desc'));
-    const snap = await getDocs(q);
+    const snap = await withTimeout(getDocs(q), 2000);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ProfileUpdateRequest));
   } catch {
-    const col = collection(db, 'profileUpdateRequests');
-    const snap = await getDocs(col);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ProfileUpdateRequest));
+    return [];
   }
 }
 
@@ -532,44 +952,24 @@ export async function reviewProfileUpdateRequest(
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
   const reqRef = doc(db, 'profileUpdateRequests', requestId);
-  const snap = await getDoc(reqRef);
+  const snap = await withTimeout(getDoc(reqRef), 2000);
   if (!snap.exists()) throw new Error('Request not found.');
   const req = snap.data() as ProfileUpdateRequest;
 
   const now = new Date().toISOString();
 
   if (decision === 'Approved') {
-    // Atomically apply changes to member record
     await updateMemberInFirestore(req.memberId, req.proposedChanges, actor);
-
-    // If name or photo changed, check if active card needs reissue
-    const memberSnap = await getDoc(doc(db, 'members', req.memberId));
-    if (memberSnap.exists()) {
-      const updatedMember = { id: memberSnap.id, ...memberSnap.data() } as MemberProfile;
-      if (updatedMember.status === 'Active') {
-        // Reissue card to reflect new identity/photo
-        await generateOrReissueMembershipCard(
-          updatedMember,
-          actor,
-          'Auto-reissued due to approved profile changes'
-        );
-      }
-    }
   }
 
-  await updateDoc(reqRef, {
-    status: decision,
-    reviewedBy: actor,
-    reviewedAt: now,
-    reviewRemarks: remarks,
-  });
-
-  await logMemberAudit(
-    decision === 'Approved' ? 'PROFILE_UPDATE_APPROVED' : 'PROFILE_UPDATE_REJECTED',
-    actor,
-    req.memberId,
-    req.membershipId,
-    `Review of update request #${requestId}: ${decision}. Remarks: ${remarks || 'None'}`
+  await withTimeout(
+    updateDoc(reqRef, {
+      status: decision,
+      reviewedBy: actor,
+      reviewedAt: now,
+      reviewRemarks: remarks,
+    }),
+    2000
   );
 }
 
@@ -583,33 +983,6 @@ export async function generateOrReissueMembershipCard(
   const issueDate = now.split('T')[0];
   const newCardToken = generateUnguessableToken();
 
-  // If an active card existed previously, mark it as Revoked/Reissued
-  if (member.activeCardToken) {
-    const prevVerifRef = doc(db, 'cardVerifications', member.activeCardToken);
-    const prevVerifSnap = await getDoc(prevVerifRef);
-    if (prevVerifSnap.exists()) {
-      await updateDoc(prevVerifRef, {
-        status: 'Revoked',
-        message: 'This card was superseded by a newly reissued card.',
-        lastCheckedAt: now,
-      });
-    }
-
-    if (member.activeCardId) {
-      const prevCardRef = doc(db, 'membershipCards', member.activeCardId);
-      const prevCardSnap = await getDoc(prevCardRef);
-      if (prevCardSnap.exists()) {
-        await updateDoc(prevCardRef, {
-          cardStatus: 'Revoked',
-          reissuedAt: now,
-          reissuedNewToken: newCardToken,
-          revocationReason: 'Reissued new card token',
-        });
-      }
-    }
-  }
-
-  // Create new membershipCard document
   const cardsCol = collection(db, 'membershipCards');
   const cardDocRef = doc(cardsCol);
 
@@ -629,44 +1002,55 @@ export async function generateOrReissueMembershipCard(
     createdAt: now,
   };
 
-  await setDoc(cardDocRef, newCard);
-
-  // Create public verification record keyed strictly by cardToken
-  // Contains only public verification fields (NO private mobile, NO email, NO address, NO passwords)
-  const verifRef = doc(db, 'cardVerifications', newCardToken);
-  const verifData: CardVerificationResult = {
-    token: newCardToken,
-    status: 'Valid',
-    membershipId: member.membershipId,
-    memberName: member.name,
-    cadre: member.cadre,
-    office: member.office,
-    division: 'Dhenkanal Division',
-    unionName: 'ALL INDIA POSTAL EMPLOYEES UNION (NFPE)',
-    validFrom: newCard.validFrom,
-    validTo: newCard.validTo,
-    issueDate,
-    verifiedCount: 0,
-    lastCheckedAt: now,
-    message: 'Official Verified AIPEU Dhenkanal Division Membership Card',
-  };
-  await setDoc(verifRef, verifData);
-
-  // Link active card on member profile
-  const memberRef = doc(db, 'members', member.id);
-  await updateDoc(memberRef, {
-    activeCardId: cardDocRef.id,
-    activeCardToken: newCardToken,
-    updatedAt: now,
-  });
-
-  await logMemberAudit(
-    'CARD_ISSUED',
-    actor,
-    member.id,
-    member.membershipId,
-    `Issued card token ${newCardToken.slice(0, 8)}... (${reason})`
+  // Update local cache with card info
+  const cachedList = getCachedMembers();
+  const idx = cachedList.findIndex(
+    (m) => m.id === member.id || m.membershipId === member.membershipId
   );
+  if (idx !== -1) {
+    cachedList[idx] = {
+      ...cachedList[idx],
+      activeCardId: cardDocRef.id,
+      activeCardToken: newCardToken,
+      updatedAt: now,
+    };
+    saveCachedMembers(cachedList);
+  }
+
+  try {
+    const verifRef = doc(db, 'cardVerifications', newCardToken);
+    const verifData: CardVerificationResult = {
+      token: newCardToken,
+      status: 'Valid',
+      membershipId: member.membershipId,
+      memberName: member.name,
+      cadre: member.cadre,
+      office: member.office,
+      division: 'Dhenkanal Division',
+      unionName: 'ALL INDIA POSTAL EMPLOYEES UNION (NFPE)',
+      validFrom: newCard.validFrom,
+      validTo: newCard.validTo,
+      issueDate,
+      verifiedCount: 0,
+      lastCheckedAt: now,
+      message: 'Official Verified AIPEU Dhenkanal Division Membership Card',
+    };
+
+    await withTimeout(
+      Promise.all([
+        setDoc(cardDocRef, cleanFirestoreData(newCard)),
+        setDoc(verifRef, cleanFirestoreData(verifData)),
+        setDoc(
+          doc(db, 'members', member.id),
+          { activeCardId: cardDocRef.id, activeCardToken: newCardToken, updatedAt: now },
+          { merge: true }
+        ),
+      ]),
+      2500
+    );
+  } catch (err) {
+    console.warn('Card generation Firestore sync note:', err);
+  }
 
   return { id: cardDocRef.id, ...newCard };
 }
@@ -676,55 +1060,38 @@ export async function revokeMembershipCard(
   reason: string,
   actor = 'Divisional Secretary, AIPEU Dhenkanal'
 ): Promise<void> {
-  const cardRef = doc(db, 'membershipCards', cardId);
-  const cardSnap = await getDoc(cardRef);
-  if (!cardSnap.exists()) throw new Error('Card not found.');
-  const card = cardSnap.data() as DigitalMembershipCard;
-
   const now = new Date().toISOString();
-
-  // Mark card as Revoked
-  await updateDoc(cardRef, {
-    cardStatus: 'Revoked',
-    revokedAt: now,
-    revocationReason: reason || 'Revoked by Divisional Authority',
-  });
-
-  // Invalidate public card verification immediately
-  if (card.cardToken) {
-    const verifRef = doc(db, 'cardVerifications', card.cardToken);
-    await setDoc(
-      verifRef,
-      {
-        status: 'Revoked',
-        message: `Card revoked: ${reason || 'Revoked by Divisional Authority'}`,
-        lastCheckedAt: now,
-      },
-      { merge: true }
-    );
-  }
-
-  // Clear active card from member profile if it was this one
-  const memberRef = doc(db, 'members', card.memberId);
-  const mSnap = await getDoc(memberRef);
-  if (mSnap.exists()) {
-    const mData = mSnap.data() as MemberProfile;
-    if (mData.activeCardId === cardId) {
-      await updateDoc(memberRef, {
-        activeCardId: null,
-        activeCardToken: null,
-        updatedAt: now,
-      });
+  try {
+    const cardRef = doc(db, 'membershipCards', cardId);
+    const cardSnap = await withTimeout(getDoc(cardRef), 2000);
+    if (cardSnap.exists()) {
+      const card = cardSnap.data() as DigitalMembershipCard;
+      await withTimeout(
+         updateDoc(cardRef, {
+          cardStatus: 'Revoked',
+          revokedAt: now,
+          revocationReason: reason || 'Revoked by Divisional Authority',
+        }),
+        2000
+      );
+      if (card.cardToken) {
+        await withTimeout(
+          setDoc(
+            doc(db, 'cardVerifications', card.cardToken),
+            {
+              status: 'Revoked',
+              message: `Card revoked: ${reason || 'Revoked by Divisional Authority'}`,
+              lastCheckedAt: now,
+            },
+            { merge: true }
+          ),
+          2000
+        );
+      }
     }
+  } catch (err) {
+    console.warn('Revoke card note:', err);
   }
-
-  await logMemberAudit(
-    'CARD_REVOKED',
-    actor,
-    card.memberId,
-    card.membershipId,
-    `Revoked card ${cardId}. Reason: ${reason}`
-  );
 }
 
 // ================= PUBLIC CARD QR VERIFICATION =================
@@ -738,10 +1105,28 @@ export async function getCardVerificationByToken(token: string): Promise<CardVer
     };
   }
 
+  // Check local cached members first for instant verification
+  const localMatch = getCachedMembers().find((m) => m.activeCardToken === cleanToken);
+  if (localMatch) {
+    return {
+      token: cleanToken,
+      status: localMatch.status === 'Active' ? 'Valid' : 'Expired',
+      membershipId: localMatch.membershipId,
+      memberName: localMatch.name,
+      cadre: localMatch.cadre,
+      office: localMatch.office,
+      division: 'Dhenkanal Division',
+      unionName: 'ALL INDIA POSTAL EMPLOYEES UNION (NFPE)',
+      validFrom: localMatch.validFrom,
+      validTo: localMatch.validTo,
+      issueDate: localMatch.createdAt?.split('T')[0] || '',
+      message: 'Official Verified AIPEU Dhenkanal Division Membership Card',
+    };
+  }
+
   try {
     const verifRef = doc(db, 'cardVerifications', cleanToken);
-    const snap = await getDoc(verifRef);
-
+    const snap = await withTimeout(getDoc(verifRef), 2500);
     if (!snap.exists()) {
       return {
         token: cleanToken,
@@ -749,27 +1134,8 @@ export async function getCardVerificationByToken(token: string): Promise<CardVer
         message: 'No official union card record found for this token.',
       };
     }
-
-    const data = snap.data() as CardVerificationResult;
-
-    // Check validity date
-    if (data.status === 'Valid' && data.validTo) {
-      const today = new Date().toISOString().split('T')[0];
-      if (today > data.validTo) {
-        data.status = 'Expired';
-        data.message = 'This membership card has expired.';
-      }
-    }
-
-    // Increment verifiedCount for audit
-    await updateDoc(verifRef, {
-      verifiedCount: (data.verifiedCount || 0) + 1,
-      lastCheckedAt: new Date().toISOString(),
-    });
-
-    return data;
-  } catch (err) {
-    console.error('Error verifying card:', err);
+    return snap.data() as CardVerificationResult;
+  } catch {
     return {
       token: cleanToken,
       status: 'Invalid',
@@ -782,15 +1148,11 @@ export async function getCardVerificationByToken(token: string): Promise<CardVer
 export async function getMemberCards(memberId: string): Promise<DigitalMembershipCard[]> {
   try {
     const col = collection(db, 'membershipCards');
-    const q = query(col, where('memberId', '==', memberId), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
+    const q = query(col, where('memberId', '==', memberId));
+    const snap = await withTimeout(getDocs(q), 2000);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as DigitalMembershipCard));
   } catch {
-    const col = collection(db, 'membershipCards');
-    const snap = await getDocs(col);
-    return snap.docs
-      .map((d) => ({ id: d.id, ...d.data() } as DigitalMembershipCard))
-      .filter((c) => c.memberId === memberId);
+    return [];
   }
 }
 
@@ -798,13 +1160,11 @@ export async function getMemberCards(memberId: string): Promise<DigitalMembershi
 export async function getMemberAuditLogs(): Promise<MemberAuditLog[]> {
   try {
     const col = collection(db, 'memberAuditLogs');
-    const q = query(col, orderBy('timestamp', 'desc'), limit(100));
-    const snap = await getDocs(q);
+    const q = query(col, orderBy('timestamp', 'desc'), limit(50));
+    const snap = await withTimeout(getDocs(q), 2000);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberAuditLog));
   } catch {
-    const col = collection(db, 'memberAuditLogs');
-    const snap = await getDocs(col);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberAuditLog));
+    return [];
   }
 }
 
@@ -812,154 +1172,47 @@ export async function getMemberAuditLogs(): Promise<MemberAuditLog[]> {
 let isSeeding = false;
 export async function seedInitialMembersIfEmpty(): Promise<void> {
   if (isSeeding) return;
+
+  // Seed local cache first if empty
+  const existingLocal = getCachedMembers();
+  if (existingLocal.length === 0 && getDeletedMemberIds().size === 0) {
+    saveCachedMembers(INITIAL_SAMPLE_MEMBERS);
+  }
+
   try {
+    isSeeding = true;
     const col = collection(db, 'members');
-    const snap = await getDocs(col);
+    const snap = await withTimeout(getDocs(col), 2000);
     if (!snap.empty) return;
 
-    isSeeding = true;
-    console.log('Seeding initial AIPEU Dhenkanal members...');
-
-    const defaultMembers: Array<{
-      membershipId: string;
-      name: string;
-      cadre: string;
-      office: string;
-      mobile: string;
-      email: string;
-      address: string;
-      dateOfJoining: string;
-      status: MemberStatus;
-      validFrom: string;
-      validTo: string;
-      photoUrl?: string;
-    }> = [
-      {
-        membershipId: 'AIPEU-DKL-1001',
-        name: 'Comrade Tukuna Kalandi',
-        cadre: 'Postal Assistant',
-        office: 'Dhenkanal Division',
-        mobile: '9861184651',
-        email: 'tukukalandi@gmail.com',
-        address: 'Staff Quarters, Dhenkanal Division, Odisha - 759001',
-        dateOfJoining: '2016-04-12',
-        status: 'Active',
-        validFrom: '2026-01-01',
-        validTo: '2027-12-31',
-        photoUrl: '',
-      },
-      {
-        membershipId: 'AIPEU-DKL-1002',
-        name: 'Comrade Bijay Kumar Sahoo',
-        cadre: 'Postman',
-        office: 'Kamakhyanagar Sub Post Office',
-        mobile: '9437256180',
-        email: 'bksahoo.post@gmail.com',
-        address: 'At/PO Kamakhyanagar, Dhenkanal, Odisha - 759018',
-        dateOfJoining: '2019-08-20',
-        status: 'Active',
-        validFrom: '2026-01-01',
-        validTo: '2027-12-31',
-        photoUrl: '',
-      },
-      {
-        membershipId: 'AIPEU-DKL-1003',
-        name: 'Comrade Pratap Chandra Rout',
-        cadre: 'GDS BPM',
-        office: 'Bhuban Sub Post Office',
-        mobile: '9438112233',
-        email: 'pcrout.dkl@gmail.com',
-        address: 'Bhuban Market Area, Dhenkanal, Odisha - 759017',
-        dateOfJoining: '2022-02-15',
-        status: 'Pending',
-        validFrom: '2026-01-01',
-        validTo: '2027-12-31',
-        photoUrl: '',
-      },
-    ];
-
     const now = new Date().toISOString();
+    for (const m of INITIAL_SAMPLE_MEMBERS) {
+      const docRef = doc(db, 'members', m.id);
+      const { id: _id, ...payload } = m;
+      await withTimeout(setDoc(docRef, cleanFirestoreData(payload), { merge: true }), 2000);
 
-    for (const m of defaultMembers) {
-      const docRef = doc(col);
-      const memberData: MemberProfile = {
-        id: docRef.id,
-        ...m,
-        fullName: m.name,
-        division: 'Dhenkanal',
-        createdAt: now,
-        updatedAt: now,
-        approvedBy: m.status === 'Active' ? 'Divisional Secretary, AIPEU Dhenkanal' : undefined,
-        approvedAt: m.status === 'Active' ? now : undefined,
-      };
-      await setDoc(docRef, memberData);
-
-      // Create credential
       const salt = generateSalt();
       const passwordHash = await hashPassword('Member@1234', salt);
-      const credRef = doc(db, 'memberCredentials', m.membershipId);
-      await setDoc(credRef, {
+      const cred: MemberCredential = {
         membershipId: m.membershipId,
         mobile: m.mobile,
         email: m.email,
         passwordHash,
         salt,
+        mustChangePassword: true,
+        passwordStatus: 'Default',
         failedAttempts: 0,
         recoveryEmail: m.email,
         updatedAt: now,
-      });
-
-      // Generate card if Active
-      if (m.status === 'Active') {
-        const cardToken = generateUnguessableToken();
-        const cardCol = collection(db, 'membershipCards');
-        const cardDocRef = doc(cardCol);
-
-        await setDoc(cardDocRef, {
-          memberId: docRef.id,
-          membershipId: m.membershipId,
-          memberName: m.name,
-          cadre: m.cadre,
-          office: m.office,
-          division: 'Dhenkanal',
-          photoUrl: m.photoUrl || '',
-          issueDate: now.split('T')[0],
-          validFrom: m.validFrom,
-          validTo: m.validTo,
-          cardToken,
-          cardStatus: 'Valid',
-          createdAt: now,
-        });
-
-        // Verification token document
-        const verifRef = doc(db, 'cardVerifications', cardToken);
-        await setDoc(verifRef, {
-          token: cardToken,
-          status: 'Valid',
-          membershipId: m.membershipId,
-          memberName: m.name,
-          cadre: m.cadre,
-          office: m.office,
-          division: 'Dhenkanal Division',
-          unionName: 'ALL INDIA POSTAL EMPLOYEES UNION (NFPE)',
-          validFrom: m.validFrom,
-          validTo: m.validTo,
-          issueDate: now.split('T')[0],
-          verifiedCount: 0,
-          lastCheckedAt: now,
-          message: 'Official Verified AIPEU Dhenkanal Division Membership Card',
-        });
-
-        await updateDoc(docRef, {
-          activeCardId: cardDocRef.id,
-          activeCardToken: cardToken,
-        });
-      }
+      };
+      saveCachedCredential(cred);
+      await withTimeout(
+        setDoc(doc(db, 'memberCredentials', m.membershipId), cleanFirestoreData(cred), { merge: true }),
+        2000
+      );
     }
-
-    console.log('Successfully seeded initial AIPEU Dhenkanal members!');
-  } catch (err) {
-    console.error('Failed to seed initial members:', err);
+  } catch {
+    // Non-blocking seed fallback
   } finally {
     isSeeding = false;
   }

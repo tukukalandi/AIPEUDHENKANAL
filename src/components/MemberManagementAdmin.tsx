@@ -45,7 +45,9 @@ import {
   revokeMembershipCard,
   getMemberAuditLogs,
   getMemberCards,
+  getCachedMembers,
   NewMemberInput,
+  EnrolledMemberResult,
   INITIAL_SAMPLE_MEMBERS,
   seedInitialMembersIfEmpty,
 } from '../services/memberService';
@@ -56,7 +58,10 @@ interface MemberManagementAdminProps {
 
 export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ onNotify }) => {
   const [subTab, setSubTab] = useState<'register' | 'pending' | 'add' | 'cards' | 'audit'>('register');
-  const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [members, setMembers] = useState<MemberProfile[]>(() => {
+    const cached = getCachedMembers();
+    return cached.length > 0 ? cached : INITIAL_SAMPLE_MEMBERS;
+  });
   const [requests, setRequests] = useState<ProfileUpdateRequest[]>([]);
   const [auditLogs, setAuditLogs] = useState<MemberAuditLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,9 +73,10 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
   const [officeFilter, setOfficeFilter] = useState('All');
 
   // Modals
+  const [viewingMember, setViewingMember] = useState<MemberProfile | null>(null);
   const [editingMember, setEditingMember] = useState<MemberProfile | null>(null);
   const [resetPassMember, setResetPassMember] = useState<MemberProfile | null>(null);
-  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('Member@1234');
 
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
     isOpen: boolean;
@@ -108,8 +114,9 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
 
   // Add Member Form State
   const [addName, setAddName] = useState('');
+  const [addMembershipId, setAddMembershipId] = useState('');
   const [addCadre, setAddCadre] = useState('Postal Assistant');
-  const [addOffice, setAddOffice] = useState('Dhenkanal Head Post Office');
+  const [addOffice, setAddOffice] = useState('Dhenkanal Division');
   const [addMobile, setAddMobile] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addAddress, setAddAddress] = useState('');
@@ -121,9 +128,17 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
   const [addPassword, setAddPassword] = useState('Member@1234');
   const [addRemarks, setAddRemarks] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [enrolledSuccess, setEnrolledSuccess] = useState<EnrolledMemberResult | null>(null);
 
   // Load all records
   const loadData = async () => {
+    // Immediately refresh from local cache first so UI is never stale
+    const immediateCache = getCachedMembers();
+    if (immediateCache.length > 0) {
+      setMembers(immediateCache);
+    }
+
     setLoading(true);
     try {
       const [membersData, reqsData, auditData] = await Promise.all([
@@ -136,7 +151,6 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       setAuditLogs(auditData);
     } catch (err) {
       console.error('Error loading member administration data:', err);
-      onNotify('⚠️ Failed to load some member records from server.');
     } finally {
       setLoading(false);
     }
@@ -144,6 +158,15 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
 
   useEffect(() => {
     loadData();
+    const handleMembersUpdated = () => {
+      const cached = getCachedMembers();
+      if (cached.length > 0) {
+        setMembers(cached);
+      }
+      loadData();
+    };
+    window.addEventListener('members-updated', handleMembersUpdated);
+    return () => window.removeEventListener('members-updated', handleMembersUpdated);
   }, []);
 
   // Filtered members list
@@ -178,10 +201,13 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
   // Handle Add Member Submit
   const handleAddMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAddError('');
+    setEnrolledSuccess(null);
     setIsAdding(true);
     try {
       const input: NewMemberInput = {
         name: addName.trim(),
+        membershipId: addMembershipId.trim() || undefined,
         cadre: addCadre.trim(),
         office: addOffice.trim(),
         mobile: addMobile.trim(),
@@ -196,18 +222,29 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
         remarks: addRemarks.trim(),
       };
 
-      await addMemberToFirestore(input, 'Admin Portal (Divisional Secretary)');
-      onNotify(`✅ Successfully enrolled Comrade ${addName} with status ${addStatus}!`);
-      // Reset form
+      const result = await addMemberToFirestore(input, 'Admin Portal (Divisional Secretary)');
+
+      // 1. Clear registration form completely after successful enrollment
       setAddName('');
+      setAddMembershipId('');
       setAddMobile('');
       setAddEmail('');
       setAddAddress('');
+      setAddPhotoUrl('');
       setAddRemarks('');
-      setSubTab('register');
-      loadData();
+      setAddPassword('Member@1234');
+
+      // 2. Automatically update Member Management list
+      await loadData();
+
+      // 3. Set registration completion state to display prominent success badge & Member ID
+      setEnrolledSuccess(result);
+      onNotify(`✅ Successfully enrolled ${result.name} (${result.membershipId})!`);
     } catch (err: any) {
-      alert(err.message || 'Failed to add member.');
+      const msg = err?.message || 'Failed to enroll member. Please check fields.';
+      setAddError(msg);
+      setEnrolledSuccess(null);
+      onNotify(`❌ ${msg}`);
     } finally {
       setIsAdding(false);
     }
@@ -610,18 +647,19 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
                   <tr>
-                    <th className="px-4 py-3">Member Details</th>
-                    <th className="px-4 py-3">Cadre &amp; Office</th>
-                    <th className="px-4 py-3">Contact</th>
-                    <th className="px-4 py-3">Validity</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Member Name</th>
+                    <th className="px-4 py-3">Member ID</th>
+                    <th className="px-4 py-3">Mobile Number</th>
+                    <th className="px-4 py-3">Account Status</th>
+                    <th className="px-4 py-3">Password Status</th>
+                    <th className="px-4 py-3">Last Login</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center">
+                      <td colSpan={7} className="px-4 py-12 text-center">
                         <div className="max-w-md mx-auto space-y-3">
                           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
                             <Users className="w-6 h-6" />
@@ -647,13 +685,13 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                               </button>
                             )}
                             <button
-                              type="button"
-                              onClick={() => setSubTab('add')}
-                              className="px-4 py-2 bg-[#022A61] hover:bg-[#0A3D80] text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              <span>+ Add Member</span>
-                            </button>
+                                type="button"
+                                onClick={() => setSubTab('add')}
+                                className="px-4 py-2 bg-[#022A61] hover:bg-[#0A3D80] text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>+ Add Member</span>
+                              </button>
                           </div>
                         </div>
                       </td>
@@ -661,6 +699,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                   ) : (
                     filteredMembers.map((m) => (
                       <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                        {/* 1. Member Name */}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 shrink-0 overflow-hidden">
@@ -672,100 +711,125 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                             </div>
                             <div>
                               <span className="font-bold text-slate-900 block">{m.name}</span>
-                              <span className="font-mono text-[10px] font-bold text-red-600">{m.membershipId}</span>
+                              <span className="text-[11px] text-slate-500 block">
+                                {m.cadre} • {m.office}
+                              </span>
                             </div>
                           </div>
                         </td>
 
+                        {/* 2. Member ID */}
                         <td className="px-4 py-3">
-                          <span className="font-bold text-slate-800 block">{m.cadre}</span>
-                          <span className="text-slate-500 text-[11px] block">{m.office}</span>
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-blue-50 text-[#022A61] border border-blue-200">
+                            {m.membershipId}
+                          </span>
                         </td>
 
+                        {/* 3. Mobile Number */}
                         <td className="px-4 py-3">
-                          <span className="font-bold text-slate-800 block">+91 {m.mobile}</span>
-                          <span className="text-slate-400 text-[11px] block truncate max-w-[140px]">{m.email || 'N/A'}</span>
+                          <span className="font-mono text-xs font-bold text-slate-800 block">+91 {m.mobile}</span>
+                          {m.email && (
+                            <span className="text-slate-400 text-[10px] block truncate max-w-[130px]">{m.email}</span>
+                          )}
                         </td>
 
-                        <td className="px-4 py-3">
-                          <span className="text-slate-700 block text-[11px] font-medium">To: {m.validTo}</span>
-                          <span className="text-slate-400 text-[10px] block">Joined: {m.dateOfJoining}</span>
-                        </td>
-
+                        {/* 4. Account Status */}
                         <td className="px-4 py-3">
                           <button
                             type="button"
                             onClick={() => {
-                              const nextStatus: MemberStatus =
-                                m.status === 'Active' ? 'Pending' : m.status === 'Pending' ? 'Active' : 'Active';
+                              const nextStatus: MemberStatus = m.status === 'Active' ? 'Expired' : 'Active';
                               setStatusConfirmModal({
                                 isOpen: true,
                                 member: m,
                                 newStatus: nextStatus,
                               });
                             }}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block cursor-pointer hover:opacity-80 transition-opacity ${
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 ${
                               m.status === 'Active'
-                                ? 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                                 : m.status === 'Pending'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                                : 'bg-red-100 text-red-800 hover:bg-red-200'
                             }`}
-                            title="Click to toggle status"
+                            title="Click to toggle status (Active / Inactive)"
                           >
-                            {m.status} ▾
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                m.status === 'Active'
+                                  ? 'bg-emerald-600'
+                                  : m.status === 'Pending'
+                                  ? 'bg-amber-600'
+                                  : 'bg-red-600'
+                              }`}
+                            />
+                            <span>{m.status === 'Active' ? 'Active' : m.status === 'Pending' ? 'Pending' : 'Inactive'}</span>
                           </button>
                         </td>
 
+                        {/* 5. Password Status */}
+                        <td className="px-4 py-3">
+                          {m.mustChangePassword || m.passwordStatus === 'Default' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                              <KeyRound className="w-2.5 h-2.5" />
+                              <span>Default</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              <span>Updated</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 6. Last Login */}
+                        <td className="px-4 py-3 text-slate-600">
+                          {m.lastLogin ? (
+                            <div>
+                              <span className="text-[11px] font-medium block text-slate-800">
+                                {new Date(m.lastLogin).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block font-mono">
+                                {new Date(m.lastLogin).toLocaleTimeString('en-IN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px] italic">Never</span>
+                          )}
+                        </td>
+
+                        {/* 7. Actions */}
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* View Member */}
+                            <button
+                              type="button"
+                              onClick={() => setViewingMember(m)}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-[#022A61] hover:text-white text-slate-700 font-bold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="View Member Information"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View</span>
+                            </button>
+
                             {/* Edit Member Details */}
                             <button
                               type="button"
                               onClick={() => setEditingMember({ ...m })}
-                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-[#022A61] hover:text-white text-slate-700 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 font-bold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                               title="Edit Member Information"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Edit</span>
                             </button>
-
-                            {/* Card Generation / Reissue */}
-                            {m.status === 'Active' && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setCardIssueModal({
-                                    isOpen: true,
-                                    member: m,
-                                    action: m.activeCardToken ? 'Reissue' : 'Generate',
-                                  })
-                                }
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
-                                title={m.activeCardToken ? 'Reissue Digital Card' : 'Generate Digital Card'}
-                              >
-                                <CreditCard className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {/* Revoke Card button if active */}
-                            {m.activeCardId && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setRevokeCardModal({
-                                    isOpen: true,
-                                    cardId: m.activeCardId!,
-                                    membershipId: m.membershipId,
-                                    memberName: m.name,
-                                  })
-                                }
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                                title="Revoke Digital Card"
-                              >
-                                <ShieldAlert className="w-4 h-4" />
-                              </button>
-                            )}
 
                             {/* Reset Password */}
                             <button
@@ -774,10 +838,32 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                                 setResetPassMember(m);
                                 setNewPasswordInput('Member@1234');
                               }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
-                              title="Reset Password"
+                              className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold text-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="Reset Password (Assign Temporary Password)"
                             >
-                              <KeyRound className="w-4 h-4" />
+                              <KeyRound className="w-3.5 h-3.5" />
+                              <span>Reset Password</span>
+                            </button>
+
+                            {/* Deactivate / Activate Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextStatus: MemberStatus = m.status === 'Active' ? 'Expired' : 'Active';
+                                setStatusConfirmModal({
+                                  isOpen: true,
+                                  member: m,
+                                  newStatus: nextStatus,
+                                });
+                              }}
+                              className={`px-2 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                                m.status === 'Active'
+                                  ? 'bg-red-50 text-red-700 hover:bg-red-600 hover:text-white border border-red-200'
+                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200'
+                              }`}
+                              title={m.status === 'Active' ? 'Deactivate Member' : 'Activate Member'}
+                            >
+                              {m.status === 'Active' ? 'Deactivate' : 'Activate'}
                             </button>
 
                             {/* Delete Member */}
@@ -791,7 +877,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                                   memberName: m.name,
                                 })
                               }
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                               title="Delete Member"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -926,185 +1012,310 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
 
       {/* ================= 3. ADD NEW MEMBER ================= */}
       {subTab === 'add' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs max-w-2xl mx-auto space-y-6">
-          <div>
-            <h4 className="font-black text-lg text-slate-900">
-              Enroll New Union Member
-            </h4>
-            <p className="text-xs text-slate-500">
-              Register a postal employee under Dhenkanal Division. Generates unique Membership ID and PBKDF2 secure login credentials.
-            </p>
-          </div>
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* A. SUCCESS CONFIRMATION STATE */}
+          {enrolledSuccess ? (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-emerald-200 shadow-md text-center space-y-6 animate-fade-in">
+              <div className="space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+                  <CheckCircle2 className="w-9 h-9 stroke-[2.5]" />
+                </div>
 
-          <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Full Member Name *
-                </label>
-                <input
-                  type="text"
-                  value={addName}
-                  onChange={(e) => setAddName(e.target.value)}
-                  placeholder="e.g. Comrade Rajesh Kumar Jena"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                />
+                <div>
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Registration Successful
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                    Member has been successfully enrolled!
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    The member record has been verified and confirmed in the Firebase database. Login credentials and digital ID have been issued.
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Designation / Cadre *
-                </label>
-                <select
-                  value={addCadre}
-                  onChange={(e) => setAddCadre(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium"
+              {/* Highlight Card for Assigned Member ID */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 border-2 border-[#022A61]/20 rounded-2xl p-5 text-left space-y-3 shadow-xs">
+                <div className="flex items-center justify-between border-b border-blue-200/60 pb-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Newly Assigned Membership ID
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {enrolledSuccess.status}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-[#022A61] tracking-wider">
+                    {enrolledSuccess.membershipId}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs border-t border-blue-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Full Member Name</span>
+                    <span className="font-bold text-slate-900 text-sm">{enrolledSuccess.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Registered Mobile (Login ID)</span>
+                    <span className="font-mono font-bold text-slate-800 text-sm">+91 {enrolledSuccess.mobile}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Designation / Cadre</span>
+                    <span className="font-medium text-slate-700">{enrolledSuccess.cadre}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Office / Post Office</span>
+                    <span className="font-medium text-slate-700">{enrolledSuccess.office}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnrolledSuccess(null);
+                    setAddError('');
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
-                  <option value="Postal Assistant">Postal Assistant (PA)</option>
-                  <option value="Postman">Postman</option>
-                  <option value="Multi-Tasking Staff (MTS)">Multi-Tasking Staff (MTS)</option>
-                  <option value="GDS BPM">GDS Branch Postmaster (BPM)</option>
-                  <option value="GDS ABPM / Dak Sevak">GDS ABPM / Dak Sevak</option>
-                  <option value="Sorting Assistant">Sorting Assistant (SA)</option>
-                  <option value="Mail Guard">Mail Guard</option>
-                  <option value="Inspector of Posts">Inspector of Posts</option>
-                  <option value="Other Postal Cadre">Other Postal Cadre</option>
-                </select>
-              </div>
-            </div>
+                  <UserPlus className="w-4 h-4" />
+                  <span>Enroll Another Member</span>
+                </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Office / Post Office *
-                </label>
-                <input
-                  type="text"
-                  value={addOffice}
-                  onChange={(e) => setAddOffice(e.target.value)}
-                  placeholder="e.g. Dhenkanal Division or Kamakhyanagar SO"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Registered Mobile (10 Digits) *
-                </label>
-                <input
-                  type="tel"
-                  value={addMobile}
-                  onChange={(e) => setAddMobile(e.target.value)}
-                  placeholder="e.g. 9861184651"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={addEmail}
-                  onChange={(e) => setAddEmail(e.target.value)}
-                  placeholder="comrade@example.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Date of Joining
-                </label>
-                <input
-                  type="date"
-                  value={addJoiningDate}
-                  onChange={(e) => setAddJoiningDate(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                Residential / Communication Address
-              </label>
-              <textarea
-                value={addAddress}
-                onChange={(e) => setAddAddress(e.target.value)}
-                placeholder="At/PO, District, PIN..."
-                rows={2}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Membership Status *
-                </label>
-                <select
-                  value={addStatus}
-                  onChange={(e) => setAddStatus(e.target.value as MemberStatus)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEnrolledSuccess(null);
+                    setSubTab('register');
+                    setSearchQuery(enrolledSuccess.membershipId);
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold inline-flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
-                  <option value="Active">Active (Issue Card)</option>
-                  <option value="Pending">Pending Verification</option>
-                  <option value="Expired">Expired</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Valid Through Date
-                </label>
-                <input
-                  type="date"
-                  value={addValidTo}
-                  onChange={(e) => setAddValidTo(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
-                  Initial Password
-                </label>
-                <input
-                  type="text"
-                  value={addPassword}
-                  onChange={(e) => setAddPassword(e.target.value)}
-                  placeholder="Member@1234"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono"
-                />
+                  <Users className="w-4 h-4" />
+                  <span>View in Members Register ({members.length})</span>
+                </button>
               </div>
             </div>
+          ) : (
+            /* B. ENROLLMENT FORM */
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs space-y-6">
+              <div>
+                <h4 className="font-black text-lg text-slate-900">
+                  Enroll New Union Member
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Register a postal employee under Dhenkanal Division. Generates unique Membership ID and PBKDF2 secure login credentials.
+                </p>
+              </div>
 
-            <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSubTab('register')}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isAdding}
-                className="px-6 py-2.5 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold shadow-sm disabled:opacity-60"
-              >
-                {isAdding ? 'Enrolling...' : 'Enroll Member & Issue ID'}
-              </button>
+              {addError && (
+                <div className="bg-red-50 border-2 border-red-200 text-red-800 p-4 rounded-2xl text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-red-900">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>Registration Failed</span>
+                  </div>
+                  <div className="pl-5.5 font-medium leading-relaxed">{addError}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Full Member Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={addName}
+                      onChange={(e) => setAddName(e.target.value)}
+                      placeholder="e.g. Surya Babu"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Member ID (Unique Identification)
+                    </label>
+                    <input
+                      type="text"
+                      value={addMembershipId}
+                      onChange={(e) => setAddMembershipId(e.target.value)}
+                      placeholder="Auto-generated e.g. AIPEU-DKL-1004 if blank"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[#022A61]"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Leave blank to auto-generate unique ID
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Designation / Cadre *
+                    </label>
+                    <select
+                      value={addCadre}
+                      onChange={(e) => setAddCadre(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-[#022A61]"
+                    >
+                      <option value="Postal Assistant">Postal Assistant (PA)</option>
+                      <option value="Postman">Postman</option>
+                      <option value="Multi-Tasking Staff (MTS)">Multi-Tasking Staff (MTS)</option>
+                      <option value="GDS BPM">GDS Branch Postmaster (BPM)</option>
+                      <option value="GDS ABPM / Dak Sevak">GDS ABPM / Dak Sevak</option>
+                      <option value="Sorting Assistant">Sorting Assistant (SA)</option>
+                      <option value="Mail Guard">Mail Guard</option>
+                      <option value="Inspector of Posts">Inspector of Posts</option>
+                      <option value="Other Postal Cadre">Other Postal Cadre</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Office / Post Office *
+                    </label>
+                    <input
+                      type="text"
+                      value={addOffice}
+                      onChange={(e) => setAddOffice(e.target.value)}
+                      placeholder="e.g. Dhenkanal Division or Kamakhyanagar SO"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Registered Mobile Number (Unique Login ID) *
+                    </label>
+                    <input
+                      type="tel"
+                      value={addMobile}
+                      onChange={(e) => setAddMobile(e.target.value)}
+                      placeholder="e.g. 9861184651"
+                      required
+                      maxLength={10}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-medium focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Initial / Default Password *
+                    </label>
+                    <input
+                      type="text"
+                      value={addPassword}
+                      onChange={(e) => setAddPassword(e.target.value)}
+                      placeholder="Member@1234"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[#022A61]"
+                    />
+                    <span className="text-[10px] text-amber-600 mt-0.5 block">
+                      Member will be required to change this upon first login
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={addEmail}
+                      onChange={(e) => setAddEmail(e.target.value)}
+                      placeholder="member@example.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Date of Joining
+                    </label>
+                    <input
+                      type="date"
+                      value={addJoiningDate}
+                      onChange={(e) => setAddJoiningDate(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                    Residential / Communication Address
+                  </label>
+                  <textarea
+                    value={addAddress}
+                    onChange={(e) => setAddAddress(e.target.value)}
+                    placeholder="At/PO, District, PIN..."
+                    rows={2}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#022A61]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Membership Status *
+                    </label>
+                    <select
+                      value={addStatus}
+                      onChange={(e) => setAddStatus(e.target.value as MemberStatus)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-[#022A61]"
+                    >
+                      <option value="Active">Active (Issue Card)</option>
+                      <option value="Pending">Pending Verification</option>
+                      <option value="Expired">Expired</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1 uppercase tracking-wider">
+                      Valid Through Date
+                    </label>
+                    <input
+                      type="date"
+                      value={addValidTo}
+                      onChange={(e) => setAddValidTo(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#022A61]"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSubTab('register')}
+                    className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAdding}
+                    className="px-6 py-2.5 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold shadow-sm disabled:opacity-60 cursor-pointer transition-all active:scale-95"
+                  >
+                    {isAdding ? 'Enrolling & Saving to Firebase...' : 'Enroll Member & Issue ID'}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          )}
         </div>
       )}
 
@@ -1292,27 +1503,172 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
         </div>
       )}
 
+      {/* ================= VIEW MEMBER DETAILS MODAL ================= */}
+      {viewingMember && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-slate-200 shadow-2xl my-auto space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                  {viewingMember.photoUrl ? (
+                    <img src={viewingMember.photoUrl} alt={viewingMember.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="font-black text-slate-500 text-lg">{viewingMember.name.charAt(0)}</span>
+                  )}
+                </div>
+                <div>
+                  <h4 className="font-black text-base text-slate-900">{viewingMember.name}</h4>
+                  <span className="font-mono text-xs font-bold text-[#022A61] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    {viewingMember.membershipId}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingMember(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Cadre / Designation</span>
+                <span className="font-bold text-slate-800">{viewingMember.cadre}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Office / Location</span>
+                <span className="font-bold text-slate-800">{viewingMember.office}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Registered Mobile</span>
+                <span className="font-mono font-bold text-slate-800">+91 {viewingMember.mobile}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Email</span>
+                <span className="font-medium text-slate-700 truncate block">{viewingMember.email || 'N/A'}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Account Status</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block ${
+                    viewingMember.status === 'Active'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : viewingMember.status === 'Pending'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}
+                >
+                  {viewingMember.status}
+                </span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Password Status</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block ${
+                    viewingMember.mustChangePassword || viewingMember.passwordStatus === 'Default'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  {viewingMember.mustChangePassword || viewingMember.passwordStatus === 'Default'
+                    ? 'Default (Must Change)'
+                    : 'Updated'}
+                </span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Date of Joining</span>
+                <span className="font-medium text-slate-800">{viewingMember.dateOfJoining}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Valid Until</span>
+                <span className="font-medium text-slate-800">{viewingMember.validTo}</span>
+              </div>
+              <div className="col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                  Last Login (Portal Access)
+                </span>
+                <span className="font-mono text-slate-800">
+                  {viewingMember.lastLogin ? new Date(viewingMember.lastLogin).toLocaleString('en-IN') : 'Never'}
+                </span>
+              </div>
+              {viewingMember.address && (
+                <div className="col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                    Residential Address
+                  </span>
+                  <span className="text-slate-700 leading-relaxed">{viewingMember.address}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingMember({ ...viewingMember });
+                  setViewingMember(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Edit Details
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetPassMember(viewingMember);
+                  setNewPasswordInput('Member@1234');
+                  setViewingMember(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Reset Password
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingMember(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= RESET PASSWORD MODAL ================= */}
       {resetPassMember && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full border border-slate-200 shadow-2xl">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-3">
+              <KeyRound className="w-6 h-6 stroke-[2.2]" />
+            </div>
             <h4 className="font-black text-base text-slate-900 mb-1">
               Reset Member Password
             </h4>
-            <p className="text-xs text-slate-500 mb-4">
-              Set a new secure password for {resetPassMember.name} ({resetPassMember.membershipId}).
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              Assign a new temporary/default password for{' '}
+              <span className="font-bold text-slate-900">{resetPassMember.name}</span> ({resetPassMember.membershipId}).
             </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900 mb-4 space-y-1">
+              <p className="font-bold">⚠️ Mandatory First-Login Requirement:</p>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                The member will be strictly required to change this temporary password on their next login to access the User Portal. Existing member passwords cannot be viewed.
+              </p>
+            </div>
 
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">New Password</label>
+                <label className="font-bold text-slate-700 block mb-1">Temporary / Default Password *</label>
                 <input
                   type="text"
                   value={newPasswordInput}
                   onChange={(e) => setNewPasswordInput(e.target.value)}
                   required
-                  placeholder="Min 6 characters"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono"
+                  placeholder="Min 6 characters (e.g. Member@1234)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono font-medium focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
@@ -1320,15 +1676,15 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                 <button
                   type="button"
                   onClick={() => setResetPassMember(null)}
-                  className="flex-1 py-2 rounded-xl border border-slate-200 font-bold text-slate-600"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer transition-all"
                 >
-                  Update Password
+                  Assign Temporary Password
                 </button>
               </div>
             </form>
