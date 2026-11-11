@@ -61,6 +61,13 @@ import {
   getImportantDocumentsFromFirestore,
   getNoticeCircularsFromFirestore,
   getExecutiveMembersFromFirestore,
+  subscribeToAnnouncements,
+  subscribeToImportantDocuments,
+  subscribeToNoticeCirculars,
+  subscribeToNewsItems,
+  subscribeToHeroSlides,
+  subscribeToExecutiveMembers,
+  subscribeToCirculars,
   isLegacySeedId,
   LEGACY_SAMPLE_BEARER_NAMES,
 } from './services/firebase';
@@ -363,7 +370,47 @@ export default function App() {
     window.addEventListener('hero-slides-updated', handleDynamicContentUpdate);
     window.addEventListener('posts-updated', handlePostsUpdate);
 
+    // 🌐 REAL-TIME FIRESTORE SNAPSHOT SUBSCRIPTIONS (LIVE CROSS-DEVICE STREAM)
+    // Instantly reflects files, documents, and notices uploaded from Vercel, Netlify, or any device
+    const unsubAnns = subscribeToAnnouncements((items) => {
+      setAnnouncements(items);
+    });
+    const unsubDocs = subscribeToImportantDocuments((items) => {
+      setImportantDocs(items);
+    });
+    const unsubNotices = subscribeToNoticeCirculars((items) => {
+      setNoticeCirculars(items);
+    });
+    const unsubNews = subscribeToNewsItems((items) => {
+      setNewsItems(items);
+    });
+    const unsubSlides = subscribeToHeroSlides((items) => {
+      setHeroSlides(items);
+    });
+    const unsubBearers = subscribeToExecutiveMembers((members) => {
+      setOfficeBearers(members);
+    });
+    const unsubCircs = subscribeToCirculars((circPosts) => {
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
+      const activeCircs = circPosts.filter((p) => !deletedIds.has(p.id));
+      setPosts((prev) => {
+        const map = new Map<string, BlogPost>();
+        activeCircs.forEach((c) => map.set(c.id, c));
+        prev.forEach((p) => {
+          if (!map.has(p.id) && !deletedIds.has(p.id)) map.set(p.id, p);
+        });
+        return Array.from(map.values());
+      });
+    });
+
     return () => {
+      unsubAnns();
+      unsubDocs();
+      unsubNotices();
+      unsubNews();
+      unsubSlides();
+      unsubBearers();
+      unsubCircs();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('offline-storage-updated', handleStorageUpdate);

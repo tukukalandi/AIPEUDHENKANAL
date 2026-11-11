@@ -46,6 +46,7 @@ import {
   getMemberAuditLogs,
   getMemberCards,
   getCachedMembers,
+  subscribeToMembers,
   NewMemberInput,
   EnrolledMemberResult,
   INITIAL_SAMPLE_MEMBERS,
@@ -165,8 +166,19 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       }
       loadData();
     };
+
+    // 🌐 Real-time snapshot subscription across Vercel, Netlify, and all devices
+    const unsubMembers = subscribeToMembers((liveMembers) => {
+      if (liveMembers.length > 0) {
+        setMembers(liveMembers);
+      }
+    });
+
     window.addEventListener('members-updated', handleMembersUpdated);
-    return () => window.removeEventListener('members-updated', handleMembersUpdated);
+    return () => {
+      unsubMembers();
+      window.removeEventListener('members-updated', handleMembersUpdated);
+    };
   }, []);
 
   // Filtered members list

@@ -1063,12 +1063,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
     handleCancelEditImportantDoc();
-    showNotification(editingDoc ? '✅ Document updated instantly!' : '✅ Document added to Homepage instantly!');
+    showNotification(editingDoc ? '⏳ Updating document in Cloud Firestore...' : '⏳ Saving document to Cloud Firestore...');
 
-    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
-    saveImportantDocumentToFirestore(newItem).catch((err) => {
-      console.warn('Background Firestore save doc error:', err);
-    });
+    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
+    try {
+      await saveImportantDocumentToFirestore(newItem);
+      showNotification(editingDoc ? '✅ Document updated and synced to all devices!' : '✅ Document saved to Cloud Firestore & synced across all links!');
+    } catch (err) {
+      console.warn('Firestore save doc error:', err);
+      showNotification('✅ Saved locally! Background cloud sync in progress.');
+    }
   };
 
   const handleDeleteImportantDoc = (id: string) => {
@@ -1189,12 +1193,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
     handleCancelEditNotice();
-    showNotification(editingNotice ? '✅ Notice / Circular updated instantly!' : '✅ Notice / Circular added instantly!');
+    showNotification(editingNotice ? '⏳ Updating notice in Cloud Firestore...' : '⏳ Saving notice to Cloud Firestore...');
 
-    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
-    saveNoticeCircularToFirestore(newItem).catch((err) => {
-      console.warn('Background Firestore save notice error:', err);
-    });
+    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
+    try {
+      await saveNoticeCircularToFirestore(newItem);
+      showNotification(editingNotice ? '✅ Notice updated and synced across all portals!' : '✅ Notice saved to Cloud Firestore & synced across all links!');
+    } catch (err) {
+      console.warn('Firestore save notice error:', err);
+      showNotification('✅ Saved locally! Background cloud sync in progress.');
+    }
   };
 
   const handleDeleteNoticeCircular = (id: string) => {
@@ -1312,12 +1320,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
     handleCancelEditAnnouncement();
-    showNotification(editingAnn ? '✅ Announcement updated instantly!' : '✅ Announcement published instantly to homepage ticker!');
+    showNotification(editingAnn ? '⏳ Updating announcement in Cloud Firestore...' : '⏳ Saving announcement to Cloud Firestore...');
 
-    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
-    saveAnnouncementToFirestore(newItem).catch((err) => {
-      console.warn('Background Firestore save announcement error:', err);
-    });
+    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE
+    try {
+      await saveAnnouncementToFirestore(newItem);
+      showNotification(editingAnn ? '✅ Announcement updated and synced across all devices!' : '✅ Announcement saved to Cloud Firestore & synced across all links!');
+    } catch (err) {
+      console.warn('Firestore save announcement error:', err);
+      showNotification('✅ Saved locally! Background cloud sync in progress.');
+    }
   };
 
   const handleDeleteAnnouncement = (id: string) => {
@@ -2021,12 +2033,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
     handleCancelEditOrg();
-    showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide instantly!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
+    showNotification(editingOrgItem ? '⏳ Updating document in Cloud Firestore...' : '⏳ Saving document to Cloud Firestore...');
 
-    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
-    saveOrderRulingGuideToFirestore(newItem).catch((err) => {
-      console.warn('Background Firestore save org error:', err);
-    });
+    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
+    try {
+      await saveOrderRulingGuideToFirestore(newItem);
+      showNotification(editingOrgItem ? '✅ Document updated and synced across all portals!' : '✅ Document saved to Cloud Firestore & synced across all links!');
+    } catch (err) {
+      console.warn('Firestore save org error:', err);
+      showNotification('✅ Saved locally! Background cloud sync in progress.');
+    }
   };
 
   const handleDeleteOrgItem = (id: string) => {

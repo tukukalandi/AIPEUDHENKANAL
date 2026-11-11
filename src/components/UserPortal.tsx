@@ -30,7 +30,7 @@ import { TRANSLATIONS } from '../data/translations';
 import { UNION_CONTACT_INFO, UNION_BRANCHES, OFFICE_BEARERS } from '../data/unionInfo';
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
 import { getExecutiveMembersFromFirestore } from '../services/firebase';
-import { getMembersFromFirestore } from '../services/memberService';
+import { getMembersFromFirestore, subscribeToMembers } from '../services/memberService';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberArea } from './MemberArea';
 import { PageHeaderWithNav } from './PageHeaderWithNav';
@@ -96,8 +96,19 @@ export const UserPortal: React.FC<UserPortalProps> = ({
     const handleMembersUpdated = () => {
       fetchPortalMembers();
     };
+
+    // 🌐 Live stream of newly enrolled members from Vercel, Netlify, or Admin Portal
+    const unsub = subscribeToMembers((liveMembers) => {
+      if (liveMembers.length > 0) {
+        setMembers(liveMembers);
+      }
+    });
+
     window.addEventListener('members-updated', handleMembersUpdated);
-    return () => window.removeEventListener('members-updated', handleMembersUpdated);
+    return () => {
+      unsub();
+      window.removeEventListener('members-updated', handleMembersUpdated);
+    };
   }, []);
 
   const memberCadres = useMemo(() => {

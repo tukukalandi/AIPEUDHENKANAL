@@ -18,7 +18,12 @@ import {
   Plus,
 } from 'lucide-react';
 import { OrderRulingGuideItem, PlatformStyle } from '../types';
-import { getOrdersRulingsGuidesFromFirestore, DEFAULT_ORDERS_RULINGS_GUIDES } from '../services/firebase';
+import {
+  getOrdersRulingsGuidesFromFirestore,
+  subscribeToOrdersRulingsGuides,
+  resolveFileUrl,
+  DEFAULT_ORDERS_RULINGS_GUIDES,
+} from '../services/firebase';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
 
 interface OrdersRulingsGuideViewProps {
@@ -253,8 +258,16 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
       fetchItems();
     };
 
+    // 🌐 REAL-TIME FIRESTORE STREAM: Instantly streams updates from Vercel/Netlify uploads
+    const unsubscribeSnapshot = subscribeToOrdersRulingsGuides((liveItems) => {
+      setItems(liveItems.filter((i) => !i.id.startsWith('org-seed-')));
+      setIsLoading(false);
+      setIsRefreshing(false);
+    });
+
     window.addEventListener('orders-rulings-guide-updated', handleUpdate);
     return () => {
+      unsubscribeSnapshot();
       window.removeEventListener('orders-rulings-guide-updated', handleUpdate);
     };
   }, []);
@@ -291,9 +304,48 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
     });
   }, [items, searchQuery, selectedFolder, selectedCategory]);
 
-  const handleCopyLink = (item: OrderRulingGuideItem) => {
+  const handleOpenDocument = async (docItem: OrderRulingGuideItem) => {
+    let url = docItem.documentUrl;
+    if (!url) return;
+    if (url.startsWith('firestore-file://')) {
+      url = await resolveFileUrl(url);
+    }
+    if (url.startsWith('data:')) {
+      try {
+        const arr = url.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank');
+        if (!win) {
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${(docItem.fileName || 'document').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+        return;
+      } catch (err) {
+        console.error('Error handling data URL in OrdersView:', err);
+      }
+    }
+    window.open(url, '_blank');
+  };
+
+  const handleCopyLink = async (item: OrderRulingGuideItem) => {
     if (!item.documentUrl) return;
-    navigator.clipboard.writeText(item.documentUrl);
+    let url = item.documentUrl;
+    if (url.startsWith('firestore-file://')) {
+      url = await resolveFileUrl(url);
+    }
+    navigator.clipboard.writeText(url);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2500);
   };
@@ -522,15 +574,13 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
 
                 {/* Bottom Action Buttons */}
                 <div className="mt-4 pt-3.5 border-t border-black/5 dark:border-white/10 flex items-center justify-between gap-2">
-                  <a
-                    href={docItem.documentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => handleOpenDocument(docItem)}
                     className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer ${palette.buttonBg}`}
                   >
                     <span>Open / Download</span>
                     <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
 
                   <button
                     onClick={() => handleCopyLink(docItem)}

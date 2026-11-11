@@ -5,12 +5,15 @@ import {
   addDoc,
   getDocs,
   doc,
+  setDoc,
+  getDoc,
   updateDoc,
   deleteDoc,
   getDocFromServer,
   query,
   orderBy,
   serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem, UnionDocumentRuling, OrderRulingGuideItem } from '../types';
@@ -70,6 +73,117 @@ export async function testFirestoreConnection() {
   }
 }
 testFirestoreConnection();
+
+// ================= CHUNKED CLOUD FILE STORAGE =================
+// Allows PDFs, documents, and images of any size (up to 15MB) to be
+// safely stored in Cloud Firestore without exceeding the 1MB document limit.
+const FILE_CHUNK_SIZE = 400000; // 400KB characters per chunk (~300KB binary)
+const fileUrlCache = new Map<string, string>();
+
+export async function uploadFileToFirestore(
+  dataUri: string,
+  fileName = 'document.pdf'
+): Promise<string> {
+  if (!dataUri || !dataUri.startsWith('data:')) {
+    return dataUri || '';
+  }
+
+  // If under 450,000 characters (~330KB), it safely fits inside a standard Firestore document
+  if (dataUri.length < 450000) {
+    return dataUri;
+  }
+
+  // Large file: chunk into uploadedFiles/{fileId}/chunks
+  const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  const mimeMatch = dataUri.match(/^data:([^;]+);/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+  const totalLength = dataUri.length;
+  const chunkCount = Math.ceil(totalLength / FILE_CHUNK_SIZE);
+
+  // Write chunks in parallel
+  const chunkPromises: Promise<any>[] = [];
+  for (let i = 0; i < chunkCount; i++) {
+    const chunkStr = dataUri.substring(i * FILE_CHUNK_SIZE, (i + 1) * FILE_CHUNK_SIZE);
+    const chunkDocRef = doc(db, 'uploadedFiles', fileId, 'chunks', `chunk_${i}`);
+    chunkPromises.push(
+      setDoc(chunkDocRef, {
+        index: i,
+        data: chunkStr,
+        createdAt: serverTimestamp(),
+      })
+    );
+  }
+
+  // Write manifest doc
+  const manifestDocRef = doc(db, 'uploadedFiles', fileId);
+  const manifestPromise = setDoc(manifestDocRef, {
+    fileId,
+    fileName,
+    mimeType,
+    chunkCount,
+    totalLength,
+    createdAt: serverTimestamp(),
+  });
+
+  await Promise.all([manifestPromise, ...chunkPromises]);
+
+  const fileRefUrl = `firestore-file://${fileId}?mime=${encodeURIComponent(mimeType)}&name=${encodeURIComponent(fileName)}`;
+  fileUrlCache.set(fileRefUrl, dataUri);
+  return fileRefUrl;
+}
+
+export async function resolveFileUrl(fileRefUrl: string): Promise<string> {
+  if (!fileRefUrl) return '';
+  if (!fileRefUrl.startsWith('firestore-file://')) {
+    return fileRefUrl;
+  }
+
+  // Check in-memory cache first for instant 0ms access
+  if (fileUrlCache.has(fileRefUrl)) {
+    return fileUrlCache.get(fileRefUrl)!;
+  }
+
+  try {
+    const cleanId = fileRefUrl.replace('firestore-file://', '').split('?')[0].replace(/^\/+/, '');
+
+    // Fetch manifest doc
+    const manifestSnap = await getDoc(doc(db, 'uploadedFiles', cleanId));
+    if (!manifestSnap.exists()) {
+      return fileRefUrl;
+    }
+    const manifest = manifestSnap.data();
+    const chunkCount = manifest.chunkCount || 1;
+    const mimeType = manifest.mimeType || 'application/pdf';
+
+    // Fetch all chunks in parallel
+    const chunkPromises: Promise<any>[] = [];
+    for (let i = 0; i < chunkCount; i++) {
+      chunkPromises.push(getDoc(doc(db, 'uploadedFiles', cleanId, 'chunks', `chunk_${i}`)));
+    }
+
+    const chunkSnaps = await Promise.all(chunkPromises);
+    const sortedChunks: string[] = [];
+    chunkSnaps.forEach((s) => {
+      if (s.exists()) {
+        const cData = s.data();
+        sortedChunks[cData.index] = cData.data;
+      }
+    });
+
+    const fullDataUri = sortedChunks.join('');
+    let result = fullDataUri;
+    if (!fullDataUri.startsWith('data:')) {
+      result = `data:${mimeType};base64,${fullDataUri}`;
+    }
+    fileUrlCache.set(fileRefUrl, result);
+    return result;
+  } catch (err) {
+    console.error('Error resolving chunked file from Firestore:', err);
+    return fileRefUrl;
+  }
+}
+
 
 /**
  * Filter out legacy seed items so user gets a 100% fresh, clean start
@@ -825,9 +939,18 @@ export async function saveAnnouncementToFirestore(
   ann: Partial<AnnouncementItem> & { id?: string }
 ): Promise<string> {
   let savedId = ann.id;
+  let resolvedLink = ann.link || '';
+  if (resolvedLink.startsWith('data:')) {
+    try {
+      resolvedLink = await uploadFileToFirestore(resolvedLink, ann.title || 'announcement.pdf');
+    } catch (e) {
+      console.warn('Chunk upload failed for announcement file, fallback to raw link:', e);
+    }
+  }
+
   const annData = {
     title: ann.title || '',
-    link: ann.link || '',
+    link: resolvedLink,
     published: ann.published || new Date().toISOString(),
     order: ann.order ?? 0,
     active: ann.active !== false,
@@ -838,7 +961,7 @@ export async function saveAnnouncementToFirestore(
     const colRef = collection(db, 'announcements');
     if (ann.id && !ann.id.startsWith('ann-') && !ann.id.startsWith('temp-') && !ann.id.startsWith('ann-local-')) {
       const annDoc = doc(db, 'announcements', ann.id);
-      await updateDoc(annDoc, annData);
+      await setDoc(annDoc, annData, { merge: true });
       savedId = ann.id;
     } else {
       const docRef = await addDoc(colRef, {
@@ -974,9 +1097,18 @@ export async function saveImportantDocumentToFirestore(
   docItem: Partial<ImportantDocItem> & { id?: string }
 ): Promise<string> {
   let savedId = docItem.id;
+  let resolvedUrl = docItem.url || '';
+  if (resolvedUrl.startsWith('data:')) {
+    try {
+      resolvedUrl = await uploadFileToFirestore(resolvedUrl, docItem.title || 'document.pdf');
+    } catch (e) {
+      console.warn('Chunk upload failed for important document file, fallback to raw url:', e);
+    }
+  }
+
   const docData = {
     title: docItem.title || '',
-    url: docItem.url || '',
+    url: resolvedUrl,
     category: docItem.category || 'General',
     order: docItem.order ?? 0,
     published: docItem.published || new Date().toISOString(),
@@ -987,7 +1119,7 @@ export async function saveImportantDocumentToFirestore(
     const colRef = collection(db, 'importantDocuments');
     if (docItem.id && !docItem.id.startsWith('doc-') && !docItem.id.startsWith('temp-') && !docItem.id.startsWith('doc-local-')) {
       const docRef = doc(db, 'importantDocuments', docItem.id);
-      await updateDoc(docRef, docData);
+      await setDoc(docRef, docData, { merge: true });
       savedId = docItem.id;
     } else {
       const docRef = await addDoc(colRef, {
@@ -1122,11 +1254,20 @@ export async function saveNoticeCircularToFirestore(
   nc: Partial<NoticeCircularItem> & { id?: string }
 ): Promise<string> {
   let savedId = nc.id;
+  let resolvedUrl = nc.url || '';
+  if (resolvedUrl.startsWith('data:')) {
+    try {
+      resolvedUrl = await uploadFileToFirestore(resolvedUrl, nc.title || 'notice.pdf');
+    } catch (e) {
+      console.warn('Chunk upload failed for notice circular file, fallback to raw url:', e);
+    }
+  }
+
   const ncData = {
     title: nc.title || '',
     category: nc.category || 'NOTICE',
     published: nc.published || new Date().toISOString().split('T')[0],
-    url: nc.url || '',
+    url: resolvedUrl,
     order: nc.order ?? 0,
     updatedAt: serverTimestamp(),
   };
@@ -1135,7 +1276,7 @@ export async function saveNoticeCircularToFirestore(
     const colRef = collection(db, 'noticeCirculars');
     if (nc.id && !nc.id.startsWith('nc-') && !nc.id.startsWith('temp-') && !nc.id.startsWith('nc-local-')) {
       const ncDoc = doc(db, 'noticeCirculars', nc.id);
-      await updateDoc(ncDoc, ncData);
+      await setDoc(ncDoc, ncData, { merge: true });
       savedId = nc.id;
     } else {
       const docRef = await addDoc(colRef, {
@@ -1473,11 +1614,20 @@ export async function saveOrderRulingGuideToFirestore(
   item: Partial<OrderRulingGuideItem> & { id?: string }
 ): Promise<string> {
   const colRef = collection(db, 'ordersRulingsGuides');
+  let resolvedDocUrl = item.documentUrl || '';
+  if (resolvedDocUrl.startsWith('data:')) {
+    try {
+      resolvedDocUrl = await uploadFileToFirestore(resolvedDocUrl, item.fileName || 'order.pdf');
+    } catch (e) {
+      console.warn('Chunk upload failed for order ruling guide file, fallback to raw url:', e);
+    }
+  }
+
   const docData = {
     fileName: item.fileName || '',
     folderName: item.folderName || 'General',
     category: item.category || 'Orders',
-    documentUrl: item.documentUrl || '',
+    documentUrl: resolvedDocUrl,
     published: item.published || new Date().toISOString().split('T')[0],
     order: item.order ?? 0,
     notes: item.notes || '',
@@ -1489,7 +1639,7 @@ export async function saveOrderRulingGuideToFirestore(
   try {
     if (item.id && !item.id.startsWith('org-seed-') && !item.id.startsWith('temp-') && !item.id.startsWith('org-local-')) {
       const docItem = doc(db, 'ordersRulingsGuides', item.id);
-      await updateDoc(docItem, docData);
+      await setDoc(docItem, docData, { merge: true });
       savedId = item.id;
     } else {
       const docRef = await addDoc(colRef, {
@@ -1557,4 +1707,284 @@ export async function deleteOrderRulingGuideFromFirestore(id: string): Promise<v
     console.warn('LocalStorage delete error:', e);
   }
 }
+
+// ================= REAL-TIME FIRESTORE SUBSCRIPTIONS (CROSS-DEVICE SYNC) =================
+// These onSnapshot listeners ensure that changes uploaded on Vercel, Netlify, mobile,
+// or local environments stream immediately (sub-second) to all open browser windows,
+// the AI Studio tool link, and public user portals.
+
+export function subscribeToAnnouncements(
+  callback: (items: AnnouncementItem[]) => void
+): () => void {
+  const colRef = collection(db, 'announcements');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: AnnouncementItem[] = [];
+      snapshot.forEach((d) => {
+        if (!isLegacySeedId(d.id)) {
+          const data = d.data();
+          items.push({
+            id: d.id,
+            title: data.title || '',
+            link: data.link || '',
+            published: data.published || '',
+            order: data.order ?? 0,
+            active: data.active !== false,
+          });
+        }
+      });
+      items.sort((a, b) => (a.order || 0) - (b.order || 0));
+      try {
+        localStorage.setItem('aipeu_announcements', JSON.stringify(items));
+      } catch {}
+      callback(items);
+    },
+    (err) => {
+      console.warn('Realtime announcements sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToImportantDocuments(
+  callback: (items: ImportantDocItem[]) => void
+): () => void {
+  const colRef = collection(db, 'importantDocuments');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: ImportantDocItem[] = [];
+      snapshot.forEach((d) => {
+        if (!isLegacySeedId(d.id)) {
+          const data = d.data();
+          items.push({
+            id: d.id,
+            title: data.title || '',
+            url: data.url || '',
+            category: data.category || 'General',
+            order: data.order ?? 0,
+            published: data.published || '',
+          });
+        }
+      });
+      items.sort((a, b) => (a.order || 0) - (b.order || 0));
+      try {
+        localStorage.setItem('aipeu_important_documents', JSON.stringify(items));
+      } catch {}
+      callback(items);
+    },
+    (err) => {
+      console.warn('Realtime important documents sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToNoticeCirculars(
+  callback: (items: NoticeCircularItem[]) => void
+): () => void {
+  const colRef = collection(db, 'noticeCirculars');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: NoticeCircularItem[] = [];
+      snapshot.forEach((d) => {
+        if (!isLegacySeedId(d.id)) {
+          const data = d.data();
+          items.push({
+            id: d.id,
+            title: data.title || '',
+            category: data.category || 'NOTICE',
+            published: data.published || '',
+            url: data.url || '',
+            order: data.order ?? 0,
+          });
+        }
+      });
+      items.sort((a, b) => (a.order || 0) - (b.order || 0));
+      try {
+        localStorage.setItem('aipeu_notice_circulars', JSON.stringify(items));
+      } catch {}
+      callback(items);
+    },
+    (err) => {
+      console.warn('Realtime notice circulars sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToOrdersRulingsGuides(
+  callback: (items: OrderRulingGuideItem[]) => void
+): () => void {
+  const colRef = collection(db, 'ordersRulingsGuides');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: OrderRulingGuideItem[] = [];
+      snapshot.forEach((d) => {
+        if (!isLegacySeedId(d.id)) {
+          const data = d.data();
+          items.push({
+            id: d.id,
+            fileName: data.fileName || '',
+            folderName: data.folderName || 'General',
+            category: data.category || 'Orders',
+            documentUrl: data.documentUrl || '',
+            published: data.published || '',
+            order: data.order ?? 0,
+            notes: data.notes || '',
+          });
+        }
+      });
+      items.sort((a, b) => {
+        if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
+        return (b.published || '').localeCompare(a.published || '');
+      });
+      try {
+        localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(items));
+      } catch {}
+      callback(items);
+    },
+    (err) => {
+      console.warn('Realtime orders/rulings/guides sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToNewsItems(
+  callback: (items: NewsSliderItem[]) => void
+): () => void {
+  const colRef = collection(db, 'newsSliderItems');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: NewsSliderItem[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        items.push({
+          id: d.id,
+          title: data.title || '',
+          category: data.category || 'LATEST NEWS',
+          link: data.link || '',
+          isUrgent: !!data.isUrgent,
+          published: data.published || '',
+          order: data.order ?? 0,
+        });
+      });
+      items.sort((a, b) => (a.order || 0) - (b.order || 0));
+      try {
+        localStorage.setItem('aipeu_news_items', JSON.stringify(items));
+      } catch {}
+      callback(items);
+    },
+    (err) => {
+      console.warn('Realtime news items sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToHeroSlides(
+  callback: (slides: HeroSlide[]) => void
+): () => void {
+  const colRef = collection(db, 'heroSlides');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const slides: HeroSlide[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        slides.push({
+          id: d.id,
+          title: data.title || '',
+          subtitle: data.subtitle || '',
+          tag: data.tag || 'DAKSHIKSHA',
+          imageUrl: data.imageUrl || '',
+          ctaText: data.ctaText || 'Learn More',
+          ctaLink: data.ctaLink || '#',
+          gradient: data.gradient || 'from-[#0A2540] via-[#1E3A8A] to-[#B91C1C]',
+          order: data.order ?? 0,
+          active: data.active !== false,
+          targetPage: data.targetPage || 'home',
+        });
+      });
+      slides.sort((a, b) => (a.order || 0) - (b.order || 0));
+      try {
+        localStorage.setItem('aipeu_hero_slides', JSON.stringify(slides));
+      } catch {}
+      callback(slides);
+    },
+    (err) => {
+      console.warn('Realtime hero slides sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToExecutiveMembers(
+  callback: (members: OfficeBearer[]) => void
+): () => void {
+  const colRef = collection(db, 'executiveMembers');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: (OfficeBearer & { id: string })[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        const normName = (data.name || '').trim().toLowerCase();
+        if (!isLegacySeedId(d.id) && !LEGACY_SAMPLE_BEARER_NAMES.has(normName)) {
+          list.push({
+            id: d.id,
+            name: data.name || '',
+            designation: data.designation || '',
+            branch: data.branch || '',
+            phone: data.phone || '',
+            location: data.location || '',
+            roleType: data.roleType || 'executive',
+            photoUrl: data.photoUrl || '',
+          } as OfficeBearer & { id: string });
+        }
+      });
+      const sorted = sortOfficeBearers(list);
+      try {
+        localStorage.setItem('aipeu_office_bearers', JSON.stringify(sorted));
+      } catch {}
+      callback(sorted);
+    },
+    (err) => {
+      console.warn('Realtime executive members sync notice:', err);
+    }
+  );
+}
+
+export function subscribeToCirculars(
+  callback: (posts: BlogPost[]) => void
+): () => void {
+  const colRef = collection(db, 'circulars');
+  const q = query(colRef, orderBy('published', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const posts: BlogPost[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          published: data.published || new Date().toISOString(),
+          updated: data.updated || data.published || '',
+          author: data.author || 'Divisional Secretary, AIPEU Dhenkanal',
+          url: data.url || '',
+          categories: data.category ? [data.category] : ['UNION NEWS'],
+          snippet: data.snippet || '',
+          contentHtml: data.contentHtml || '',
+          images: data.images || [],
+          driveLinks: data.driveLinks || [],
+          isSavedOffline: false,
+        };
+      });
+      callback(posts);
+    },
+    (err) => {
+      console.warn('Realtime circulars sync notice:', err);
+    }
+  );
+}
+
 

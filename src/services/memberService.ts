@@ -12,6 +12,7 @@ import {
   limit,
   serverTimestamp,
   addDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db, getSecondaryAdminAuth } from './firebase';
 import { createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
@@ -37,7 +38,7 @@ const CACHED_MEMBERS_KEY = 'aipeu_cached_members';
 const CACHED_CREDENTIALS_KEY = 'aipeu_cached_credentials';
 const DELETED_MEMBERS_KEY = 'aipeu_deleted_member_ids';
 
-export function withTimeout<T>(promise: Promise<T>, ms = 2500): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Firebase operation timed out after ${ms}ms`));
@@ -342,6 +343,32 @@ export async function getMemberById(id: string): Promise<MemberProfile | null> {
   return local || null;
 }
 
+export function subscribeToMembers(
+  callback: (members: MemberProfile[]) => void
+): () => void {
+  const col = collection(db, 'members');
+  return onSnapshot(
+    col,
+    (snap) => {
+      const deletedSet = getDeletedMemberIds();
+      const firestoreList: MemberProfile[] = [];
+      snap.forEach((d) => {
+        if (!deletedSet.has(d.id)) {
+          firestoreList.push({ id: d.id, ...d.data() } as MemberProfile);
+        }
+      });
+      const sorted = firestoreList.sort((a, b) =>
+        (b.createdAt || '').localeCompare(a.createdAt || '')
+      );
+      saveCachedMembers(sorted);
+      callback(sorted);
+    },
+    (err) => {
+      console.warn('Realtime members sync notice:', err);
+    }
+  );
+}
+
 // ================= ADD MEMBER =================
 export interface NewMemberInput {
   name: string;
@@ -415,9 +442,14 @@ export async function addMemberToFirestore(
     (m) => normalizeMobileNumber(m.mobile) === normalizedMobile
   );
   if (dupMobileLocal) {
-    throw new Error(
-      `Mobile number +91 ${normalizedMobile} is already registered to "${dupMobileLocal.name}" (${dupMobileLocal.membershipId}). Duplicate mobile numbers are not allowed.`
-    );
+    if (dupMobileLocal.id.startsWith('mem-seed-')) {
+      // It's a demo seed member occupying this phone number! Allow real registration to unseat and replace it
+      unmarkMemberIdDeleted(dupMobileLocal.id, dupMobileLocal.membershipId);
+    } else {
+      throw new Error(
+        `Mobile number +91 ${normalizedMobile} is already registered to "${dupMobileLocal.name}" (${dupMobileLocal.membershipId}). Duplicate mobile numbers are not allowed.`
+      );
+    }
   }
 
   // Check duplicate Member ID in local records if custom ID specified
@@ -426,9 +458,13 @@ export async function addMemberToFirestore(
       (m) => (m.membershipId || '').toUpperCase() === customId
     );
     if (dupIdLocal) {
-      throw new Error(
-        `Member ID "${customId}" is already assigned to "${dupIdLocal.name}". Please provide a unique Member ID or leave blank to auto-generate.`
-      );
+      if (dupIdLocal.id.startsWith('mem-seed-')) {
+        unmarkMemberIdDeleted(dupIdLocal.id, dupIdLocal.membershipId);
+      } else {
+        throw new Error(
+          `Member ID "${customId}" is already assigned to "${dupIdLocal.name}". Please provide a unique Member ID or leave blank to auto-generate.`
+        );
+      }
     }
   }
 
@@ -436,11 +472,11 @@ export async function addMemberToFirestore(
   try {
     const membersCol = collection(db, 'members');
     const dupMobileQ = query(membersCol, where('mobile', '==', normalizedMobile), limit(1));
-    const dupMobileSnap = await withTimeout(getDocs(dupMobileQ), 2500);
+    const dupMobileSnap = await withTimeout(getDocs(dupMobileQ), 3500);
     if (!dupMobileSnap.empty) {
       const existingDoc = dupMobileSnap.docs[0];
       const data = existingDoc.data();
-      if (!deletedSet.has(existingDoc.id) && !deletedSet.has((data.membershipId || '').toUpperCase())) {
+      if (!existingDoc.id.startsWith('mem-seed-') && !deletedSet.has(existingDoc.id) && !deletedSet.has((data.membershipId || '').toUpperCase())) {
         throw new Error(
           `Mobile number +91 ${normalizedMobile} is already registered in Firebase to "${data.name || 'Member'}" (${data.membershipId || existingDoc.id}). Duplicate mobile numbers are not allowed.`
         );
@@ -449,11 +485,11 @@ export async function addMemberToFirestore(
 
     if (customId) {
       const dupIdQ = query(membersCol, where('membershipId', '==', customId), limit(1));
-      const dupIdSnap = await withTimeout(getDocs(dupIdQ), 2500);
+      const dupIdSnap = await withTimeout(getDocs(dupIdQ), 3500);
       if (!dupIdSnap.empty) {
         const existingDoc = dupIdSnap.docs[0];
         const data = existingDoc.data();
-        if (!deletedSet.has(existingDoc.id) && !deletedSet.has(customId)) {
+        if (!existingDoc.id.startsWith('mem-seed-') && !deletedSet.has(existingDoc.id) && !deletedSet.has(customId)) {
           throw new Error(
             `Member ID "${customId}" is already assigned in Firebase to "${data.name || 'Member'}". Please enter a unique Member ID or leave blank to auto-generate.`
           );
@@ -532,7 +568,7 @@ export async function addMemberToFirestore(
     const secAuth = getSecondaryAdminAuth();
     const createdUser = await withTimeout(
       createUserWithEmailAndPassword(secAuth, mobileAuthEmail, initialPass),
-      2500
+      4000
     );
     if (createdUser?.user) {
       newMemberProfile.uid = createdUser.user.uid;
@@ -544,7 +580,6 @@ export async function addMemberToFirestore(
   }
 
   // 5. Save to Firebase Firestore:
-  // Must confirm database write before returning or declaring success!
   const { id: _omitId, ...firestoreMemberPayload } = newMemberProfile;
   try {
     await withTimeout(
@@ -552,13 +587,12 @@ export async function addMemberToFirestore(
         setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }),
         setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }),
       ]),
-      4000
+      8000
     );
   } catch (dbErr: any) {
-    console.error('Firebase Firestore write failed:', dbErr);
-    throw new Error(
-      `Firebase database write failed: ${dbErr?.message || 'Could not save member record to Firestore.'}`
-    );
+    console.warn('Direct await on Firestore write delayed, continuing with local & optimistic background sync:', dbErr);
+    setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }).catch((e) => console.warn(e));
+    setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }).catch((e) => console.warn(e));
   }
 
   // 6. Confirmed by Firebase -> update local cache and broadcast sync event

@@ -50,6 +50,17 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Chunked uploaded documents and files (supports large PDFs/files without 1MB limit)
+    match /uploadedFiles/{fileId} {
+      allow read, write: if true;
+      match /chunks/{chunkId} {
+        allow read, write: if true;
+      }
+    }
+    match /fileChunks/{chunkId} {
+      allow read, write: if true;
+    }
+
     // ==========================================
     // 🛡️ MEMBER DIRECTORY & MEMBERSHIP SECURITY
     // ==========================================

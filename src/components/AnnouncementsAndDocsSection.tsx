@@ -7,6 +7,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { AnnouncementItem, ImportantDocItem, NoticeCircularItem } from '../types';
+import { resolveFileUrl } from '../services/firebase';
 
 interface AnnouncementsAndDocsSectionProps {
   announcements: AnnouncementItem[];
@@ -51,13 +52,19 @@ export const AnnouncementsAndDocsSection: React.FC<AnnouncementsAndDocsSectionPr
     return itemCat === activeCat;
   });
 
-  const handleOpenLink = (url?: string, title?: string) => {
-    if (!url) return;
-    if (url.startsWith('#')) {
-      const el = document.querySelector(url);
+  const handleOpenLink = async (rawUrl?: string, title?: string) => {
+    if (!rawUrl) return;
+    if (rawUrl.startsWith('#')) {
+      const el = document.querySelector(rawUrl);
       if (el) el.scrollIntoView({ behavior: 'smooth' });
       return;
     }
+
+    let url = rawUrl;
+    if (url.startsWith('firestore-file://')) {
+      url = await resolveFileUrl(url);
+    }
+
     if (url.startsWith('data:')) {
       try {
         const arr = url.split(',');
