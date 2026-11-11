@@ -79,4 +79,20 @@ export const UNION_LOGOS: UnionLogo[] = [
     imagePath: '/assets/aistudio/WhatsApp_Image_2026-10-22_at_9.21.36_PM__1__167be9f8.jpeg',
     description: 'Unified fraternal front fighting for medical insurance, restoration of commutation & 8th CPC.',
   },
+  {
+    id: 'prc-dhenkanal',
+    name: 'Postal Recreation Club Dhenkanal',
+    shortName: 'PRC Dhenkanal',
+    cadre: 'Postal Recreation & Cultural Wing',
+    imagePath: PRIMARY_BRAND_LOGO,
+    description: 'Promoting sports, indoor games, annual cultural meets, libraries, and staff welfare activities for postal employees in Dhenkanal.',
+  },
+  {
+    id: 'prc-angul',
+    name: 'Postal Recreation Club Angul HO',
+    shortName: 'PRC Angul HO',
+    cadre: 'Postal Recreation & Sports Wing',
+    imagePath: SECONDARY_BRAND_LOGO,
+    description: 'Fostering recreation, wellness facilities, sports tournaments, reading room and fraternal gatherings for postal staff at Angul Head Post Office.',
+  },
 ];

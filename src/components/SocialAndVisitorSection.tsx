@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Users,
   Send,
@@ -7,6 +7,17 @@ import {
   Sparkles,
   Share2,
   ShieldCheck,
+  Building,
+  BedDouble,
+  MapPin,
+  Phone,
+  CheckCircle2,
+  Calendar,
+  X,
+  Clock,
+  Wifi,
+  Fan,
+  Coffee,
 } from 'lucide-react';
 import { AppLanguage } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -23,6 +34,61 @@ export const SocialAndVisitorSection: React.FC<SocialAndVisitorSectionProps> = (
   onSelectWing,
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
+  const [selectedFacility, setSelectedFacility] = useState<any | null>(null);
+
+  // Departmental Inspection Facilities (Dhenkanal & Angul HO)
+  const inspectionFacilities = [
+    {
+      id: 'iq-dhenkanal',
+      title: 'Inspection Quarter – Dhenkanal',
+      subTitle: 'Department of Posts · Postal Transit Facility',
+      location: 'Near Divisional Office & Head Post Office Campus, Dhenkanal, Odisha - 759001',
+      rooms: '2 VIP AC Suites + 2 Non-AC Transit Rooms',
+      allottingAuthority: 'Superintendent of Post Offices, Dhenkanal Division',
+      contactPerson: 'Caretaker / Sub-Divisional Inspector / Divisional Secretary',
+      contactPhone: '9861184651',
+      timing: 'Check-in: 12:00 PM | Check-out: 11:00 AM',
+      amenities: [
+        { label: 'Air Conditioned Suites', icon: 'ac' },
+        { label: 'High Speed Wi-Fi', icon: 'wifi' },
+        { label: 'Attached Bathrooms & Geyser', icon: 'bath' },
+        { label: 'Dining Area & Tea Facility', icon: 'dining' },
+        { label: '24/7 Security & Power Backup', icon: 'power' },
+      ],
+      description:
+        'Official Departmental Inspection Quarter situated at the Dhenkanal Division headquarters. Available for postal officers, touring inspection officials, NFPE/AIPEU delegates, and visiting postal employees on duty or authorized leave.',
+      bookingGuidelines:
+        'Booking requests should be forwarded to the Office of the Superintendent of Post Offices, Dhenkanal Division with advance intimation. AIPEU union delegates may reach out to the Divisional Secretary (9861184651) for transit assistance.',
+      badgeColor: 'from-blue-600 to-indigo-700',
+      badgeBorder: 'border-blue-400 dark:border-blue-700',
+      tagText: 'Division HQ Facility',
+    },
+    {
+      id: 'ir-angul',
+      title: 'Inspection Room – Angul HO',
+      subTitle: 'Department of Posts · Head Post Office Complex',
+      location: 'Angul Head Post Office Campus, Bazar Branch Road, Angul, Odisha - 759122',
+      rooms: '1 Executive Suite + 2 Standard Transit Rooms',
+      allottingAuthority: 'Postmaster / Senior Superintendent of Post Offices, Angul Sub-Division',
+      contactPerson: 'Postmaster, Angul HO / Sub-Divisional Postal Comrade',
+      contactPhone: '9861184651',
+      timing: 'Check-in: 12:00 PM | Check-out: 11:00 AM',
+      amenities: [
+        { label: 'Air Cooled / AC Rooms', icon: 'ac' },
+        { label: 'Running Water & Geyser', icon: 'bath' },
+        { label: 'Clean Bedding & Work Desk', icon: 'desk' },
+        { label: 'Proximity to Railway Station & Bus Stand', icon: 'location' },
+        { label: 'Postal Recreation Club Access', icon: 'club' },
+      ],
+      description:
+        'Well-maintained Departmental Inspection Room located within the prime Angul Head Post Office compound. Offers comfortable transit lodging for touring postal inspection teams, comrades attending union meetings, and visiting postal staff.',
+      bookingGuidelines:
+        'Allotment is processed through the Postmaster, Angul HO and Divisional Office, Dhenkanal. Prior reservation is recommended during audit inspection tours and union circle conferences.',
+      badgeColor: 'from-emerald-600 to-teal-700',
+      badgeBorder: 'border-emerald-400 dark:border-emerald-700',
+      tagText: 'Angul HO Complex',
+    },
+  ];
 
   // 5 Official Social Media Channels styled with the website logo identity
   const socialChannels = [
@@ -148,7 +214,7 @@ export const SocialAndVisitorSection: React.FC<SocialAndVisitorSectionProps> = (
                 Official Crests & Emblems
               </span>
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                7 Constituent Wings
+                {UNION_LOGOS.length} Constituent Wings & Clubs
               </span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2 mt-1">
@@ -156,12 +222,12 @@ export const SocialAndVisitorSection: React.FC<SocialAndVisitorSectionProps> = (
               <span>Constituent Unions & Fraternal Associations</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-              Recognized federal trade union bodies and pensioner organizations functioning across Dhenkanal Division
+              Recognized federal trade union bodies, postal recreation clubs, and pensioner organizations functioning across Dhenkanal Division
             </p>
           </div>
         </div>
 
-        {/* Responsive Grid of all 7 Official Logos */}
+        {/* Responsive Grid of all Official Constituent Logos & Clubs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {UNION_LOGOS.map((item) => (
             <div
@@ -213,6 +279,233 @@ export const SocialAndVisitorSection: React.FC<SocialAndVisitorSectionProps> = (
             </div>
           ))}
         </div>
+      </div>
+
+      {/* 🏢 DEPARTMENTAL INSPECTION FACILITIES (DHENKANAL & ANGUL HO) */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-800">
+                Department of Posts
+              </span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                Transit & Tour Accommodations
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2 mt-1">
+              <Building className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <span>Inspection Facilities – Dhenkanal & Angul HO</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+              Official Departmental Inspection Quarters and Transit Inspection Rooms available for touring postal officials, union delegates, and visiting employees
+            </p>
+          </div>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 w-fit flex items-center gap-1.5">
+            <BedDouble className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>2 Departmental Units</span>
+          </span>
+        </div>
+
+        {/* 2 Separate Inspection Facilities Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {inspectionFacilities.map((fac) => (
+            <div
+              key={fac.id}
+              className="group relative rounded-3xl p-6 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-400 shadow-md hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden"
+            >
+              {/* Top Accent Gradient Bar */}
+              <div className={`absolute top-0 left-0 right-0 h-2 bg-gradient-to-r ${fac.badgeColor}`} />
+
+              <div className="space-y-4">
+                {/* Header Badge & Title */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/20 dark:from-blue-950/60 dark:to-indigo-950/60 text-blue-600 dark:text-blue-400 p-2 border border-blue-200 dark:border-blue-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <BedDouble className="w-7 h-7 stroke-[2.2]" />
+                    </div>
+                    <div>
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 mb-1">
+                        {fac.tagText}
+                      </span>
+                      <h4 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {fac.title}
+                      </h4>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {fac.subTitle}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location & Authority */}
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="flex items-start gap-2 text-slate-700 dark:text-slate-300">
+                    <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <span>{fac.location}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <Building className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="font-bold text-slate-900 dark:text-white">{fac.rooms}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-[11px]">
+                    <Clock className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <span>{fac.timing}</span>
+                  </div>
+                </div>
+
+                {/* Amenity Pills */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {fac.amenities.slice(0, 4).map((am: any, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                      <span>{am.label}</span>
+                    </span>
+                  ))}
+                  {fac.amenities.length > 4 && (
+                    <span className="px-2 py-1 rounded-xl text-[11px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                      +{fac.amenities.length - 4} more
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
+                  {fac.description}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFacility(fac)}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>View Details & Rules</span>
+                </button>
+
+                <a
+                  href={`tel:${fac.contactPhone}`}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5"
+                >
+                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Call Booking Desk</span>
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Modal Dialog for Inspection Facility Details */}
+        {selectedFacility && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 relative space-y-4">
+              <button
+                type="button"
+                onClick={() => setSelectedFacility(null)}
+                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <BedDouble className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                    Official Department of Posts Facility
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                    {selectedFacility.title}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2 text-xs">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white block">Location:</span>
+                      <span className="text-slate-600 dark:text-slate-400">{selectedFacility.location}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Building className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white block">Accommodation Capacity:</span>
+                      <span className="text-slate-600 dark:text-slate-400">{selectedFacility.rooms}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white block">Allotting Authority:</span>
+                      <span className="text-slate-600 dark:text-slate-400">{selectedFacility.allottingAuthority}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">Key Amenities:</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedFacility.amenities.map((am: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>{am.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">Facility Overview:</h4>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {selectedFacility.description}
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 space-y-1">
+                  <h4 className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-amber-600" />
+                    <span>Booking & Allotment Guidelines:</span>
+                  </h4>
+                  <p className="text-amber-800 dark:text-amber-300 leading-relaxed">
+                    {selectedFacility.bookingGuidelines}
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <div>Contact: <span className="font-bold text-slate-800 dark:text-slate-200">{selectedFacility.contactPerson}</span></div>
+                    <div>Helpline: <span className="font-bold text-slate-800 dark:text-slate-200">{selectedFacility.contactPhone}</span></div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <a
+                      href={`tel:${selectedFacility.contactPhone}`}
+                      className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Contact Desk</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFacility(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 font-bold text-xs transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 📱 OFFICIAL SOCIAL MEDIA CHANNELS

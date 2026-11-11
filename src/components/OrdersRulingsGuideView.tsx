@@ -15,6 +15,7 @@ import {
   Filter,
   Sparkles,
   ArrowRight,
+  Plus,
 } from 'lucide-react';
 import { OrderRulingGuideItem, PlatformStyle } from '../types';
 import { getOrdersRulingsGuidesFromFirestore, DEFAULT_ORDERS_RULINGS_GUIDES } from '../services/firebase';
@@ -208,10 +209,10 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
       const raw = localStorage.getItem('aipeu_orders_rulings_guides');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed.filter((i: any) => !i.id.startsWith('org-seed-'));
       }
     } catch {}
-    return DEFAULT_ORDERS_RULINGS_GUIDES;
+    return [];
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -224,8 +225,8 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
     try {
       setIsRefreshing(true);
       const data = await getOrdersRulingsGuidesFromFirestore();
-      if (data && data.length > 0) {
-        setItems(data);
+      if (Array.isArray(data)) {
+        setItems(data.filter((i) => !i.id.startsWith('org-seed-')));
       }
     } catch (err) {
       console.error('Failed to load Orders/Rulings/Guide items:', err);
@@ -238,7 +239,17 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
   useEffect(() => {
     fetchItems();
 
+    // ⚡ 0ms INSTANT SYNCHRONIZATION: Read updated list from localStorage synchronously
     const handleUpdate = () => {
+      try {
+        const raw = localStorage.getItem('aipeu_orders_rulings_guides');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setItems(parsed.filter((i: any) => !i.id.startsWith('org-seed-')));
+          }
+        }
+      } catch {}
       fetchItems();
     };
 
@@ -536,6 +547,29 @@ export const OrdersRulingsGuideView: React.FC<OrdersRulingsGuideViewProps> = ({
               </div>
             );
           })}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="p-12 sm:p-16 rounded-3xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
+          <div className="w-16 h-16 rounded-3xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center shadow-inner">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-lg font-black text-slate-800 dark:text-white">
+              Repository is Ready for Fresh Documents
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              All demo files have been cleared. You can upload official departmental Orders, Rulings, and Guide files directly from the Admin Portal.
+            </p>
+          </div>
+          {onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Open Admin Portal to Add Documents</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">

@@ -51,6 +51,33 @@ export async function testFirestoreConnection() {
 }
 testFirestoreConnection();
 
+/**
+ * Filter out legacy seed items so user gets a 100% fresh, clean start
+ * for Announcements, Important Documents, Notices, Orders/Rulings/Guide, and Directory.
+ */
+export function isLegacySeedId(id?: string): boolean {
+  if (!id) return false;
+  if (/^ann-[0-9]+$/.test(id)) return true;
+  if (/^doc-[0-9]+$/.test(id)) return true;
+  if (/^nc-[0-9]+$/.test(id)) return true;
+  if (id.startsWith('org-seed-')) return true;
+  if (id.startsWith('bearer-') || id === 'exec-seed-1' || id === 'exec-seed-2') return true;
+  return false;
+}
+
+// Names of pre-seeded sample office bearers that were originally shown on the demo site
+export const LEGACY_SAMPLE_BEARER_NAMES = new Set([
+  'com. suryakant sahoo',
+  'com. prasanta kumar mohapatra',
+  'com. ramesh chandra sahoo',
+  'com. bijay kumar nayak',
+  'com. satyabrata mishra',
+  'com. chandra sekhar singh',
+  'com. niranjan barik',
+  'com. subash chandra rout',
+  'com. minati samal',
+]);
+
 // ================= CIRCULARS & LATEST NEWS =================
 
 export interface NewCircularInput {
@@ -256,10 +283,6 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
     if (!snapshot.empty) {
       firestoreList = snapshot.docs.map((d) => {
         const data = d.data();
-        const matchedDefault = DEFAULT_OFFICE_BEARERS.find(
-          (def) => def.name.trim().toLowerCase() === (data.name || '').trim().toLowerCase()
-        );
-
         return {
           id: d.id,
           name: data.name || '',
@@ -268,7 +291,7 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
           phone: data.phone || '',
           location: data.location || '',
           roleType: data.roleType || 'executive',
-          photoUrl: data.photoUrl || matchedDefault?.photoUrl || '',
+          photoUrl: data.photoUrl || '',
         } as OfficeBearer & { id: string };
       });
     }
@@ -289,15 +312,23 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
   } catch {}
 
   const map = new Map<string, OfficeBearer>();
+
+  const isLegacyItem = (item: OfficeBearer & { id?: string }) => {
+    if (item.id && (isLegacySeedId(item.id) || deletedIds.has(item.id))) return true;
+    const normName = (item.name || '').trim().toLowerCase();
+    if (LEGACY_SAMPLE_BEARER_NAMES.has(normName)) return true;
+    return false;
+  };
+
   DEFAULT_OFFICE_BEARERS.forEach((m, idx) => {
     const mid = m.id || `bearer-${idx}`;
-    if (!deletedIds.has(mid)) map.set(mid, { ...m, id: mid });
+    if (!isLegacyItem({ ...m, id: mid })) map.set(mid, { ...m, id: mid });
   });
   firestoreList.forEach((m) => {
-    if (!deletedIds.has(m.id)) map.set(m.id, m);
+    if (!isLegacyItem(m)) map.set(m.id, m);
   });
   localList.forEach((m) => {
-    if (!deletedIds.has(m.id)) map.set(m.id, m);
+    if (!isLegacyItem(m)) map.set(m.id, m);
   });
 
   const sorted = sortOfficeBearers(Array.from(map.values()));
@@ -306,6 +337,19 @@ export async function getExecutiveMembersFromFirestore(): Promise<OfficeBearer[]
   } catch {}
 
   return sorted;
+}
+
+export async function clearAllExecutiveMembersFromFirestore(): Promise<void> {
+  try {
+    const colRef = collection(db, 'executiveMembers');
+    const snapshot = await getDocs(colRef);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'executiveMembers', d.id))));
+  } catch (err) {
+    console.warn('Error clearing executive members from Firestore:', err);
+  }
+  try {
+    localStorage.setItem('aipeu_office_bearers', '[]');
+  } catch {}
 }
 
 export async function saveExecutiveMemberToFirestore(
@@ -735,16 +779,16 @@ export async function getAnnouncementsFromFirestore(): Promise<AnnouncementItem[
     if (raw) localItems = JSON.parse(raw);
   } catch {}
 
-  // Merge map: defaults -> firestore -> local
+  // Merge map: firestore -> local (excluding any old legacy demo seed items)
   const map = new Map<string, AnnouncementItem>();
   DEFAULT_ANNOUNCEMENTS.forEach((a) => {
-    if (!deletedIds.has(a.id)) map.set(a.id, a);
+    if (!deletedIds.has(a.id) && !isLegacySeedId(a.id)) map.set(a.id, a);
   });
   firestoreItems.forEach((a) => {
-    if (!deletedIds.has(a.id)) map.set(a.id, a);
+    if (!deletedIds.has(a.id) && !isLegacySeedId(a.id)) map.set(a.id, a);
   });
   localItems.forEach((a) => {
-    if (!deletedIds.has(a.id)) map.set(a.id, a);
+    if (!deletedIds.has(a.id) && !isLegacySeedId(a.id)) map.set(a.id, a);
   });
 
   const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -884,16 +928,16 @@ export async function getImportantDocumentsFromFirestore(): Promise<ImportantDoc
     if (raw) localItems = JSON.parse(raw);
   } catch {}
 
-  // Merge map: defaults -> firestore -> local
+  // Merge map: firestore -> local (excluding any legacy demo items)
   const map = new Map<string, ImportantDocItem>();
   DEFAULT_IMPORTANT_DOCUMENTS.forEach((d) => {
-    if (!deletedIds.has(d.id)) map.set(d.id, d);
+    if (!deletedIds.has(d.id) && !isLegacySeedId(d.id)) map.set(d.id, d);
   });
   firestoreItems.forEach((d) => {
-    if (!deletedIds.has(d.id)) map.set(d.id, d);
+    if (!deletedIds.has(d.id) && !isLegacySeedId(d.id)) map.set(d.id, d);
   });
   localItems.forEach((d) => {
-    if (!deletedIds.has(d.id)) map.set(d.id, d);
+    if (!deletedIds.has(d.id) && !isLegacySeedId(d.id)) map.set(d.id, d);
   });
 
   const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -1032,16 +1076,16 @@ export async function getNoticeCircularsFromFirestore(): Promise<NoticeCircularI
     if (raw) localItems = JSON.parse(raw);
   } catch {}
 
-  // Merge map: defaults -> firestore -> local
+  // Merge map: firestore -> local (excluding any legacy demo items)
   const map = new Map<string, NoticeCircularItem>();
   DEFAULT_NOTICE_CIRCULARS.forEach((nc) => {
-    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+    if (!deletedIds.has(nc.id) && !isLegacySeedId(nc.id)) map.set(nc.id, nc);
   });
   firestoreItems.forEach((nc) => {
-    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+    if (!deletedIds.has(nc.id) && !isLegacySeedId(nc.id)) map.set(nc.id, nc);
   });
   localItems.forEach((nc) => {
-    if (!deletedIds.has(nc.id)) map.set(nc.id, nc);
+    if (!deletedIds.has(nc.id) && !isLegacySeedId(nc.id)) map.set(nc.id, nc);
   });
 
   const result = Array.from(map.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -1290,68 +1334,7 @@ export async function deleteUnionDocumentRulingFromFirestore(id: string): Promis
 
 // ================= ORDERS / RULINGS / GUIDE =================
 
-export const DEFAULT_ORDERS_RULINGS_GUIDES: OrderRulingGuideItem[] = [
-  {
-    id: 'org-seed-1',
-    fileName: 'Postal Manual Volume IV - Appointments, Promotion & Leave Regulations',
-    folderName: 'Postal Manuals',
-    category: 'Guide',
-    documentUrl: 'https://www.indiapost.gov.in',
-    published: '2026-01-15',
-    order: 1,
-    notes: 'Official Directorate manual covering PA, Postman, and MTS cadre service conditions.',
-  },
-  {
-    id: 'org-seed-2',
-    fileName: 'Inter-Circle & Intra-Circle Rule 38 Transfer Guidelines & Waiting List Procedures',
-    folderName: 'Rule 38 Transfers',
-    category: 'Orders',
-    documentUrl: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-    published: '2026-02-10',
-    order: 2,
-    notes: 'Comprehensive guidelines and SOP for online transfer application and portal processing.',
-  },
-  {
-    id: 'org-seed-3',
-    fileName: 'CCS (Conduct) Rules 1964 and CCS (CCA) Rules 1965 Statutory Rulings',
-    folderName: 'Conduct & Service Rules',
-    category: 'Rulings',
-    documentUrl: 'https://www.indiapost.gov.in',
-    published: '2026-02-28',
-    order: 3,
-    notes: 'Statutory disciplinary rulings, representation protocols, and inquiry guidelines.',
-  },
-  {
-    id: 'org-seed-4',
-    fileName: 'MACP Scheme Benchmark, Fixation Orders & 7th CPC Clarifications',
-    folderName: 'Pay & Allowances',
-    category: 'Orders',
-    documentUrl: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-    published: '2026-03-05',
-    order: 4,
-    notes: 'Financial upgradation criteria after 10, 20, 30 years of regular departmental service.',
-  },
-  {
-    id: 'org-seed-5',
-    fileName: 'AIPEU Trade Union Constitution, Branch Bye-Laws & Meeting Procedures',
-    folderName: 'Union Affairs',
-    category: 'Guide',
-    documentUrl: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
-    published: '2026-01-01',
-    order: 5,
-    notes: 'Constitution and administrative rules of AIPEU Group C Dhenkanal Division branch.',
-  },
-  {
-    id: 'org-seed-6',
-    fileName: 'GDS (Conduct and Engagement) Rules 2020 with Latest Amendments',
-    folderName: 'GDS Regulations',
-    category: 'Orders',
-    documentUrl: 'https://www.indiapost.gov.in',
-    published: '2026-03-12',
-    order: 6,
-    notes: 'Service terms, TRCA allowances, leave, and discipline for Gramin Dak Sevaks.',
-  },
-];
+export const DEFAULT_ORDERS_RULINGS_GUIDES: OrderRulingGuideItem[] = [];
 
 export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRulingGuideItem[]> {
   const deletedIds = new Set<string>();
@@ -1379,27 +1362,6 @@ export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRuling
           notes: data.notes || '',
         };
       });
-    } else {
-      // Auto-seed defaults if Firestore collection is brand new
-      try {
-        for (const item of DEFAULT_ORDERS_RULINGS_GUIDES) {
-          if (!deletedIds.has(item.id)) {
-            await addDoc(colRef, {
-              fileName: item.fileName,
-              folderName: item.folderName,
-              category: item.category,
-              documentUrl: item.documentUrl,
-              published: item.published || new Date().toISOString().split('T')[0],
-              order: item.order || 0,
-              notes: item.notes || '',
-              createdAt: serverTimestamp(),
-            });
-          }
-        }
-      } catch (seedErr) {
-        console.warn('Could not auto-seed orders rulings guides to Firestore:', seedErr);
-      }
-      firestoreItems = DEFAULT_ORDERS_RULINGS_GUIDES.filter((i) => !deletedIds.has(i.id));
     }
   } catch (err) {
     console.warn('Error fetching orders, rulings & guides from Firestore:', err);
@@ -1412,25 +1374,80 @@ export async function getOrdersRulingsGuidesFromFirestore(): Promise<OrderRuling
     );
     const mergedMap = new Map<string, OrderRulingGuideItem>();
 
-    DEFAULT_ORDERS_RULINGS_GUIDES.forEach((item) => {
-      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
-    });
     firestoreItems.forEach((item) => {
-      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
+      if (!deletedIds.has(item.id) && !isLegacySeedId(item.id)) mergedMap.set(item.id, item);
     });
     localItems.forEach((item) => {
-      if (!deletedIds.has(item.id)) mergedMap.set(item.id, item);
+      if (!deletedIds.has(item.id) && !isLegacySeedId(item.id)) mergedMap.set(item.id, item);
     });
 
     const result = Array.from(mergedMap.values());
-    return result.sort((a, b) => {
+    const sorted = result.sort((a, b) => {
       if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order ?? 0) - (b.order ?? 0);
       return (b.published || '').localeCompare(a.published || '');
     });
+    try {
+      localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(sorted));
+    } catch {}
+    return sorted;
   } catch (e) {
-    return firestoreItems.length > 0 ? firestoreItems : DEFAULT_ORDERS_RULINGS_GUIDES;
+    return firestoreItems.filter((i) => !isLegacySeedId(i.id));
   }
 }
+
+// ================= BATCH PURGE / CLEAR ALL HELPERS =================
+export async function clearAllAnnouncementsFromFirestore(): Promise<void> {
+  try {
+    const colRef = collection(db, 'announcements');
+    const snapshot = await getDocs(colRef);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'announcements', d.id))));
+  } catch (err) {
+    console.warn('Error clearing announcements from Firestore:', err);
+  }
+  try {
+    localStorage.setItem('aipeu_announcements', '[]');
+  } catch {}
+}
+
+export async function clearAllImportantDocsFromFirestore(): Promise<void> {
+  try {
+    const colRef = collection(db, 'importantDocuments');
+    const snapshot = await getDocs(colRef);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'importantDocuments', d.id))));
+  } catch (err) {
+    console.warn('Error clearing important docs from Firestore:', err);
+  }
+  try {
+    localStorage.setItem('aipeu_important_documents', '[]');
+  } catch {}
+}
+
+export async function clearAllNoticeCircularsFromFirestore(): Promise<void> {
+  try {
+    const colRef = collection(db, 'noticeCirculars');
+    const snapshot = await getDocs(colRef);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'noticeCirculars', d.id))));
+  } catch (err) {
+    console.warn('Error clearing notice circulars from Firestore:', err);
+  }
+  try {
+    localStorage.setItem('aipeu_notice_circulars', '[]');
+  } catch {}
+}
+
+export async function clearAllOrdersRulingsGuidesFromFirestore(): Promise<void> {
+  try {
+    const colRef = collection(db, 'ordersRulingsGuides');
+    const snapshot = await getDocs(colRef);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'ordersRulingsGuides', d.id))));
+  } catch (err) {
+    console.warn('Error clearing orders rulings guides from Firestore:', err);
+  }
+  try {
+    localStorage.setItem('aipeu_orders_rulings_guides', '[]');
+  } catch {}
+}
+
 
 export async function saveOrderRulingGuideToFirestore(
   item: Partial<OrderRulingGuideItem> & { id?: string }

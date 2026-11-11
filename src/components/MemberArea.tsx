@@ -84,15 +84,14 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
     if (!s) return;
     setLoadingMember(true);
     try {
-      const live = await getLiveMemberProfile(s.memberId);
+      const live = await getLiveMemberProfile(s.memberId || s.membershipId);
       if (live) {
         setMember(live);
         // Load update requests
-        const allReqs = await getProfileUpdateRequests();
-        setMyRequests(allReqs.filter((r) => r.memberId === live.id));
-      } else {
-        // Member record no longer exists
-        handleLogout();
+        try {
+          const allReqs = await getProfileUpdateRequests();
+          setMyRequests(allReqs.filter((r) => r.memberId === live.id || r.membershipId === live.membershipId));
+        } catch {}
       }
     } catch (err) {
       console.warn('Could not load live member:', err);
@@ -119,7 +118,7 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
       if (res.success && res.member && res.session) {
         setSession(res.session);
         setMember(res.member);
-        setLoginSuccessMsg('Login successful!');
+        setLoginSuccessMsg('Login successful! Welcome Comrade.');
         // Populate update form defaults
         setUpdateCadre(res.member.cadre);
         setUpdateOffice(res.member.office);
@@ -127,12 +126,13 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
         setUpdateEmail(res.member.email);
         setUpdateAddress(res.member.address);
         setUpdatePhotoUrl(res.member.photoUrl || '');
-        refreshMember(res.session);
+        // Do not force logout if refresh takes time
+        await refreshMember(res.session);
       } else {
         setLoginError(res.message || 'Login failed. Please verify your credentials.');
       }
-    } catch {
-      setLoginError('An unexpected error occurred during login. Please try again.');
+    } catch (err: any) {
+      setLoginError(err?.message || 'An unexpected error occurred during login. Please try again.');
     } finally {
       setLoginLoading(false);
     }

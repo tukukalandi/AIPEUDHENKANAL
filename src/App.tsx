@@ -61,6 +61,8 @@ import {
   getImportantDocumentsFromFirestore,
   getNoticeCircularsFromFirestore,
   getExecutiveMembersFromFirestore,
+  isLegacySeedId,
+  LEGACY_SAMPLE_BEARER_NAMES,
 } from './services/firebase';
 import {
   getSavedPostIds,
@@ -99,38 +101,42 @@ export default function App() {
       const stored = localStorage.getItem('aipeu_announcements');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed.filter((a: any) => !isLegacySeedId(a.id));
       }
     } catch {}
-    return DEFAULT_ANNOUNCEMENTS;
+    return [];
   });
   const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>(() => {
     try {
       const stored = localStorage.getItem('aipeu_important_documents');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed.filter((d: any) => !isLegacySeedId(d.id));
       }
     } catch {}
-    return DEFAULT_IMPORTANT_DOCUMENTS;
+    return [];
   });
   const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>(() => {
     try {
       const stored = localStorage.getItem('aipeu_notice_circulars');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed.filter((n: any) => !isLegacySeedId(n.id));
       }
     } catch {}
-    return DEFAULT_NOTICE_CIRCULARS;
+    return [];
   });
   const [officeBearers, setOfficeBearers] = useState<OfficeBearer[]>(() => {
     try {
       const stored = localStorage.getItem('aipeu_office_bearers');
-      return stored ? JSON.parse(stored) : OFFICE_BEARERS;
-    } catch {
-      return OFFICE_BEARERS;
-    }
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((b: any) => !isLegacySeedId(b.id) && !LEGACY_SAMPLE_BEARER_NAMES.has((b.name || '').trim().toLowerCase()));
+        }
+      }
+    } catch {}
+    return [];
   });
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [navHistory, setNavHistory] = useState<ActiveTab[]>([]);
@@ -230,10 +236,8 @@ export default function App() {
   const loadOfficeBearers = async () => {
     try {
       const data = await getExecutiveMembersFromFirestore();
-      if (data && data.length > 0) {
-        setOfficeBearers(data);
-        localStorage.setItem('aipeu_office_bearers', JSON.stringify(data));
-      }
+      setOfficeBearers(data || []);
+      localStorage.setItem('aipeu_office_bearers', JSON.stringify(data || []));
     } catch (err) {
       console.warn('Could not load executive members from Firestore', err);
     }
@@ -298,6 +302,16 @@ export default function App() {
     // Notifications count
     updateUnreadCount();
 
+    // One-time fresh start cleanup: purge all files from Announcements, Important Documents, Notices, and Directory cards
+    try {
+      if (!localStorage.getItem('aipeu_fresh_start_v4_purged')) {
+        ['aipeu_announcements', 'aipeu_important_documents', 'aipeu_notice_circulars', 'aipeu_office_bearers'].forEach((k) => {
+          localStorage.setItem(k, '[]');
+        });
+        localStorage.setItem('aipeu_fresh_start_v4_purged', 'true');
+      }
+    } catch {}
+
     // Fetch live posts, hero slides, news, announcements, docs, circulars, and office bearers
     fetchPosts();
     loadDynamicContent();
@@ -313,7 +327,26 @@ export default function App() {
     const handleNotifUpdate = () => updateUnreadCount();
     const handleBearersUpdated = () => loadOfficeBearers();
 
-    const handleDynamicContentUpdate = () => loadDynamicContent();
+    // ⚡ 0ms INSTANT SYNCHRONIZATION: reads local state synchronously before background network refresh
+    const syncDynamicContentInstantly = () => {
+      try {
+        const d = localStorage.getItem('aipeu_important_documents');
+        if (d) setImportantDocs(JSON.parse(d).filter((x: any) => !isLegacySeedId(x.id)));
+        const n = localStorage.getItem('aipeu_notice_circulars');
+        if (n) setNoticeCirculars(JSON.parse(n).filter((x: any) => !isLegacySeedId(x.id)));
+        const a = localStorage.getItem('aipeu_announcements');
+        if (a) setAnnouncements(JSON.parse(a).filter((x: any) => !isLegacySeedId(x.id)));
+        const ns = localStorage.getItem('aipeu_news_items');
+        if (ns) setNewsItems(JSON.parse(ns));
+        const s = localStorage.getItem('aipeu_hero_slides');
+        if (s) setHeroSlides(JSON.parse(s));
+      } catch {}
+    };
+
+    const handleDynamicContentUpdate = () => {
+      syncDynamicContentInstantly();
+      loadDynamicContent();
+    };
     const handlePostsUpdate = () => fetchPosts();
 
     window.addEventListener('online', handleOnline);
@@ -443,9 +476,9 @@ export default function App() {
       ]);
       if (slides) setHeroSlides(slides);
       if (news) setNewsItems(news);
-      if (anns) setAnnouncements(anns);
-      if (docs) setImportantDocs(docs);
-      if (notcs) setNoticeCirculars(notcs);
+      if (anns) setAnnouncements(anns.filter((a) => !isLegacySeedId(a.id)));
+      if (docs) setImportantDocs(docs.filter((d) => !isLegacySeedId(d.id)));
+      if (notcs) setNoticeCirculars(notcs.filter((n) => !isLegacySeedId(n.id)));
     } catch (err) {
       console.warn('Could not load dynamic content from Firestore', err);
     }

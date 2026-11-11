@@ -86,6 +86,12 @@ import {
   getOrdersRulingsGuidesFromFirestore,
   saveOrderRulingGuideToFirestore,
   deleteOrderRulingGuideFromFirestore,
+  clearAllAnnouncementsFromFirestore,
+  clearAllImportantDocsFromFirestore,
+  clearAllNoticeCircularsFromFirestore,
+  clearAllOrdersRulingsGuidesFromFirestore,
+  clearAllExecutiveMembersFromFirestore,
+  isLegacySeedId,
   NewCircularInput,
 } from '../services/firebase';
 import {
@@ -314,7 +320,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   } | null>(null);
 
   // ================= 3. HOMEPAGE DOCS STATE =================
-  const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>([]);
+  const [importantDocs, setImportantDocs] = useState<ImportantDocItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_important_documents');
+      if (raw) return JSON.parse(raw).filter((d: any) => !isLegacySeedId(d.id));
+    } catch {}
+    return [];
+  });
   const [editingDoc, setEditingDoc] = useState<ImportantDocItem | null>(null);
   const [docTitle, setDocTitle] = useState('');
   const [docUrl, setDocUrl] = useState('');
@@ -329,7 +341,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const docFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 4. NOTICES & CIRCULARS STATE =================
-  const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>([]);
+  const [noticeCirculars, setNoticeCirculars] = useState<NoticeCircularItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_notice_circulars');
+      if (raw) return JSON.parse(raw).filter((n: any) => !isLegacySeedId(n.id));
+    } catch {}
+    return [];
+  });
   const [editingNotice, setEditingNotice] = useState<NoticeCircularItem | null>(null);
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeCategory, setNoticeCategory] = useState<string>('NOTICE');
@@ -344,7 +362,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const noticeFormRef = useRef<HTMLDivElement | null>(null);
 
   // ================= 5. ANNOUNCEMENTS STATE =================
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_announcements');
+      if (raw) return JSON.parse(raw).filter((a: any) => !isLegacySeedId(a.id));
+    } catch {}
+    return [];
+  });
   const [editingAnn, setEditingAnn] = useState<AnnouncementItem | null>(null);
   const [annTitle, setAnnTitle] = useState('');
   const [annLink, setAnnLink] = useState('');
@@ -437,7 +461,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [rulingOrder, setRulingOrder] = useState<number>(1);
 
   // ================= 10. ORDERS / RULLINGS / GUIDE STATE =================
-  const [ordersRulingsGuides, setOrdersRulingsGuides] = useState<OrderRulingGuideItem[]>([]);
+  const [ordersRulingsGuides, setOrdersRulingsGuides] = useState<OrderRulingGuideItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('aipeu_orders_rulings_guides');
+      if (raw) return JSON.parse(raw).filter((o: any) => !isLegacySeedId(o.id));
+    } catch {}
+    return [];
+  });
   const [editingOrgItem, setEditingOrgItem] = useState<OrderRulingGuideItem | null>(null);
   const [orgFileName, setOrgFileName] = useState('');
   const [orgFolderName, setOrgFolderName] = useState('Postal Manuals');
@@ -470,11 +500,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setHeroSlides(slides);
       setNewsItems(news);
       setExecutives(execs);
-      setAnnouncements(anns);
-      setImportantDocs(docs);
-      setNoticeCirculars(notcs);
-      setUnionRulings(rulings);
-      setOrdersRulingsGuides(orgs);
+      setAnnouncements((anns || []).filter((a) => !isLegacySeedId(a.id)));
+      setImportantDocs((docs || []).filter((d) => !isLegacySeedId(d.id)));
+      setNoticeCirculars((notcs || []).filter((n) => !isLegacySeedId(n.id)));
+      setUnionRulings(rulings || []);
+      setOrdersRulingsGuides((orgs || []).filter((o) => !isLegacySeedId(o.id)));
       const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
       setCirculars(posts.filter((p) => !deletedIds.has(p.id)));
 
@@ -1002,31 +1032,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await saveImportantDocumentToFirestore({
-        id: editingDoc ? editingDoc.id : undefined,
-        title: docTitle.trim(),
-        url: docUrl.trim(),
-        category: docCategory.trim() || 'General',
-        published: docPublished.trim() || new Date().toISOString().split('T')[0],
-        order: editingDoc?.order ?? importantDocs.length + 1,
-      });
+    const targetId = editingDoc ? editingDoc.id : `doc-${Date.now()}`;
+    const newItem: ImportantDocItem = {
+      id: targetId,
+      title: docTitle.trim(),
+      url: docUrl.trim(),
+      category: docCategory.trim() || 'General',
+      published: docPublished.trim() || new Date().toISOString().split('T')[0],
+      order: editingDoc?.order ?? importantDocs.length + 1,
+    };
 
-      const updated = await getImportantDocumentsFromFirestore();
-      setImportantDocs(updated);
-      if (onDocsUpdated) onDocsUpdated();
-      window.dispatchEvent(new CustomEvent('docs-updated'));
-      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-      handleCancelEditImportantDoc();
-      showNotification(editingDoc ? '✅ Homepage Document updated successfully!' : '✅ Homepage Document saved successfully!');
-    } catch (err) {
-      console.error(err);
-      showNotification('❌ Failed to save Homepage Document.');
-    } finally {
-      setIsSubmitting(false);
+    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
+    let updatedList: ImportantDocItem[];
+    if (editingDoc) {
+      updatedList = importantDocs.map((d) => (d.id === editingDoc.id ? newItem : d));
+    } else {
+      updatedList = [newItem, ...importantDocs];
     }
+    setImportantDocs(updatedList);
+
+    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
+    try {
+      localStorage.setItem('aipeu_important_documents', JSON.stringify(updatedList));
+    } catch {}
+
+    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
+    if (onDocsUpdated) onDocsUpdated();
+    window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
+    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+
+    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
+    handleCancelEditImportantDoc();
+    showNotification(editingDoc ? '✅ Document updated instantly!' : '✅ Document added to Homepage instantly!');
+
+    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
+    saveImportantDocumentToFirestore(newItem).catch((err) => {
+      console.warn('Background Firestore save doc error:', err);
+    });
   };
 
   const handleDeleteImportantDoc = (id: string) => {
@@ -1037,19 +1079,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: docItem?.title || 'Selected document',
       onConfirm: async () => {
+        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
+        const updatedList = importantDocs.filter((d) => d.id !== id);
+        setImportantDocs(updatedList);
         try {
-          setImportantDocs((prev) => prev.filter((d) => d.id !== id));
-          await deleteImportantDocumentFromFirestore(id);
-          const updated = await getImportantDocumentsFromFirestore();
-          setImportantDocs(updated);
-          if (onDocsUpdated) onDocsUpdated();
-          window.dispatchEvent(new CustomEvent('docs-updated'));
-          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-          showNotification('✅ Document removed from Homepage.');
-        } catch (e) {
-          console.error(e);
-          showNotification('❌ Could not delete document.');
-        }
+          localStorage.setItem('aipeu_important_documents', JSON.stringify(updatedList));
+        } catch {}
+
+        if (onDocsUpdated) onDocsUpdated();
+        window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('✅ Document removed instantly from Homepage.');
+
+        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
+        deleteImportantDocumentFromFirestore(id).catch((err) => {
+          console.warn('Background Firestore delete doc error:', err);
+        });
+      },
+    });
+  };
+
+  const handleClearAllImportantDocs = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Homepage Documents',
+      id: 'clear-all-docs',
+      title: `All ${importantDocs.length} Homepage Documents`,
+      onConfirm: async () => {
+        setImportantDocs([]);
+        try {
+          localStorage.setItem('aipeu_important_documents', '[]');
+        } catch {}
+        if (onDocsUpdated) onDocsUpdated();
+        window.dispatchEvent(new CustomEvent('docs-updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('🧹 All Homepage Documents cleared. Repository is ready for fresh files!');
+        clearAllImportantDocsFromFirestore().catch((err) => console.warn(err));
       },
     });
   };
@@ -1093,31 +1158,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await saveNoticeCircularToFirestore({
-        id: editingNotice ? editingNotice.id : undefined,
-        title: noticeTitle.trim(),
-        category: noticeCategory,
-        published: noticePublished || new Date().toISOString().split('T')[0],
-        url: noticeUrl.trim(),
-        order: editingNotice?.order ?? noticeCirculars.length + 1,
-      });
+    const targetId = editingNotice ? editingNotice.id : `nc-${Date.now()}`;
+    const newItem: NoticeCircularItem = {
+      id: targetId,
+      title: noticeTitle.trim(),
+      category: noticeCategory,
+      published: noticePublished || new Date().toISOString().split('T')[0],
+      url: noticeUrl.trim(),
+      order: editingNotice?.order ?? noticeCirculars.length + 1,
+    };
 
-      const updated = await getNoticeCircularsFromFirestore();
-      setNoticeCirculars(updated);
-      if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
-      window.dispatchEvent(new CustomEvent('notices-updated'));
-      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-      handleCancelEditNotice();
-      showNotification(editingNotice ? '✅ Notice / Circular updated successfully!' : '✅ Notice / Circular saved successfully!');
-    } catch (err) {
-      console.error(err);
-      showNotification('❌ Failed to save Notice.');
-    } finally {
-      setIsSubmitting(false);
+    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
+    let updatedList: NoticeCircularItem[];
+    if (editingNotice) {
+      updatedList = noticeCirculars.map((n) => (n.id === editingNotice.id ? newItem : n));
+    } else {
+      updatedList = [newItem, ...noticeCirculars];
     }
+    setNoticeCirculars(updatedList);
+
+    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
+    try {
+      localStorage.setItem('aipeu_notice_circulars', JSON.stringify(updatedList));
+    } catch {}
+
+    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
+    if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+    window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
+    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+
+    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
+    handleCancelEditNotice();
+    showNotification(editingNotice ? '✅ Notice / Circular updated instantly!' : '✅ Notice / Circular added instantly!');
+
+    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
+    saveNoticeCircularToFirestore(newItem).catch((err) => {
+      console.warn('Background Firestore save notice error:', err);
+    });
   };
 
   const handleDeleteNoticeCircular = (id: string) => {
@@ -1128,19 +1205,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: nc?.title || 'Selected notice',
       onConfirm: async () => {
+        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
+        const updatedList = noticeCirculars.filter((n) => n.id !== id);
+        setNoticeCirculars(updatedList);
         try {
-          setNoticeCirculars((prev) => prev.filter((n) => n.id !== id));
-          await deleteNoticeCircularFromFirestore(id);
-          const updated = await getNoticeCircularsFromFirestore();
-          setNoticeCirculars(updated);
-          if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
-          window.dispatchEvent(new CustomEvent('notices-updated'));
-          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-          showNotification('✅ Notice circular deleted.');
-        } catch (e) {
-          console.error(e);
-          showNotification('❌ Could not delete notice.');
-        }
+          localStorage.setItem('aipeu_notice_circulars', JSON.stringify(updatedList));
+        } catch {}
+
+        if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+        window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('✅ Notice circular removed instantly.');
+
+        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
+        deleteNoticeCircularFromFirestore(id).catch((err) => {
+          console.warn('Background Firestore delete notice error:', err);
+        });
+      },
+    });
+  };
+
+  const handleClearAllNoticeCirculars = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Notices & Circulars',
+      id: 'clear-all-notices',
+      title: `All ${noticeCirculars.length} Notices & Circulars`,
+      onConfirm: async () => {
+        setNoticeCirculars([]);
+        try {
+          localStorage.setItem('aipeu_notice_circulars', '[]');
+        } catch {}
+        if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+        window.dispatchEvent(new CustomEvent('notices-updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('🧹 All Notices & Circulars cleared. Repository is ready for fresh files!');
+        clearAllNoticeCircularsFromFirestore().catch((err) => console.warn(err));
       },
     });
   };
@@ -1181,31 +1281,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await saveAnnouncementToFirestore({
-        id: editingAnn ? editingAnn.id : undefined,
-        title: annTitle.trim(),
-        link: annLink.trim(),
-        published: annPublished || new Date().toISOString().split('T')[0],
-        order: editingAnn?.order ?? announcements.length + 1,
-        active: true,
-      });
+    const targetId = editingAnn ? editingAnn.id : `ann-${Date.now()}`;
+    const newItem: AnnouncementItem = {
+      id: targetId,
+      title: annTitle.trim(),
+      link: annLink.trim(),
+      published: annPublished || new Date().toISOString().split('T')[0],
+      order: editingAnn?.order ?? announcements.length + 1,
+      active: true,
+    };
 
-      const updated = await getAnnouncementsFromFirestore();
-      setAnnouncements(updated);
-      if (onAnnouncementsUpdated) onAnnouncementsUpdated();
-      window.dispatchEvent(new CustomEvent('announcements-updated'));
-      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-      handleCancelEditAnnouncement();
-      showNotification(editingAnn ? '✅ Announcement updated successfully!' : '✅ Announcement published to banner ticker!');
-    } catch (err) {
-      console.error(err);
-      showNotification('❌ Failed to save announcement.');
-    } finally {
-      setIsSubmitting(false);
+    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
+    let updatedList: AnnouncementItem[];
+    if (editingAnn) {
+      updatedList = announcements.map((a) => (a.id === editingAnn.id ? newItem : a));
+    } else {
+      updatedList = [newItem, ...announcements];
     }
+    setAnnouncements(updatedList);
+
+    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
+    try {
+      localStorage.setItem('aipeu_announcements', JSON.stringify(updatedList));
+    } catch {}
+
+    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
+    if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+    window.dispatchEvent(new CustomEvent('announcements-updated', { detail: updatedList }));
+    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+
+    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
+    handleCancelEditAnnouncement();
+    showNotification(editingAnn ? '✅ Announcement updated instantly!' : '✅ Announcement published instantly to homepage ticker!');
+
+    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
+    saveAnnouncementToFirestore(newItem).catch((err) => {
+      console.warn('Background Firestore save announcement error:', err);
+    });
   };
 
   const handleDeleteAnnouncement = (id: string) => {
@@ -1216,19 +1328,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: ann?.title || 'Selected announcement',
       onConfirm: async () => {
+        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
+        const updatedList = announcements.filter((a) => a.id !== id);
+        setAnnouncements(updatedList);
         try {
-          setAnnouncements((prev) => prev.filter((a) => a.id !== id));
-          await deleteAnnouncementFromFirestore(id);
-          const updated = await getAnnouncementsFromFirestore();
-          setAnnouncements(updated);
-          if (onAnnouncementsUpdated) onAnnouncementsUpdated();
-          window.dispatchEvent(new CustomEvent('announcements-updated'));
-          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-          showNotification('✅ Announcement removed.');
-        } catch (e) {
-          console.error(e);
-          showNotification('❌ Could not delete announcement.');
-        }
+          localStorage.setItem('aipeu_announcements', JSON.stringify(updatedList));
+        } catch {}
+
+        if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: updatedList }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('✅ Announcement removed instantly.');
+
+        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
+        deleteAnnouncementFromFirestore(id).catch((err) => {
+          console.warn('Background Firestore delete announcement error:', err);
+        });
+      },
+    });
+  };
+
+  const handleClearAllAnnouncements = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Announcements',
+      id: 'clear-all-announcements',
+      title: `All ${announcements.length} Announcements`,
+      onConfirm: async () => {
+        setAnnouncements([]);
+        try {
+          localStorage.setItem('aipeu_announcements', '[]');
+        } catch {}
+        if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+        window.dispatchEvent(new CustomEvent('announcements-updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('🧹 All Announcements cleared. Banner is ready for fresh posts!');
+        clearAllAnnouncementsFromFirestore().catch((err) => console.warn(err));
       },
     });
   };
@@ -1705,6 +1840,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   };
 
+  const handleClearAllExecutives = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Executive Bearers / Directory Cards',
+      id: 'clear-all-executives',
+      title: `All ${executives.length} Office Bearers / Directory Cards`,
+      onConfirm: async () => {
+        setExecutives([]);
+        try {
+          localStorage.setItem('aipeu_office_bearers', '[]');
+        } catch {}
+        onExecutiveUpdated();
+        window.dispatchEvent(new CustomEvent('office-bearers-updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('🧹 All Directory cards cleared. Directory page is ready for fresh entries!');
+        clearAllExecutiveMembersFromFirestore().catch((err) => console.warn(err));
+      },
+    });
+  };
+
   // ================= 12. DOCUMENTS & RULINGS HANDLERS =================
   const handleEditRulingClick = (ruling: UnionDocumentRuling) => {
     setEditingRuling(ruling);
@@ -1834,32 +1989,44 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const dataToSave: Partial<OrderRulingGuideItem> & { id?: string } = {
-        id: editingOrgItem ? editingOrgItem.id : undefined,
-        fileName: orgFileName.trim(),
-        folderName: orgFolderName.trim(),
-        category: orgCategory.trim(),
-        documentUrl: orgDocumentUrl.trim(),
-        published: orgPublished.trim() || new Date().toISOString().split('T')[0],
-        notes: orgNotes.trim(),
-        order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
-      };
+    const targetId = editingOrgItem ? editingOrgItem.id : `org-${Date.now()}`;
+    const newItem: OrderRulingGuideItem = {
+      id: targetId,
+      fileName: orgFileName.trim(),
+      folderName: orgFolderName.trim(),
+      category: orgCategory.trim(),
+      documentUrl: orgDocumentUrl.trim(),
+      published: orgPublished.trim() || new Date().toISOString().split('T')[0],
+      notes: orgNotes.trim(),
+      order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
+    };
 
-      await saveOrderRulingGuideToFirestore(dataToSave);
-      const updated = await getOrdersRulingsGuidesFromFirestore();
-      setOrdersRulingsGuides(updated);
-      handleCancelEditOrg();
-      window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
-      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-      showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
-    } catch (err) {
-      console.error(err);
-      showNotification('❌ Failed to save document to Orders/Rullings/Guide.');
-    } finally {
-      setIsSubmitting(false);
+    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
+    let updatedList: OrderRulingGuideItem[];
+    if (editingOrgItem) {
+      updatedList = ordersRulingsGuides.map((o) => (o.id === editingOrgItem.id ? newItem : o));
+    } else {
+      updatedList = [newItem, ...ordersRulingsGuides];
     }
+    setOrdersRulingsGuides(updatedList);
+
+    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
+    try {
+      localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updatedList));
+    } catch {}
+
+    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
+    window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
+    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+
+    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
+    handleCancelEditOrg();
+    showNotification(editingOrgItem ? '✅ Document updated in Orders/Rullings/Guide instantly!' : '✅ Document saved! Card is now visible in Orders/Rullings/Guide.');
+
+    // ⚡ 5. NON-BLOCKING BACKGROUND FIRESTORE PERSISTENCE
+    saveOrderRulingGuideToFirestore(newItem).catch((err) => {
+      console.warn('Background Firestore save org error:', err);
+    });
   };
 
   const handleDeleteOrgItem = (id: string) => {
@@ -1870,18 +2037,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: item ? item.fileName : 'Selected document',
       onConfirm: async () => {
+        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
+        const updatedList = ordersRulingsGuides.filter((r) => r.id !== id);
+        setOrdersRulingsGuides(updatedList);
         try {
-          setOrdersRulingsGuides((prev) => prev.filter((r) => r.id !== id));
-          await deleteOrderRulingGuideFromFirestore(id);
-          const updated = await getOrdersRulingsGuidesFromFirestore();
-          setOrdersRulingsGuides(updated);
-          window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated'));
-          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-          showNotification('✅ Document deleted from Orders/Rullings/Guide.');
-        } catch (e) {
-          console.error(e);
-          showNotification('❌ Could not delete document.');
-        }
+          localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updatedList));
+        } catch {}
+
+        window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('✅ Document removed instantly from Orders/Rullings/Guide.');
+
+        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
+        deleteOrderRulingGuideFromFirestore(id).catch((err) => {
+          console.warn('Background Firestore delete org error:', err);
+        });
+      },
+    });
+  };
+
+  const handleClearAllOrdersRulingsGuides = () => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'All Orders / Rulings / Guides',
+      id: 'clear-all-orgs',
+      title: `All ${ordersRulingsGuides.length} Documents in Orders/Rullings/Guide`,
+      onConfirm: async () => {
+        setOrdersRulingsGuides([]);
+        try {
+          localStorage.setItem('aipeu_orders_rulings_guides', '[]');
+        } catch {}
+        window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+        showNotification('🧹 All Orders / Rulings / Guide documents cleared. Repository is ready for fresh files!');
+        clearAllOrdersRulingsGuidesFromFirestore().catch((err) => console.warn(err));
       },
     });
   };
@@ -6491,9 +6680,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </button>
                           )}
                         </div>
-                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-center sm:text-left">
-                          Total: {executives.length} Bearers
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-center sm:text-left">
+                            Total: {executives.length} Bearers
+                          </span>
+                          {executives.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleClearAllExecutives}
+                              className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                              title="Clear all cards from Directory page"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Clear All</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
