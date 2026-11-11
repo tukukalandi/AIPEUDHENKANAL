@@ -50,6 +50,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // My Apps & Online Tools uploaded by Admin (HTML calculators, apps, portal links)
+    match /customPortalApps/{appId} {
+      allow read, write: if true;
+    }
+
     // Chunked uploaded documents and files (supports large PDFs/files without 1MB limit)
     match /uploadedFiles/{fileId} {
       allow read, write: if true;

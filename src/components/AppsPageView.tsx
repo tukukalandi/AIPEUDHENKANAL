@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { CustomPortalApp, PlatformStyle } from '../types';
 import { getStoredMyApps } from '../data/portalMenuData';
+import { subscribeToMyApps, getMyAppsFromFirestore } from '../services/firebase';
 import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface AppsPageViewProps {
@@ -33,7 +34,26 @@ export const AppsPageView: React.FC<AppsPageViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
+    // 1. Initial cached apps
     setMyApps(getStoredMyApps());
+
+    // 2. Load latest from Firestore
+    getMyAppsFromFirestore()
+      .then((apps) => {
+        if (apps && apps.length > 0) setMyApps(apps);
+      })
+      .catch((err) => console.warn('Could not fetch apps from Firestore:', err));
+
+    // 3. Real-time sub-second sync across all domains
+    const unsub = subscribeToMyApps((liveApps) => {
+      if (liveApps && liveApps.length > 0) {
+        setMyApps(liveApps);
+      }
+    });
+
+    return () => {
+      unsub();
+    };
   }, []);
 
   const categories = ['all', ...Array.from(new Set(myApps.map((a) => a.category)))];

@@ -16,7 +16,18 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { BlogPost, OfficeBearer, HeroSlide, NewsSliderItem, AnnouncementItem, ImportantDocItem, NoticeCircularItem, UnionDocumentRuling, OrderRulingGuideItem } from '../types';
+import {
+  BlogPost,
+  OfficeBearer,
+  HeroSlide,
+  NewsSliderItem,
+  AnnouncementItem,
+  ImportantDocItem,
+  NoticeCircularItem,
+  UnionDocumentRuling,
+  OrderRulingGuideItem,
+  CustomPortalApp,
+} from '../types';
 import { OFFICE_BEARERS as DEFAULT_OFFICE_BEARERS, IMPORTANT_DOCUMENTS as DEFAULT_UNION_DOCUMENTS_AND_RULINGS } from '../data/unionInfo';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import {
@@ -27,6 +38,7 @@ import {
   DEFAULT_NOTICE_CIRCULARS,
 } from '../data/dakshikshaData';
 import fallbackPosts from '../data/posts.json';
+import { DEFAULT_MY_APPS } from '../data/portalMenuData';
 
 import { getAuth, Auth } from 'firebase/auth';
 
@@ -1986,5 +1998,210 @@ export function subscribeToCirculars(
     }
   );
 }
+
+// ================= MY APPS & ONLINE PORTALS FIRESTORE SYNC =================
+export async function getMyAppsFromFirestore(): Promise<CustomPortalApp[]> {
+  const deletedIds = new Set<string>();
+  try {
+    const rawDel = localStorage.getItem('aipeu_deleted_app_ids');
+    if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+  } catch {}
+
+  let firestoreApps: CustomPortalApp[] = [];
+  try {
+    const colRef = collection(db, 'customPortalApps');
+    const snap = await getDocs(colRef);
+    if (!snap.empty) {
+      firestoreApps = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name || '',
+          category: data.category || 'Others',
+          sourceType: data.sourceType || 'code',
+          codeSnippet: data.codeSnippet,
+          url: data.url,
+          description: data.description || '',
+          fileSize: data.fileSize,
+          createdAt: data.createdAt || '',
+        } as CustomPortalApp;
+      });
+    }
+  } catch (err) {
+    console.warn('Firestore fetch myApps error:', err);
+  }
+
+  // Merge with local storage & default apps
+  let localApps: CustomPortalApp[] = [];
+  try {
+    const raw = localStorage.getItem('aipeu_admin_apps');
+    if (raw) localApps = JSON.parse(raw);
+  } catch {}
+
+  const map = new Map<string, CustomPortalApp>();
+  DEFAULT_MY_APPS.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+  localApps.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+  firestoreApps.forEach((a) => {
+    if (!deletedIds.has(a.id)) map.set(a.id, a);
+  });
+
+  const merged = Array.from(map.values());
+  try {
+    localStorage.setItem('aipeu_admin_apps', JSON.stringify(merged));
+  } catch {}
+
+  return merged;
+}
+
+export async function saveMyAppToFirestore(app: CustomPortalApp): Promise<string> {
+  const colRef = collection(db, 'customPortalApps');
+  const targetId = app.id && !app.id.startsWith('temp-') ? app.id : `app-${Date.now()}`;
+
+  let codeSnippet = app.codeSnippet;
+  // If codeSnippet is data URI and large, use chunking
+  if (codeSnippet && codeSnippet.startsWith('data:') && codeSnippet.length > 450000) {
+    try {
+      codeSnippet = await uploadFileToFirestore(codeSnippet, `${app.name}.html`);
+    } catch (e) {
+      console.warn('Chunk upload failed for app snippet:', e);
+    }
+  }
+
+  const appData = {
+    name: app.name || '',
+    category: app.category || 'Others',
+    sourceType: app.sourceType || 'code',
+    ...(codeSnippet !== undefined ? { codeSnippet } : {}),
+    ...(app.url !== undefined ? { url: app.url } : {}),
+    description: app.description || '',
+    fileSize: app.fileSize || '',
+    createdAt: app.createdAt || new Date().toISOString().split('T')[0],
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(colRef, targetId), appData, { merge: true });
+  } catch (err) {
+    console.warn('Firestore save myApp failed, persisting locally:', err);
+  }
+
+  // Update local storage
+  try {
+    const raw = localStorage.getItem('aipeu_admin_apps');
+    const list: CustomPortalApp[] = raw ? JSON.parse(raw) : [...DEFAULT_MY_APPS];
+    const idx = list.findIndex((a) => a.id === targetId);
+    const updatedApp: CustomPortalApp = {
+      id: targetId,
+      name: appData.name,
+      category: appData.category,
+      sourceType: appData.sourceType as any,
+      codeSnippet: appData.codeSnippet,
+      url: appData.url,
+      description: appData.description,
+      fileSize: appData.fileSize,
+      createdAt: appData.createdAt,
+    };
+    if (idx >= 0) {
+      list[idx] = updatedApp;
+    } else {
+      list.unshift(updatedApp);
+    }
+    localStorage.setItem('aipeu_admin_apps', JSON.stringify(list));
+
+    const rawDel = localStorage.getItem('aipeu_deleted_app_ids');
+    if (rawDel) {
+      const delList: string[] = JSON.parse(rawDel);
+      localStorage.setItem('aipeu_deleted_app_ids', JSON.stringify(delList.filter((x) => x !== targetId)));
+    }
+  } catch (e) {
+    console.warn('LocalStorage save myApp error:', e);
+  }
+
+  window.dispatchEvent(new CustomEvent('my-apps-updated'));
+  return targetId;
+}
+
+export async function deleteMyAppFromFirestore(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'customPortalApps', id));
+  } catch (err) {
+    console.warn('Error deleting app from Firestore:', err);
+  }
+
+  try {
+    const raw = localStorage.getItem('aipeu_admin_apps');
+    if (raw) {
+      const list: CustomPortalApp[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_admin_apps', JSON.stringify(list.filter((a) => a.id !== id)));
+    }
+    const rawDel = localStorage.getItem('aipeu_deleted_app_ids');
+    const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+    if (!delList.includes(id)) {
+      delList.push(id);
+      localStorage.setItem('aipeu_deleted_app_ids', JSON.stringify(delList));
+    }
+  } catch (e) {
+    console.warn('LocalStorage delete myApp error:', e);
+  }
+
+  window.dispatchEvent(new CustomEvent('my-apps-updated'));
+}
+
+export function subscribeToMyApps(
+  callback: (apps: CustomPortalApp[]) => void
+): () => void {
+  const colRef = collection(db, 'customPortalApps');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const deletedIds = new Set<string>();
+      try {
+        const rawDel = localStorage.getItem('aipeu_deleted_app_ids');
+        if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
+      } catch {}
+
+      const firestoreApps: CustomPortalApp[] = [];
+      snapshot.forEach((d) => {
+        if (!deletedIds.has(d.id)) {
+          const data = d.data();
+          firestoreApps.push({
+            id: d.id,
+            name: data.name || '',
+            category: data.category || 'Others',
+            sourceType: data.sourceType || 'code',
+            codeSnippet: data.codeSnippet,
+            url: data.url,
+            description: data.description || '',
+            fileSize: data.fileSize,
+            createdAt: data.createdAt || '',
+          });
+        }
+      });
+
+      // Merge with default apps so ACG-17 etc. remain available
+      const map = new Map<string, CustomPortalApp>();
+      DEFAULT_MY_APPS.forEach((a) => {
+        if (!deletedIds.has(a.id)) map.set(a.id, a);
+      });
+      firestoreApps.forEach((a) => {
+        if (!deletedIds.has(a.id)) map.set(a.id, a);
+      });
+
+      const merged = Array.from(map.values());
+      try {
+        localStorage.setItem('aipeu_admin_apps', JSON.stringify(merged));
+      } catch {}
+      callback(merged);
+    },
+    (err) => {
+      console.warn('Realtime myApps sync notice:', err);
+    }
+  );
+}
+
 
 

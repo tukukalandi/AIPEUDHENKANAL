@@ -13,6 +13,8 @@ import {
   UserCheck,
   Menu,
   LayoutGrid,
+  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import { ActiveTab, PlatformStyle } from '../types';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
@@ -168,6 +170,64 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
   const [navMenuInitialSubView, setNavMenuInitialSubView] = useState<'menu' | 'apps'>('menu');
 
+  const [isAdminAuth, setIsAdminAuth] = useState(() => {
+    try {
+      return (
+        sessionStorage.getItem('aipeu_admin_authenticated') === 'true' ||
+        localStorage.getItem('aipeu_admin_authenticated') === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const [adminEmail, setAdminEmail] = useState(() => {
+    try {
+      return (
+        sessionStorage.getItem('aipeu_admin_email') ||
+        localStorage.getItem('aipeu_admin_email') ||
+        'aipeup3dhenkanaldivn@gmail.com'
+      );
+    } catch {
+      return 'aipeup3dhenkanaldivn@gmail.com';
+    }
+  });
+
+  React.useEffect(() => {
+    const checkAuth = () => {
+      try {
+        const authed =
+          sessionStorage.getItem('aipeu_admin_authenticated') === 'true' ||
+          localStorage.getItem('aipeu_admin_authenticated') === 'true';
+        setIsAdminAuth(authed);
+        const email =
+          sessionStorage.getItem('aipeu_admin_email') ||
+          localStorage.getItem('aipeu_admin_email') ||
+          'aipeup3dhenkanaldivn@gmail.com';
+        setAdminEmail(email);
+      } catch {}
+    };
+
+    window.addEventListener('aipeu_admin_auth_changed', checkAuth);
+    window.addEventListener('storage', checkAuth);
+    return () => {
+      window.removeEventListener('aipeu_admin_auth_changed', checkAuth);
+      window.removeEventListener('storage', checkAuth);
+    };
+  }, []);
+
+  const handleSignOutAdmin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      sessionStorage.removeItem('aipeu_admin_authenticated');
+      sessionStorage.removeItem('aipeu_admin_email');
+      localStorage.removeItem('aipeu_admin_authenticated');
+      localStorage.removeItem('aipeu_admin_email');
+      window.dispatchEvent(new Event('aipeu_admin_auth_changed'));
+    } catch {}
+    setIsAdminAuth(false);
+  };
+
   // Offline Vault and Settings are accessed via the dedicated Menu button
   const navLinks: { id: ActiveTab; label: string }[] = [
     { id: 'home', label: 'Home' },
@@ -288,6 +348,42 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             <Bell className="w-5 h-5" />
             <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
           </button>
+
+          {/* 6. Admin Login / Logout Facility for Mobile */}
+          {onOpenAdmin && (
+            isAdminAuth ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className="h-10 px-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5 border border-amber-400/40 shadow-xs active:scale-95 transition-all cursor-pointer font-bold text-xs"
+                  title={`Admin Portal (${adminEmail})`}
+                >
+                  <ShieldCheck className="w-4 h-4 text-amber-300" />
+                  <span className="text-[11px]">Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOutAdmin}
+                  className="w-8 h-10 rounded-2xl bg-red-950/70 hover:bg-red-900 text-red-200 flex items-center justify-center border border-red-500/30 transition-all active:scale-95 cursor-pointer"
+                  title="Log Out Admin"
+                  aria-label="Log Out Admin"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenAdmin}
+                className="h-10 px-2.5 rounded-2xl bg-red-600/90 hover:bg-red-600 text-white flex items-center gap-1.5 border border-white/20 shadow-xs active:scale-95 transition-all cursor-pointer font-bold text-xs"
+                title="Official Admin Login"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-300" />
+                <span className="text-[11px]">Admin</span>
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -345,7 +441,47 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
         )}
 
         {/* Right Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Admin Login / Console Status Button */}
+          {onOpenAdmin && (
+            isAdminAuth ? (
+              <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-950/80 to-slate-900 border border-red-500/50 px-2.5 py-1.5 rounded-xl shadow-xs">
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className="flex items-center gap-1.5 text-white hover:text-amber-300 transition-colors font-bold text-xs cursor-pointer"
+                  title={`AIPEU Admin Console (${adminEmail})`}
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="hidden xl:inline text-[11px] font-black truncate max-w-[170px]">
+                    {adminEmail}
+                  </span>
+                  <span className="xl:hidden text-[11px] font-black">Admin</span>
+                </button>
+                <div className="h-3.5 w-px bg-white/20" />
+                <button
+                  type="button"
+                  onClick={handleSignOutAdmin}
+                  className="px-1.5 py-0.5 rounded-md hover:bg-white/20 text-red-300 hover:text-white transition-colors flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                  title="Sign Out from Admin"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenAdmin}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all cursor-pointer border border-red-400/40"
+                title="Admin Portal Login (aipeup3dhenkanaldivn@gmail.com)"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Admin Login</span>
+              </button>
+            )
+          )}
+
           {/* Menu Button */}
           <button
             onClick={() => {

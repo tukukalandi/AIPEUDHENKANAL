@@ -309,6 +309,14 @@ export default function App() {
     // Notifications count
     updateUnreadCount();
 
+    // Auto-open Admin Portal if requested in URL query (?admin=true or #admin)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('admin') === 'true' || window.location.hash === '#admin') {
+        setIsAdminOpen(true);
+      }
+    } catch {}
+
     // One-time fresh start cleanup: purge all files from Announcements, Important Documents, Notices, and Directory cards
     try {
       if (!localStorage.getItem('aipeu_fresh_start_v4_purged')) {

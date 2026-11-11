@@ -44,6 +44,7 @@ import {
   getStoredEmployeeResources,
   getStoredForms,
 } from '../data/portalMenuData';
+import { subscribeToMyApps, getMyAppsFromFirestore } from '../services/firebase';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
 
 export interface AppCardColorTheme {
@@ -576,10 +577,31 @@ export const MyAppsPage: React.FC = () => {
   const [iframeKey, setIframeKey] = useState(0);
 
   useEffect(() => {
+    // 1. Load initial cache
+    setMyApps(getStoredMyApps());
+
+    // 2. Fetch fresh list from Firestore database
+    getMyAppsFromFirestore()
+      .then((apps) => {
+        if (apps && apps.length > 0) {
+          setMyApps(apps);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch apps from Firestore:', err));
+
+    // 3. Real-time sub-second sync across all domains (Vercel, Netlify, Custom Domains)
+    const unsub = subscribeToMyApps((liveApps) => {
+      if (liveApps && liveApps.length > 0) {
+        setMyApps(liveApps);
+      }
+    });
+
     const loadApps = () => setMyApps(getStoredMyApps());
-    loadApps();
     window.addEventListener('storage', loadApps);
-    return () => window.removeEventListener('storage', loadApps);
+    return () => {
+      unsub();
+      window.removeEventListener('storage', loadApps);
+    };
   }, []);
 
   const categories = useMemo(
