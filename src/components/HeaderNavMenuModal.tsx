@@ -298,66 +298,25 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
 
           {onOpenAdmin && (
             <div className="pt-2">
-              {(() => {
-                const isAuthed =
-                  typeof window !== 'undefined' &&
-                  (sessionStorage.getItem('aipeu_admin_authenticated') === 'true' ||
-                   localStorage.getItem('aipeu_admin_authenticated') === 'true');
-                const authedEmail =
-                  typeof window !== 'undefined'
-                    ? sessionStorage.getItem('aipeu_admin_email') ||
-                      localStorage.getItem('aipeu_admin_email') ||
-                      'aipeup3dhenkanaldivn@gmail.com'
-                    : 'aipeup3dhenkanaldivn@gmail.com';
-
-                return (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onOpenAdmin();
-                      }}
-                      className="flex-1 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-sm flex items-center justify-between shadow-md transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Shield className="w-5 h-5 text-amber-300 shrink-0" />
-                        <div className="text-left min-w-0">
-                          <div className="font-black truncate">
-                            {isAuthed ? `Admin Console (${authedEmail})` : 'Admin Portal (Login / Dashboard)'}
-                          </div>
-                          <div className="text-[11px] text-rose-100 font-normal truncate">
-                            {isAuthed
-                              ? 'Logged in as administrator • Click to manage files & members'
-                              : 'Restricted executive access • Sign in with Gmail ID'}
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 shrink-0 ml-2" />
-                    </button>
-
-                    {isAuthed && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            sessionStorage.removeItem('aipeu_admin_authenticated');
-                            sessionStorage.removeItem('aipeu_admin_email');
-                            localStorage.removeItem('aipeu_admin_authenticated');
-                            localStorage.removeItem('aipeu_admin_email');
-                            window.dispatchEvent(new Event('aipeu_admin_auth_changed'));
-                          } catch {}
-                          onClose();
-                        }}
-                        className="px-4 py-3 sm:py-0 rounded-2xl bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
-                        title="Sign Out from Admin"
-                      >
-                        <span>Log Out</span>
-                      </button>
-                    )}
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAdmin();
+                }}
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-sm flex items-center justify-between shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-amber-300" />
+                  <div className="text-left">
+                    <div className="font-black">Admin Portal & Management Console</div>
+                    <div className="text-[11px] text-rose-100 font-normal">
+                      Manage circulars, hero slider, homepage docs, members & executive bearers
+                    </div>
                   </div>
-                );
-              })()}
+                </div>
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           )}
         </div>

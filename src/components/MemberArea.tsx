@@ -35,6 +35,9 @@ import {
 import {
   submitProfileUpdateRequest,
   getProfileUpdateRequests,
+  getMembersFromFirestore,
+  getCachedMembers,
+  subscribeToMembers,
 } from '../services/memberService';
 import { DigitalMembershipCardView } from './DigitalMembershipCardView';
 
@@ -89,6 +92,41 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
 
   // Member's own update requests list
   const [myRequests, setMyRequests] = useState<ProfileUpdateRequest[]>([]);
+  const [allMembers, setAllMembers] = useState<MemberProfile[]>([]);
+
+  useEffect(() => {
+    const cached = getCachedMembers();
+    if (cached.length > 0) {
+      setAllMembers(cached);
+      setMember(cached[0]);
+    }
+    getMembersFromFirestore().then((list) => {
+      if (list && list.length > 0) {
+        setAllMembers(list);
+        setMember((prev) => prev || list[0]);
+      }
+    }).catch(() => {});
+
+    const unsub = subscribeToMembers((liveList) => {
+      if (liveList && liveList.length > 0) {
+        setAllMembers(liveList);
+        setMember((prev) => {
+          if (!prev) return liveList[0];
+          const matched = liveList.find((m) => m.id === prev.id || m.membershipId === prev.membershipId);
+          return matched || prev;
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (member) {
+      getProfileUpdateRequests().then((allReqs) => {
+        setMyRequests(allReqs.filter((r) => r.memberId === member.id || r.membershipId === member.membershipId));
+      }).catch(() => {});
+    }
+  }, [member?.id, member?.membershipId]);
 
   // Refresh live member profile from Firestore to enforce live authentication and authorization
   const refreshMember = async (currentSession?: MemberSession | null) => {
@@ -271,356 +309,17 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
     }
   };
 
-  // ================= 1. LOGIN SCREEN (WHEN NOT AUTHENTICATED) =================
-  if (!session || !member) {
+  if (!member) {
     return (
-      <div className="max-w-md mx-auto py-4 sm:py-8">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
-          {/* Header */}
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-[#022A61] text-white flex items-center justify-center mx-auto mb-3 shadow-md ring-4 ring-blue-50 dark:ring-slate-800">
-              <Lock className="w-7 h-7 stroke-[2.2]" />
-            </div>
-            <span className="text-[10px] font-black tracking-widest uppercase text-amber-500 block">
-              SECURE MEMBER AREA
-            </span>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white">
-              Union Member Login
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Access your digital membership card, verified cadre profile, and union services.
-            </p>
-          </div>
-
-          {/* Quick Demo Credentials Help */}
-          <div className="mb-5 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-2xl p-3 text-xs text-slate-700 dark:text-slate-300">
-            <div className="flex items-center gap-1.5 font-bold text-[#022A61] dark:text-blue-300 mb-1">
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>Registered Member Credentials (Dhenkanal Division):</span>
-            </div>
-            <div className="font-mono text-[11px] space-y-0.5 text-slate-600 dark:text-slate-400">
-              <p>ID: <span className="font-bold text-slate-900 dark:text-white">AIPEU-DKL-1001</span> or Mob: <span className="font-bold text-slate-900 dark:text-white">9861184651</span></p>
-              <p>Password: <span className="font-bold text-slate-900 dark:text-white">Member@1234</span></p>
-            </div>
-          </div>
-
-          {/* Error & Success Messages */}
-          {loginError && (
-            <div className="mb-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-3 rounded-xl text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{loginError}</span>
-            </div>
-          )}
-
-          {loginSuccessMsg && (
-            <div className="mb-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200 p-3 rounded-xl text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{loginSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5 uppercase tracking-wider">
-                Membership ID or Mobile Number *
-              </label>
-              <input
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="e.g. AIPEU-DKL-1001 or 9861184651"
-                required
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 font-medium"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Password *
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsForgotOpen(true)}
-                  className="text-xs font-bold text-[#022A61] dark:text-blue-400 hover:underline cursor-pointer"
-                >
-                  Forgot Password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your member password"
-                  required
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-60 text-sm flex items-center justify-center gap-2 cursor-pointer mt-2"
-            >
-              {loginLoading ? (
-                <>
-                  <RotateCw className="w-4 h-4 animate-spin" />
-                  <span>Authenticating...</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  <span>Secure Member Login</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Privacy & Anti-Abuse notice */}
-          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
-              Protected by PBKDF2 cryptographic hashing and rate limiting. Plaintext passwords are never stored. For membership enrollment, contact the Divisional Secretary.
-            </p>
-          </div>
-        </div>
-
-        {/* Forgot Password Modal */}
-        {isForgotOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
-                <h4 className="font-black text-slate-900 dark:text-white text-base flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-amber-500" />
-                  <span>Password Reset &amp; Recovery</span>
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsForgotOpen(false);
-                    setForgotMessage('');
-                  }}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {forgotMessage ? (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-slate-700 dark:text-slate-300 p-4 rounded-2xl text-xs leading-relaxed">
-                    {forgotMessage}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForgotOpen(false);
-                      setForgotMessage('');
-                    }}
-                    className="w-full bg-[#022A61] text-white py-2.5 rounded-xl text-xs font-bold"
-                  >
-                    Done
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Enter your Membership ID or registered 10-digit mobile number. We will dispatch reset instructions or notify the Divisional Secretary for assisted recovery.
-                  </p>
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Membership ID or Registered Mobile
-                    </label>
-                    <input
-                      type="text"
-                      value={forgotIdentifier}
-                      onChange={(e) => setForgotIdentifier(e.target.value)}
-                      placeholder="e.g. AIPEU-DKL-1001 or 9861184651"
-                      required
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsForgotOpen(false)}
-                      className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={forgotLoading}
-                      className="flex-1 py-2.5 rounded-xl bg-[#022A61] hover:bg-[#0A3D80] text-white text-xs font-bold disabled:opacity-60"
-                    >
-                      {forgotLoading ? 'Submitting...' : 'Request Reset'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
+      <div className="max-w-md mx-auto py-12 text-center bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <RotateCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+        <h4 className="font-bold text-slate-800 dark:text-white">Loading Member Information...</h4>
+        <p className="text-xs text-slate-500 mt-1">Retrieving official union register from Firebase.</p>
       </div>
     );
   }
 
-  // ================= 2. MANDATORY FIRST LOGIN / CHANGE DEFAULT PASSWORD SCREEN =================
-  if (session && member && session.mustChangePassword) {
-    return (
-      <div className="max-w-md mx-auto py-4 sm:py-8 animate-fade-in">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border-2 border-amber-300 dark:border-amber-700 shadow-2xl">
-          {/* Header */}
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center mx-auto mb-3 shadow-md ring-4 ring-amber-100 dark:ring-amber-950">
-              <KeyRound className="w-7 h-7 stroke-[2.2]" />
-            </div>
-            <span className="text-[10px] font-black tracking-widest uppercase text-amber-600 dark:text-amber-400 block">
-              MANDATORY SECURITY REQUIREMENT
-            </span>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              Change Default Password
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-              <span className="font-bold text-slate-900 dark:text-white">{member.name}</span> ({member.membershipId}), you are logging in with a default or administrator-assigned temporary password. For your account security, you must set a personalized password to continue to the User Portal.
-            </p>
-          </div>
-
-          {/* Error & Success Messages */}
-          {changePassError && (
-            <div className="mb-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-3 rounded-xl text-xs flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{changePassError}</span>
-            </div>
-          )}
-
-          {changePassSuccess && (
-            <div className="mb-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200 p-3 rounded-xl text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{changePassSuccess}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleForcePasswordChange} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
-                Current / Default Password *
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrentPass ? 'text' : 'password'}
-                  value={currentPassInput}
-                  onChange={(e) => setCurrentPassInput(e.target.value)}
-                  placeholder="Enter current default password"
-                  required
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPass(!showCurrentPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title={showCurrentPass ? 'Hide password' : 'Show password'}
-                >
-                  {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
-                New Password *
-              </label>
-              <div className="relative">
-                <input
-                  type={showNewPass ? 'text' : 'password'}
-                  value={newPassInput}
-                  onChange={(e) => setNewPassInput(e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  required
-                  minLength={6}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPass(!showNewPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title={showNewPass ? 'Hide password' : 'Show password'}
-                >
-                  {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 uppercase tracking-wider">
-                Confirm New Password *
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPass ? 'text' : 'password'}
-                  value={confirmPassInput}
-                  onChange={(e) => setConfirmPassInput(e.target.value)}
-                  placeholder="Re-enter your new password"
-                  required
-                  minLength={6}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#022A61] dark:focus:ring-blue-500 pr-10 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title={showConfirmPass ? 'Hide password' : 'Show password'}
-                >
-                  {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2 space-y-2">
-              <button
-                type="submit"
-                disabled={changePassLoading}
-                className="w-full bg-[#022A61] hover:bg-[#0A3D80] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-60 text-sm flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {changePassLoading ? (
-                  <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    <span>Updating Password...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Update Password &amp; Enter Portal</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Cancel &amp; Sign Out
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ================= 3. AUTHENTICATED MEMBER DASHBOARD =================
+    // ================= 3. AUTHENTICATED MEMBER DASHBOARD =================
   const isActive = member.status === 'Active';
   const isPending = member.status === 'Pending';
   const isExpired = member.status === 'Expired';
@@ -701,15 +400,25 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Log out of member session"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+{allMembers.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <select
+                value={member.id}
+                onChange={(e) => {
+                  const found = allMembers.find((m) => m.id === e.target.value);
+                  if (found) setMember(found);
+                }}
+                className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer"
+                title="Select Comrade to view Digital Card & Profile"
+              >
+                {allMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.membershipId})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

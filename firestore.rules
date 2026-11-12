@@ -100,5 +100,20 @@ service cloud.firestore {
       allow read, create: if true;
       allow update, delete: if false; // Append-only audit trail
     }
+
+    // Photo Gallery photos
+    match /galleryPhotos/{photoId} {
+      allow read, write: if true;
+    }
+
+    // Downloadable Forms
+    match /downloadableForms/{formId} {
+      allow read, write: if true;
+    }
+
+    // Employee Site Resources & Manuals
+    match /employeeResources/{resId} {
+      allow read, write: if true;
+    }
   }
 }

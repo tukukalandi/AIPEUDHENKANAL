@@ -27,6 +27,9 @@ import {
   UnionDocumentRuling,
   OrderRulingGuideItem,
   CustomPortalApp,
+  GalleryPhoto,
+  DownloadableForm,
+  EmployeeResource,
 } from '../types';
 import { OFFICE_BEARERS as DEFAULT_OFFICE_BEARERS, IMPORTANT_DOCUMENTS as DEFAULT_UNION_DOCUMENTS_AND_RULINGS } from '../data/unionInfo';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
@@ -38,7 +41,12 @@ import {
   DEFAULT_NOTICE_CIRCULARS,
 } from '../data/dakshikshaData';
 import fallbackPosts from '../data/posts.json';
-import { DEFAULT_MY_APPS } from '../data/portalMenuData';
+import {
+  DEFAULT_MY_APPS,
+  DEFAULT_GALLERY,
+  DEFAULT_FORMS_LIST,
+  DEFAULT_EMPLOYEE_RESOURCES,
+} from '../data/portalMenuData';
 
 import { getAuth, Auth } from 'firebase/auth';
 
@@ -2201,6 +2209,291 @@ export function subscribeToMyApps(
       console.warn('Realtime myApps sync notice:', err);
     }
   );
+}
+
+// ============================================================
+// 12. PHOTO GALLERY (Firestore Collection: /galleryPhotos)
+// ============================================================
+export async function getGalleryPhotosFromFirestore(): Promise<GalleryPhoto[]> {
+  try {
+    const snap = await getDocs(collection(db, 'galleryPhotos'));
+    const firestorePhotos: GalleryPhoto[] = [];
+    snap.forEach((d) => {
+      if (d.exists()) {
+        const data = d.data();
+        firestorePhotos.push({
+          id: d.id,
+          title: data.title || '',
+          imageUrl: data.imageUrl || data.url || '',
+          url: data.url || data.imageUrl || '',
+          category: data.category || 'General',
+          date: data.date || '',
+          caption: data.caption,
+        });
+      }
+    });
+
+    const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_gallery_ids') || '[]'));
+    const map = new Map<string, GalleryPhoto>();
+    DEFAULT_GALLERY.forEach((g) => {
+      if (!deletedIds.has(g.id)) map.set(g.id, g);
+    });
+    firestorePhotos.forEach((g) => {
+      if (!deletedIds.has(g.id)) map.set(g.id, g);
+    });
+    const result = Array.from(map.values());
+    try {
+      localStorage.setItem('aipeu_admin_gallery', JSON.stringify(result));
+    } catch {}
+    return result;
+  } catch (err) {
+    console.warn('Error fetching gallery photos from Firestore:', err);
+    try {
+      const raw = localStorage.getItem('aipeu_admin_gallery');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_GALLERY;
+  }
+}
+
+export async function saveGalleryPhotoToFirestore(photo: GalleryPhoto): Promise<void> {
+  const photoDocRef = doc(db, 'galleryPhotos', photo.id);
+  await setDoc(photoDocRef, {
+    title: photo.title,
+    imageUrl: photo.imageUrl || photo.url || '',
+    url: photo.url || photo.imageUrl || '',
+    category: photo.category,
+    date: photo.date,
+    caption: photo.caption || '',
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+
+  // Update local storage cache
+  try {
+    const list = await getGalleryPhotosFromFirestore();
+    const updated = [photo, ...list.filter((p) => p.id !== photo.id)];
+    localStorage.setItem('aipeu_admin_gallery', JSON.stringify(updated));
+  } catch {}
+}
+
+export async function deleteGalleryPhotoFromFirestore(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'galleryPhotos', id));
+  } catch (err) {
+    console.warn('Firestore photo delete notice:', err);
+  }
+  try {
+    const deleted = JSON.parse(localStorage.getItem('aipeu_deleted_gallery_ids') || '[]');
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem('aipeu_deleted_gallery_ids', JSON.stringify(deleted));
+    }
+    const raw = localStorage.getItem('aipeu_admin_gallery');
+    if (raw) {
+      const list: GalleryPhoto[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_admin_gallery', JSON.stringify(list.filter((p) => p.id !== id)));
+    }
+  } catch {}
+}
+
+export function subscribeToGalleryPhotos(callback: (photos: GalleryPhoto[]) => void): () => void {
+  return onSnapshot(
+    collection(db, 'galleryPhotos'),
+    (snap) => {
+      const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_gallery_ids') || '[]'));
+      const firestorePhotos: GalleryPhoto[] = [];
+      snap.forEach((d) => {
+        if (d.exists()) {
+          const data = d.data();
+          firestorePhotos.push({
+            id: d.id,
+            title: data.title || '',
+            imageUrl: data.imageUrl || data.url || '',
+            url: data.url || data.imageUrl || '',
+            category: data.category || 'General',
+            date: data.date || '',
+            caption: data.caption,
+          });
+        }
+      });
+
+      const map = new Map<string, GalleryPhoto>();
+      DEFAULT_GALLERY.forEach((g) => {
+        if (!deletedIds.has(g.id)) map.set(g.id, g);
+      });
+      firestorePhotos.forEach((g) => {
+        if (!deletedIds.has(g.id)) map.set(g.id, g);
+      });
+      const merged = Array.from(map.values());
+      try {
+        localStorage.setItem('aipeu_admin_gallery', JSON.stringify(merged));
+      } catch {}
+      callback(merged);
+    },
+    (err) => console.warn('Realtime gallery sync notice:', err)
+  );
+}
+
+// ============================================================
+// 13. DOWNLOADABLE FORMS (Firestore Collection: /downloadableForms)
+// ============================================================
+export async function getDownloadableFormsFromFirestore(): Promise<DownloadableForm[]> {
+  try {
+    const snap = await getDocs(collection(db, 'downloadableForms'));
+    const firestoreForms: DownloadableForm[] = [];
+    snap.forEach((d) => {
+      if (d.exists()) {
+        const data = d.data();
+        firestoreForms.push({
+          id: d.id,
+          title: data.title || '',
+          formCode: data.formCode || '',
+          category: data.category || 'Service Matters',
+          downloadUrl: data.downloadUrl || '',
+          fileSize: data.fileSize,
+        });
+      }
+    });
+
+    const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_form_ids') || '[]'));
+    const map = new Map<string, DownloadableForm>();
+    (DEFAULT_FORMS_LIST as DownloadableForm[]).forEach((f) => {
+      if (!deletedIds.has(f.id)) map.set(f.id, f);
+    });
+    firestoreForms.forEach((f) => {
+      if (!deletedIds.has(f.id)) map.set(f.id, f);
+    });
+    const result = Array.from(map.values());
+    try {
+      localStorage.setItem('aipeu_admin_forms', JSON.stringify(result));
+    } catch {}
+    return result;
+  } catch (err) {
+    console.warn('Error fetching forms from Firestore:', err);
+    try {
+      const raw = localStorage.getItem('aipeu_admin_forms');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_FORMS_LIST as DownloadableForm[];
+  }
+}
+
+export async function saveDownloadableFormToFirestore(form: DownloadableForm): Promise<void> {
+  const formDocRef = doc(db, 'downloadableForms', form.id);
+  await setDoc(formDocRef, {
+    title: form.title,
+    formCode: form.formCode,
+    category: form.category,
+    downloadUrl: form.downloadUrl,
+    fileSize: form.fileSize || '',
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+
+  try {
+    const list = await getDownloadableFormsFromFirestore();
+    const updated = [form, ...list.filter((f) => f.id !== form.id)];
+    localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
+  } catch {}
+}
+
+export async function deleteDownloadableFormFromFirestore(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'downloadableForms', id));
+  } catch (err) {
+    console.warn('Firestore form delete notice:', err);
+  }
+  try {
+    const deleted = JSON.parse(localStorage.getItem('aipeu_deleted_form_ids') || '[]');
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem('aipeu_deleted_form_ids', JSON.stringify(deleted));
+    }
+    const raw = localStorage.getItem('aipeu_admin_forms');
+    if (raw) {
+      const list: DownloadableForm[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_admin_forms', JSON.stringify(list.filter((f) => f.id !== id)));
+    }
+  } catch {}
+}
+
+// ============================================================
+// 14. EMPLOYEE RESOURCES (Firestore Collection: /employeeResources)
+// ============================================================
+export async function getEmployeeResourcesFromFirestore(): Promise<EmployeeResource[]> {
+  try {
+    const snap = await getDocs(collection(db, 'employeeResources'));
+    const firestoreRes: EmployeeResource[] = [];
+    snap.forEach((d) => {
+      if (d.exists()) {
+        const data = d.data();
+        firestoreRes.push({
+          id: d.id,
+          title: data.title || '',
+          category: data.category || 'Postal Manuals',
+          url: data.url || '',
+          description: data.description,
+        });
+      }
+    });
+
+    const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_res_ids') || '[]'));
+    const map = new Map<string, EmployeeResource>();
+    DEFAULT_EMPLOYEE_RESOURCES.forEach((r) => {
+      if (!deletedIds.has(r.id)) map.set(r.id, r);
+    });
+    firestoreRes.forEach((r) => {
+      if (!deletedIds.has(r.id)) map.set(r.id, r);
+    });
+    const result = Array.from(map.values());
+    try {
+      localStorage.setItem('aipeu_admin_resources', JSON.stringify(result));
+    } catch {}
+    return result;
+  } catch (err) {
+    console.warn('Error fetching employee resources from Firestore:', err);
+    try {
+      const raw = localStorage.getItem('aipeu_admin_resources');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DEFAULT_EMPLOYEE_RESOURCES;
+  }
+}
+
+export async function saveEmployeeResourceToFirestore(res: EmployeeResource): Promise<void> {
+  const resDocRef = doc(db, 'employeeResources', res.id);
+  await setDoc(resDocRef, {
+    title: res.title,
+    category: res.category,
+    url: res.url,
+    description: res.description || '',
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+
+  try {
+    const list = await getEmployeeResourcesFromFirestore();
+    const updated = [res, ...list.filter((r) => r.id !== res.id)];
+    localStorage.setItem('aipeu_admin_resources', JSON.stringify(updated));
+  } catch {}
+}
+
+export async function deleteEmployeeResourceFromFirestore(id: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'employeeResources', id));
+  } catch (err) {
+    console.warn('Firestore employee resource delete notice:', err);
+  }
+  try {
+    const deleted = JSON.parse(localStorage.getItem('aipeu_deleted_res_ids') || '[]');
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem('aipeu_deleted_res_ids', JSON.stringify(deleted));
+    }
+    const raw = localStorage.getItem('aipeu_admin_resources');
+    if (raw) {
+      const list: EmployeeResource[] = JSON.parse(raw);
+      localStorage.setItem('aipeu_admin_resources', JSON.stringify(list.filter((r) => r.id !== id)));
+    }
+  } catch {}
 }
 
 

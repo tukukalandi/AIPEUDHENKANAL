@@ -236,7 +236,11 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
 
       const result = await addMemberToFirestore(input, 'Admin Portal (Divisional Secretary)');
 
-      // 1. Clear registration form completely after successful enrollment
+      // 1. Set registration completion state to immediately display prominent success badge & Member ID
+      setEnrolledSuccess(result);
+      onNotify(`✅ Successfully enrolled ${result.name} (${result.membershipId})!`);
+
+      // 2. Clear registration form completely after successful enrollment
       setAddName('');
       setAddMembershipId('');
       setAddMobile('');
@@ -246,12 +250,12 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       setAddRemarks('');
       setAddPassword('Member@1234');
 
-      // 2. Automatically update Member Management list
-      await loadData();
-
-      // 3. Set registration completion state to display prominent success badge & Member ID
-      setEnrolledSuccess(result);
-      onNotify(`✅ Successfully enrolled ${result.name} (${result.membershipId})!`);
+      // 3. Automatically update Member Management list immediately
+      const currentCache = getCachedMembers();
+      if (currentCache.length > 0) {
+        setMembers(currentCache);
+      }
+      loadData().catch((err) => console.warn('Background loadData error:', err));
     } catch (err: any) {
       const msg = err?.message || 'Failed to enroll member. Please check fields.';
       setAddError(msg);

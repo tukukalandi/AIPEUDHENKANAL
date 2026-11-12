@@ -468,12 +468,18 @@ export async function addMemberToFirestore(
     }
   }
 
-  // Query Firestore for duplicates across devices
+  // Parallel Firestore duplicate query across devices
   try {
     const membersCol = collection(db, 'members');
     const dupMobileQ = query(membersCol, where('mobile', '==', normalizedMobile), limit(1));
-    const dupMobileSnap = await withTimeout(getDocs(dupMobileQ), 3500);
-    if (!dupMobileSnap.empty) {
+    const queries: Promise<any>[] = [withTimeout(getDocs(dupMobileQ), 2500)];
+    if (customId) {
+      const dupIdQ = query(membersCol, where('membershipId', '==', customId), limit(1));
+      queries.push(withTimeout(getDocs(dupIdQ), 2500));
+    }
+    const [dupMobileSnap, dupIdSnap] = await Promise.all(queries);
+
+    if (dupMobileSnap && !dupMobileSnap.empty) {
       const existingDoc = dupMobileSnap.docs[0];
       const data = existingDoc.data();
       if (!existingDoc.id.startsWith('mem-seed-') && !deletedSet.has(existingDoc.id) && !deletedSet.has((data.membershipId || '').toUpperCase())) {
@@ -483,17 +489,13 @@ export async function addMemberToFirestore(
       }
     }
 
-    if (customId) {
-      const dupIdQ = query(membersCol, where('membershipId', '==', customId), limit(1));
-      const dupIdSnap = await withTimeout(getDocs(dupIdQ), 3500);
-      if (!dupIdSnap.empty) {
-        const existingDoc = dupIdSnap.docs[0];
-        const data = existingDoc.data();
-        if (!existingDoc.id.startsWith('mem-seed-') && !deletedSet.has(existingDoc.id) && !deletedSet.has(customId)) {
-          throw new Error(
-            `Member ID "${customId}" is already assigned in Firebase to "${data.name || 'Member'}". Please enter a unique Member ID or leave blank to auto-generate.`
-          );
-        }
+    if (customId && dupIdSnap && !dupIdSnap.empty) {
+      const existingDoc = dupIdSnap.docs[0];
+      const data = existingDoc.data();
+      if (!existingDoc.id.startsWith('mem-seed-') && !deletedSet.has(existingDoc.id) && !deletedSet.has(customId)) {
+        throw new Error(
+          `Member ID "${customId}" is already assigned in Firebase to "${data.name || 'Member'}". Please enter a unique Member ID or leave blank to auto-generate.`
+        );
       }
     }
   } catch (checkErr: any) {
@@ -563,23 +565,7 @@ export async function addMemberToFirestore(
     updatedAt: now,
   };
 
-  // 4. Provision account in Firebase Auth (timeout protected)
-  try {
-    const secAuth = getSecondaryAdminAuth();
-    const createdUser = await withTimeout(
-      createUserWithEmailAndPassword(secAuth, mobileAuthEmail, initialPass),
-      4000
-    );
-    if (createdUser?.user) {
-      newMemberProfile.uid = createdUser.user.uid;
-      cred.uid = createdUser.user.uid;
-      await fbSignOut(secAuth).catch(() => {});
-    }
-  } catch (authErr: any) {
-    console.warn('Firebase Auth user creation notice (continuing to Firestore):', authErr?.code || authErr?.message);
-  }
-
-  // 5. Save to Firebase Firestore:
+  // 4. Save to Firebase Firestore immediately
   const { id: _omitId, ...firestoreMemberPayload } = newMemberProfile;
   try {
     await withTimeout(
@@ -587,13 +573,32 @@ export async function addMemberToFirestore(
         setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }),
         setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }),
       ]),
-      8000
+      5000
     );
   } catch (dbErr: any) {
-    console.warn('Direct await on Firestore write delayed, continuing with local & optimistic background sync:', dbErr);
+    console.warn('Direct Firestore write delayed, continuing background push:', dbErr);
     setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }).catch((e) => console.warn(e));
     setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }).catch((e) => console.warn(e));
   }
+
+  // 5. Background optional Firebase Auth account provisioning (non-blocking)
+  (async () => {
+    try {
+      const secAuth = getSecondaryAdminAuth();
+      const createdUser = await createUserWithEmailAndPassword(secAuth, mobileAuthEmail, initialPass);
+      if (createdUser?.user) {
+        newMemberProfile.uid = createdUser.user.uid;
+        cred.uid = createdUser.user.uid;
+        await Promise.all([
+          setDoc(docRef, { uid: createdUser.user.uid }, { merge: true }),
+          setDoc(doc(db, 'memberCredentials', membershipId), { uid: createdUser.user.uid }, { merge: true }),
+        ]).catch(() => {});
+        await fbSignOut(secAuth).catch(() => {});
+      }
+    } catch {
+      // Non-blocking
+    }
+  })();
 
   // 6. Confirmed by Firebase -> update local cache and broadcast sync event
   const updatedLocalList = [

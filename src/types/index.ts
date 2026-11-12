@@ -125,8 +125,10 @@ export interface GalleryPhoto {
   id: string;
   title: string;
   imageUrl: string;
+  url?: string;
   category: string;
   date: string;
+  caption?: string;
 }
 
 export interface CustomPortalApp {
@@ -148,6 +150,7 @@ export interface DownloadableForm {
   formCode: string;
   category: string;
   downloadUrl: string;
+  fileSize?: string;
 }
 
 export interface EmployeeResource {
@@ -155,6 +158,7 @@ export interface EmployeeResource {
   title: string;
   category: string;
   url: string;
+  description?: string;
 }
 
 // ================= MEMBER LOGIN & DIGITAL MEMBERSHIP CARD TYPES =================

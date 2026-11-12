@@ -70,7 +70,7 @@ export const UserPortal: React.FC<UserPortalProps> = ({
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
-  const [activeSubTab, setActiveSubTab] = useState<'member-area' | 'member-list' | 'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('member-area');
+  const [activeSubTab, setActiveSubTab] = useState<'member-list' | 'member-area' | 'grievance' | 'forms' | 'wings' | 'helpline' | 'my-tickets'>('member-list');
 
   // 👥 Members directory state
   const [members, setMembers] = useState<MemberProfile[]>([]);
@@ -439,18 +439,6 @@ export const UserPortal: React.FC<UserPortalProps> = ({
       {/* 🧭 Sub-Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto scrollbar-none">
         <button
-          onClick={() => setActiveSubTab('member-area')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
-            activeSubTab === 'member-area'
-              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md ring-2 ring-amber-400'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-slate-900" />
-          <span>Member Login & ID Card</span>
-        </button>
-
-        <button
           onClick={() => setActiveSubTab('member-list')}
           className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
             activeSubTab === 'member-list'
@@ -460,6 +448,18 @@ export const UserPortal: React.FC<UserPortalProps> = ({
         >
           <Users className="w-4 h-4" />
           <span>Members Directory ({members.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('member-area')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${
+            activeSubTab === 'member-area'
+              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md ring-2 ring-amber-400'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-slate-900" />
+          <span>Digital ID Card & Member Profile</span>
         </button>
 
         <button
