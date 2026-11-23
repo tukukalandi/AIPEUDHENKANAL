@@ -27,7 +27,10 @@ import {
 } from '../data/unionInfo';
 import {
   getExecutiveMembersFromFirestore,
+  subscribeToExecutiveMembers,
   getUnionDocumentsAndRulingsFromFirestore,
+  subscribeToUnionDocumentsAndRulings,
+  resolveFileUrl,
 } from '../services/firebase';
 import { AddOfficeBearerModal } from './AddOfficeBearerModal';
 import {
@@ -77,13 +80,20 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
     const fetchRulings = () => {
       getUnionDocumentsAndRulingsFromFirestore()
         .then((data) => {
-          if (data && data.length > 0) setUnionRulings(data);
+          if (data) setUnionRulings(data);
         })
         .catch((err) => console.error(err));
     };
 
     fetchLatest();
     fetchRulings();
+
+    const unsubBearers = subscribeToExecutiveMembers((liveBearers) => {
+      setBearers(liveBearers);
+    });
+    const unsubRulings = subscribeToUnionDocumentsAndRulings((liveRulings) => {
+      setUnionRulings(liveRulings);
+    });
 
     const handleUpdate = () => {
       fetchLatest();
@@ -97,10 +107,47 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
     window.addEventListener('office-bearers-updated', handleUpdate);
     window.addEventListener('union-rulings-updated', handleRulingsUpdate);
     return () => {
+      unsubBearers();
+      unsubRulings();
       window.removeEventListener('office-bearers-updated', handleUpdate);
       window.removeEventListener('union-rulings-updated', handleRulingsUpdate);
     };
   }, [onRefreshOfficeBearers]);
+
+  const handleOpenUnionDoc = async (rawLink: string, title: string) => {
+    if (!rawLink) return;
+    const resolved = rawLink.startsWith('firestore-file://') ? await resolveFileUrl(rawLink) : rawLink;
+    if (!resolved) return;
+    const a = document.createElement('a');
+    if (resolved.startsWith('data:')) {
+      try {
+        const [header, base64] = resolved.split(',');
+        const mimeMatch = header.match(/data:([^;]+);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+        const binary = atob(base64 || '');
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+        a.href = blobUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = `${title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+    a.href = resolved;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   const [selectedWingFilter, setSelectedWingFilter] = useState<'all' | WingCategory>('all');
   const [docSearchQuery, setDocSearchQuery] = useState('');
@@ -869,13 +916,20 @@ export const DirectoryTab: React.FC<DirectoryTabProps> = ({
                 badgeColor = 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-900/50';
               }
 
+              const isFirestoreFile = doc.link?.startsWith('firestore-file://') || doc.link?.startsWith('data:');
               return (
                 <a
                   key={doc.id || doc.title}
-                  href={doc.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`p-4 bg-white dark:bg-slate-900 border flex items-center justify-between gap-3 transition-all hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md active:scale-[0.99] group ${
+                  href={isFirestoreFile ? '#' : doc.link}
+                  target={isFirestoreFile ? undefined : '_blank'}
+                  rel={isFirestoreFile ? undefined : 'noopener noreferrer'}
+                  onClick={(e) => {
+                    if (isFirestoreFile) {
+                      e.preventDefault();
+                      handleOpenUnionDoc(doc.link, doc.title);
+                    }
+                  }}
+                  className={`p-4 bg-white dark:bg-slate-900 border flex items-center justify-between gap-3 transition-all hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md active:scale-[0.99] group cursor-pointer ${
                     isIOS
                       ? 'rounded-2xl border-slate-200/80 dark:border-slate-800/80 shadow-sm'
                       : 'rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm'

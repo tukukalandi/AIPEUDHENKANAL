@@ -429,7 +429,7 @@ export const MemberArea: React.FC<MemberAreaProps> = ({ onBackToPortalHome }) =>
           <div className="space-y-1">
             <p className="font-bold">Membership Verification Pending Approval</p>
             <p className="leading-relaxed">
-              Your registration with Dhenkanal Division is awaiting confirmation by the Divisional Secretary. During pending status, union grievance filing and contact directories remain available, while digital card generation is activated upon approval.
+              Your registration with Dhenkanal Division is awaiting confirmation by the Tool Administrator. During pending status, union grievance filing and contact directories remain available, while digital card generation is activated upon approval.
             </p>
           </div>
         </div>

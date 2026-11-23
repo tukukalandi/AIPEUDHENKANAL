@@ -9,6 +9,11 @@ import {
 } from 'lucide-react';
 import { GalleryPhoto, PlatformStyle } from '../types';
 import { getStoredGallery } from '../data/portalMenuData';
+import {
+  getGalleryPhotosFromFirestore,
+  subscribeToGalleryPhotos,
+  resolveFileUrl,
+} from '../services/firebase';
 import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface GalleryPageViewProps {
@@ -23,12 +28,41 @@ export const GalleryPageView: React.FC<GalleryPageViewProps> = ({
   platform,
 }) => {
   const [gallery, setGallery] = useState<GalleryPhoto[]>([]);
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
     setGallery(getStoredGallery());
+    getGalleryPhotosFromFirestore()
+      .then((photos) => {
+        if (photos) setGallery(photos);
+      })
+      .catch(() => {});
+    const unsub = subscribeToGalleryPhotos((livePhotos) => setGallery(livePhotos));
+    return () => unsub();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const pending = gallery.filter(
+      (p) => p.imageUrl && p.imageUrl.startsWith('firestore-file://') && !resolvedUrls[p.id]
+    );
+    pending.forEach((photo) => {
+      resolveFileUrl(photo.imageUrl)
+        .then((resolved) => {
+          if (active && resolved && resolved !== photo.imageUrl) {
+            setResolvedUrls((prev) => ({ ...prev, [photo.id]: resolved }));
+          }
+        })
+        .catch(() => {});
+    });
+    return () => {
+      active = false;
+    };
+  }, [gallery, resolvedUrls]);
+
+  const getPhotoSrc = (photo: GalleryPhoto) => resolvedUrls[photo.id] || photo.imageUrl;
 
   const categories = ['all', ...Array.from(new Set(gallery.map((g) => g.category)))];
   const filteredGallery = gallery.filter((g) =>
@@ -94,7 +128,7 @@ export const GalleryPageView: React.FC<GalleryPageViewProps> = ({
           >
             <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
               <img
-                src={photo.imageUrl}
+                src={getPhotoSrc(photo)}
                 alt={photo.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 loading="lazy"
@@ -158,7 +192,7 @@ export const GalleryPageView: React.FC<GalleryPageViewProps> = ({
             </div>
             <div className="p-2 bg-black flex items-center justify-center max-h-[70vh]">
               <img
-                src={selectedPhoto.imageUrl}
+                src={getPhotoSrc(selectedPhoto)}
                 alt={selectedPhoto.title}
                 className="max-h-[68vh] w-auto object-contain rounded-xl"
               />
@@ -166,7 +200,7 @@ export const GalleryPageView: React.FC<GalleryPageViewProps> = ({
             <div className="p-4 bg-slate-950 flex items-center justify-between text-xs text-slate-400">
               <span>Date: {selectedPhoto.date}</span>
               <a
-                href={selectedPhoto.imageUrl}
+                href={getPhotoSrc(selectedPhoto)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-purple-400 hover:underline flex items-center gap-1 font-bold"

@@ -11,7 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { OfficeBearer } from '../types';
-import { saveExecutiveMemberToFirestore } from '../services/firebase';
+import { saveExecutiveMemberToFirestore, formatReadableFirestoreError } from '../services/firebase';
 
 interface AddOfficeBearerModalProps {
   isOpen: boolean;
@@ -112,7 +112,7 @@ export const AddOfficeBearerModal: React.FC<AddOfficeBearerModalProps> = ({
       }, 1400);
     } catch (err) {
       console.error('Failed to add office bearer:', err);
-      setErrorMsg('Failed to save office bearer. Please check your network and try again.');
+      setErrorMsg(formatReadableFirestoreError(err));
     } finally {
       setIsSubmitting(false);
     }

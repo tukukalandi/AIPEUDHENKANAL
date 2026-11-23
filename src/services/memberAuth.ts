@@ -197,7 +197,7 @@ export async function loginMember(identifierInput: string, passwordInput: string
     return {
       success: false,
       isLocked: true,
-      message: `Too many failed attempts. Login is temporarily locked for security. Please try again in ${minutesLeft} minute(s) or contact the Divisional Secretary.`,
+      message: `Too many failed attempts. Login is temporarily locked for security. Please try again in ${minutesLeft} minute(s) or contact the Tool Administrator.`,
     };
   }
 
@@ -295,7 +295,7 @@ export async function loginMember(identifierInput: string, passwordInput: string
         success: false,
         message:
           memberDoc.status === 'Pending'
-            ? 'Your membership account is pending verification and approval by the Divisional Secretary.'
+            ? 'Your membership account is pending verification and approval by the Tool Administrator.'
             : 'Your member account has been deactivated or expired. Please contact the Divisional Office to reactivate.',
       };
     }
@@ -563,7 +563,7 @@ export async function requestPasswordReset(identifier: string): Promise<{ succes
   const genericResponse = {
     success: true,
     message:
-      'If your Membership ID or registered mobile is on file with Dhenkanal Division, password recovery instructions or an administrator assistance request has been initiated. For direct help, you can also reach the Divisional Secretary.',
+      'If your Membership ID or registered mobile is on file with Dhenkanal Division, password recovery instructions or an administrator assistance request has been initiated. For direct help, you can also reach the Tool Administrator or Union Office.',
   };
 
   try {

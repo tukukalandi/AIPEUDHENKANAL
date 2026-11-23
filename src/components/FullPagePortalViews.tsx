@@ -44,8 +44,69 @@ import {
   getStoredEmployeeResources,
   getStoredForms,
 } from '../data/portalMenuData';
-import { subscribeToMyApps, getMyAppsFromFirestore } from '../services/firebase';
+import {
+  subscribeToMyApps,
+  getMyAppsFromFirestore,
+  getGalleryPhotosFromFirestore,
+  subscribeToGalleryPhotos,
+  getEmployeeResourcesFromFirestore,
+  subscribeToEmployeeResources,
+  getDownloadableFormsFromFirestore,
+  subscribeToDownloadableForms,
+  resolveFileUrl,
+} from '../services/firebase';
 import { PRIMARY_BRAND_LOGO } from '../data/logos';
+
+/**
+ * Resolves a regular URL or a chunked `firestore-file://` reference and opens/downloads it safely.
+ */
+async function openOrDownloadFirestoreResource(rawUrl: string, title: string): Promise<void> {
+  if (!rawUrl) return;
+  const resolved = rawUrl.startsWith('firestore-file://') ? await resolveFileUrl(rawUrl) : rawUrl;
+  if (!resolved) return;
+
+  const link = document.createElement('a');
+  if (resolved.startsWith('data:')) {
+    try {
+      const [header, base64] = resolved.split(',');
+      const mimeMatch = header.match(/data:([^;]+);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+      const binary = atob(base64 || '');
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      const ext = mimeType.includes('pdf')
+        ? 'pdf'
+        : mimeType.includes('png')
+        ? 'png'
+        : mimeType.includes('jpeg') || mimeType.includes('jpg')
+        ? 'jpg'
+        : mimeType.includes('html')
+        ? 'html'
+        : 'bin';
+      link.href = blobUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.download = `${title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      return;
+    } catch {
+      // Fallback to data URI anchor click
+    }
+  }
+  link.href = resolved;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 export interface AppCardColorTheme {
   name: string;
@@ -392,16 +453,55 @@ export const InternalPageNavBar: React.FC<InternalPageNavBarProps> = ({
 
 export const PhotoGalleryPage: React.FC = () => {
   const [gallery, setGallery] = useState<GalleryPhoto[]>([]);
+  const [resolvedImageUrls, setResolvedImageUrls] = useState<Record<string, string>>({});
   const [galleryCat, setGalleryCat] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
 
   useEffect(() => {
+    setGallery(getStoredGallery());
+
+    getGalleryPhotosFromFirestore()
+      .then((photos) => {
+        if (photos) setGallery(photos);
+      })
+      .catch((err) => console.warn('Could not fetch gallery photos from Firestore:', err));
+
+    const unsub = subscribeToGalleryPhotos((livePhotos) => {
+      setGallery(livePhotos);
+    });
+
     const loadGallery = () => setGallery(getStoredGallery());
-    loadGallery();
     window.addEventListener('storage', loadGallery);
-    return () => window.removeEventListener('storage', loadGallery);
+    return () => {
+      unsub();
+      window.removeEventListener('storage', loadGallery);
+    };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const unresolved = gallery.filter(
+      (p) => p.imageUrl && p.imageUrl.startsWith('firestore-file://') && !resolvedImageUrls[p.id]
+    );
+    if (unresolved.length === 0) return;
+
+    unresolved.forEach((photo) => {
+      resolveFileUrl(photo.imageUrl)
+        .then((resolved) => {
+          if (active && resolved && resolved !== photo.imageUrl) {
+            setResolvedImageUrls((prev) => ({ ...prev, [photo.id]: resolved }));
+          }
+        })
+        .catch(() => {});
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [gallery, resolvedImageUrls]);
+
+  const getDisplayImageUrl = (photo: GalleryPhoto) => resolvedImageUrls[photo.id] || photo.imageUrl;
 
   const galleryCategories = useMemo(
     () => ['all', ...Array.from(new Set(gallery.map((g) => g.category).filter(Boolean)))],
@@ -499,7 +599,7 @@ export const PhotoGalleryPage: React.FC = () => {
             >
               <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                 <img
-                  src={photo.imageUrl}
+                  src={getDisplayImageUrl(photo)}
                   alt={photo.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
@@ -555,7 +655,7 @@ export const PhotoGalleryPage: React.FC = () => {
             </div>
             <div className="p-3 bg-black flex items-center justify-center max-h-[75vh]">
               <img
-                src={selectedPhoto.imageUrl}
+                src={getDisplayImageUrl(selectedPhoto)}
                 alt={selectedPhoto.title}
                 className="max-h-[70vh] w-auto object-contain rounded-xl"
               />
@@ -574,6 +674,8 @@ export const MyAppsPage: React.FC = () => {
   const [appSearch, setAppSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [runningApp, setRunningApp] = useState<CustomPortalApp | null>(null);
+  const [resolvedCodeSnippet, setResolvedCodeSnippet] = useState<string>('');
+  const [isLoadingCodeSnippet, setIsLoadingCodeSnippet] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
 
   useEffect(() => {
@@ -583,7 +685,7 @@ export const MyAppsPage: React.FC = () => {
     // 2. Fetch fresh list from Firestore database
     getMyAppsFromFirestore()
       .then((apps) => {
-        if (apps && apps.length > 0) {
+        if (apps) {
           setMyApps(apps);
         }
       })
@@ -591,9 +693,7 @@ export const MyAppsPage: React.FC = () => {
 
     // 3. Real-time sub-second sync across all domains (Vercel, Netlify, Custom Domains)
     const unsub = subscribeToMyApps((liveApps) => {
-      if (liveApps && liveApps.length > 0) {
-        setMyApps(liveApps);
-      }
+      setMyApps(liveApps);
     });
 
     const loadApps = () => setMyApps(getStoredMyApps());
@@ -603,6 +703,42 @@ export const MyAppsPage: React.FC = () => {
       window.removeEventListener('storage', loadApps);
     };
   }, []);
+
+  // Resolve chunked HTML code snippets stored in Firestore uploadedFiles
+  useEffect(() => {
+    let active = true;
+    const snippet = runningApp?.codeSnippet || '';
+    if (!snippet) {
+      setResolvedCodeSnippet('');
+      setIsLoadingCodeSnippet(false);
+      return;
+    }
+    if (!snippet.startsWith('firestore-file://')) {
+      setResolvedCodeSnippet(snippet);
+      setIsLoadingCodeSnippet(false);
+      return;
+    }
+
+    setIsLoadingCodeSnippet(true);
+    resolveFileUrl(snippet)
+      .then((resolved) => {
+        if (active) {
+          setResolvedCodeSnippet(resolved || '');
+          setIsLoadingCodeSnippet(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to resolve chunked HTML app:', err);
+        if (active) {
+          setResolvedCodeSnippet('');
+          setIsLoadingCodeSnippet(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [runningApp]);
 
   const categories = useMemo(
     () => ['all', ...Array.from(new Set(myApps.map((a) => a.category).filter(Boolean)))],
@@ -653,13 +789,20 @@ export const MyAppsPage: React.FC = () => {
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reload Tool</span>
             </button>
-            {runningApp.codeSnippet && (
+            {runningApp.codeSnippet && resolvedCodeSnippet && (
               <button
                 type="button"
                 onClick={() => {
-                  const blob = new Blob([runningApp.codeSnippet || ''], { type: 'text/html' });
+                  const blob = new Blob([resolvedCodeSnippet], { type: 'text/html' });
                   const blobUrl = URL.createObjectURL(blob);
-                  window.open(blobUrl, '_blank');
+                  const a = document.createElement('a');
+                  a.href = blobUrl;
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
                 }}
                 className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
@@ -672,13 +815,20 @@ export const MyAppsPage: React.FC = () => {
 
         <div className="w-full rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white shadow-lg min-h-[750px]">
           {runningApp.codeSnippet ? (
-            <iframe
-              key={iframeKey}
-              title={runningApp.name}
-              sandbox="allow-scripts allow-forms allow-modals"
-              srcDoc={runningApp.codeSnippet}
-              className="w-full h-[800px] border-0 bg-[#f1f3f6]"
-            />
+            isLoadingCodeSnippet ? (
+              <div className="flex flex-col items-center justify-center h-[500px] gap-3 text-slate-500">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-bold">Loading interactive tool from Firebase...</p>
+              </div>
+            ) : (
+              <iframe
+                key={iframeKey}
+                title={runningApp.name}
+                sandbox="allow-scripts allow-forms allow-modals allow-downloads"
+                srcDoc={resolvedCodeSnippet}
+                className="w-full h-[800px] border-0 bg-[#f1f3f6]"
+              />
+            )
           ) : (
             <div className="p-12 text-center">
               <a
@@ -886,10 +1036,24 @@ export const EmployeeSitePage: React.FC<{ onNavigateTab?: (tab: ActiveTab) => vo
   const [selectedCat, setSelectedCat] = useState<string>('all');
 
   useEffect(() => {
+    setResources(getStoredEmployeeResources());
+
+    getEmployeeResourcesFromFirestore()
+      .then((list) => {
+        if (list) setResources(list);
+      })
+      .catch((err) => console.warn('Could not fetch employee resources from Firestore:', err));
+
+    const unsub = subscribeToEmployeeResources((liveResources) => {
+      setResources(liveResources);
+    });
+
     const loadRes = () => setResources(getStoredEmployeeResources());
-    loadRes();
     window.addEventListener('storage', loadRes);
-    return () => window.removeEventListener('storage', loadRes);
+    return () => {
+      unsub();
+      window.removeEventListener('storage', loadRes);
+    };
   }, []);
 
   const categories = useMemo(
@@ -970,32 +1134,41 @@ export const EmployeeSitePage: React.FC<{ onNavigateTab?: (tab: ActiveTab) => vo
 
       {/* Resources Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredResources.map((res) => (
-          <a
-            key={res.id}
-            href={res.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500 shadow-sm hover:shadow-lg transition-all flex items-center justify-between gap-4 group"
-          >
-            <div className="flex items-start gap-3.5 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                  {res.category}
+        {filteredResources.map((res) => {
+          const isFirestoreFile = res.url?.startsWith('firestore-file://') || res.url?.startsWith('data:');
+          return (
+            <a
+              key={res.id}
+              href={isFirestoreFile ? '#' : res.url}
+              target={isFirestoreFile ? undefined : '_blank'}
+              rel={isFirestoreFile ? undefined : 'noopener noreferrer'}
+              onClick={(e) => {
+                if (isFirestoreFile) {
+                  e.preventDefault();
+                  openOrDownloadFirestoreResource(res.url, res.title);
+                }
+              }}
+              className="p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500 shadow-sm hover:shadow-lg transition-all flex items-center justify-between gap-4 group cursor-pointer"
+            >
+              <div className="flex items-start gap-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                  <FileText className="w-5 h-5" />
                 </div>
-                <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors mt-0.5">
-                  {res.title}
-                </h3>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                    {res.category}
+                  </div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors mt-0.5">
+                    {res.title}
+                  </h3>
+                </div>
               </div>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-              <ExternalLink className="w-4 h-4" />
-            </div>
-          </a>
-        ))}
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <ExternalLink className="w-4 h-4" />
+              </div>
+            </a>
+          );
+        })}
       </div>
     </div>
   );
@@ -1009,10 +1182,24 @@ export const FormsPage: React.FC = () => {
   const [selectedCat, setSelectedCat] = useState<string>('all');
 
   useEffect(() => {
+    setForms(getStoredForms());
+
+    getDownloadableFormsFromFirestore()
+      .then((list) => {
+        if (list) setForms(list);
+      })
+      .catch((err) => console.warn('Could not fetch downloadable forms from Firestore:', err));
+
+    const unsub = subscribeToDownloadableForms((liveForms) => {
+      setForms(liveForms);
+    });
+
     const loadForms = () => setForms(getStoredForms());
-    loadForms();
     window.addEventListener('storage', loadForms);
-    return () => window.removeEventListener('storage', loadForms);
+    return () => {
+      unsub();
+      window.removeEventListener('storage', loadForms);
+    };
   }, []);
 
   const categories = useMemo(
@@ -1106,15 +1293,26 @@ export const FormsPage: React.FC = () => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <a
-                href={form.downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Form PDF</span>
-              </a>
+              {form.downloadUrl?.startsWith('firestore-file://') || form.downloadUrl?.startsWith('data:') ? (
+                <button
+                  type="button"
+                  onClick={() => openOrDownloadFirestoreResource(form.downloadUrl, form.title)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Form PDF</span>
+                </button>
+              ) : (
+                <a
+                  href={form.downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Form PDF</span>
+                </a>
+              )}
             </div>
           </div>
         ))}

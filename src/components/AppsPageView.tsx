@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { CustomPortalApp, PlatformStyle } from '../types';
 import { getStoredMyApps } from '../data/portalMenuData';
-import { subscribeToMyApps, getMyAppsFromFirestore } from '../services/firebase';
+import { subscribeToMyApps, getMyAppsFromFirestore, resolveFileUrl } from '../services/firebase';
 import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface AppsPageViewProps {
@@ -30,6 +30,8 @@ export const AppsPageView: React.FC<AppsPageViewProps> = ({
   const [myApps, setMyApps] = useState<CustomPortalApp[]>([]);
   const [appSearch, setAppSearch] = useState('');
   const [runningApp, setRunningApp] = useState<CustomPortalApp | null>(null);
+  const [resolvedCodeSnippet, setResolvedCodeSnippet] = useState<string>('');
+  const [isLoadingSnippet, setIsLoadingSnippet] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -40,21 +42,52 @@ export const AppsPageView: React.FC<AppsPageViewProps> = ({
     // 2. Load latest from Firestore
     getMyAppsFromFirestore()
       .then((apps) => {
-        if (apps && apps.length > 0) setMyApps(apps);
+        if (apps) setMyApps(apps);
       })
       .catch((err) => console.warn('Could not fetch apps from Firestore:', err));
 
     // 3. Real-time sub-second sync across all domains
     const unsub = subscribeToMyApps((liveApps) => {
-      if (liveApps && liveApps.length > 0) {
-        setMyApps(liveApps);
-      }
+      setMyApps(liveApps);
     });
 
     return () => {
       unsub();
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const snippet = runningApp?.codeSnippet || '';
+    if (!snippet) {
+      setResolvedCodeSnippet('');
+      setIsLoadingSnippet(false);
+      return;
+    }
+    if (!snippet.startsWith('firestore-file://')) {
+      setResolvedCodeSnippet(snippet);
+      setIsLoadingSnippet(false);
+      return;
+    }
+    setIsLoadingSnippet(true);
+    resolveFileUrl(snippet)
+      .then((resolved) => {
+        if (active) {
+          setResolvedCodeSnippet(resolved || '');
+          setIsLoadingSnippet(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to resolve chunked HTML app:', err);
+        if (active) {
+          setResolvedCodeSnippet('');
+          setIsLoadingSnippet(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [runningApp]);
 
   const categories = ['all', ...Array.from(new Set(myApps.map((a) => a.category)))];
 
@@ -251,13 +284,20 @@ export const AppsPageView: React.FC<AppsPageViewProps> = ({
 
             {/* Iframe Runner Container */}
             <div className="flex-1 w-full bg-slate-100 dark:bg-slate-950 relative overflow-hidden">
-              <iframe
-                key={iframeKey}
-                title={runningApp.name}
-                srcDoc={runningApp.codeSnippet || '<p>No application code loaded.</p>'}
-                sandbox="allow-scripts allow-forms allow-modals allow-downloads"
-                className="w-full h-full border-0 bg-white"
-              />
+              {isLoadingSnippet ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500">
+                  <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-bold">Loading interactive tool from Firebase...</p>
+                </div>
+              ) : (
+                <iframe
+                  key={iframeKey}
+                  title={runningApp.name}
+                  srcDoc={resolvedCodeSnippet || '<p>No application code loaded.</p>'}
+                  sandbox="allow-scripts allow-forms allow-modals allow-downloads"
+                  className="w-full h-full border-0 bg-white"
+                />
+              )}
             </div>
           </div>
         </div>

@@ -62,7 +62,7 @@ export const DigitalMembershipCardView: React.FC<DigitalMembershipCardViewProps>
         </h3>
         <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
           {member.status === 'Pending'
-            ? 'Your membership application is currently under verification. Digital membership cards are automatically generated and issued once approved by the Divisional Secretary.'
+            ? 'Your membership application is currently under verification. Digital membership cards are automatically generated and issued once approved by the Tool Administrator.'
             : `Your membership expired on ${member.validTo || 'earlier dates'}. Please contact the Divisional Treasurer or submit a renewal request to restore active status and card validity.`}
         </p>
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-900/80 text-amber-800 dark:text-amber-200 text-xs font-bold">

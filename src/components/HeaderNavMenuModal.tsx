@@ -23,7 +23,16 @@ import {
   getStoredEmployeeResources,
   getStoredForms,
 } from '../data/portalMenuData';
-import { subscribeToMyApps, getMyAppsFromFirestore } from '../services/firebase';
+import {
+  subscribeToMyApps,
+  getMyAppsFromFirestore,
+  getGalleryPhotosFromFirestore,
+  subscribeToGalleryPhotos,
+  getEmployeeResourcesFromFirestore,
+  subscribeToEmployeeResources,
+  getDownloadableFormsFromFirestore,
+  subscribeToDownloadableForms,
+} from '../services/firebase';
 
 interface HeaderNavMenuModalProps {
   isOpen: boolean;
@@ -54,18 +63,38 @@ export const HeaderNavMenuModal: React.FC<HeaderNavMenuModalProps> = ({
       setEmployeeResources(getStoredEmployeeResources());
       setFormsCount(getStoredForms().length);
 
+      getGalleryPhotosFromFirestore()
+        .then((photos) => {
+          if (photos) setGallery(photos);
+        })
+        .catch(() => {});
       getMyAppsFromFirestore()
         .then((apps) => {
-          if (apps && apps.length > 0) setMyApps(apps);
+          if (apps) setMyApps(apps);
         })
-        .catch(console.error);
+        .catch(() => {});
+      getEmployeeResourcesFromFirestore()
+        .then((resources) => {
+          if (resources) setEmployeeResources(resources);
+        })
+        .catch(() => {});
+      getDownloadableFormsFromFirestore()
+        .then((forms) => {
+          if (forms) setFormsCount(forms.length);
+        })
+        .catch(() => {});
 
-      const unsub = subscribeToMyApps((liveApps) => {
-        if (liveApps && liveApps.length > 0) {
-          setMyApps(liveApps);
-        }
-      });
-      return () => unsub();
+      const unsubGallery = subscribeToGalleryPhotos((livePhotos) => setGallery(livePhotos));
+      const unsubApps = subscribeToMyApps((liveApps) => setMyApps(liveApps));
+      const unsubResources = subscribeToEmployeeResources((liveRes) => setEmployeeResources(liveRes));
+      const unsubForms = subscribeToDownloadableForms((liveForms) => setFormsCount(liveForms.length));
+
+      return () => {
+        unsubGallery();
+        unsubApps();
+        unsubResources();
+        unsubForms();
+      };
     }
   }, [isOpen]);
 

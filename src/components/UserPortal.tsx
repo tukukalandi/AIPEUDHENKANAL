@@ -25,11 +25,17 @@ import {
   MapPin,
   BadgeCheck,
 } from 'lucide-react';
-import { AppLanguage, PlatformStyle, OfficeBearer, MemberProfile } from '../types';
+import { AppLanguage, PlatformStyle, OfficeBearer, MemberProfile, DownloadableForm } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { UNION_CONTACT_INFO, UNION_BRANCHES, OFFICE_BEARERS } from '../data/unionInfo';
 import { UNION_LOGOS, PRIMARY_BRAND_LOGO } from '../data/logos';
-import { getExecutiveMembersFromFirestore } from '../services/firebase';
+import { getStoredForms } from '../data/portalMenuData';
+import {
+  getExecutiveMembersFromFirestore,
+  getDownloadableFormsFromFirestore,
+  subscribeToDownloadableForms,
+  resolveFileUrl,
+} from '../services/firebase';
 import { getMembersFromFirestore, subscribeToMembers } from '../services/memberService';
 import { sortOfficeBearers } from '../utils/officeBearerSorting';
 import { MemberArea } from './MemberArea';
@@ -271,56 +277,98 @@ export const UserPortal: React.FC<UserPortalProps> = ({
     'Other Service Grievance',
   ];
 
-  const downloadableForms = [
-    {
-      title: 'Rule 38 Transfer Application Form',
-      desc: 'Standard proforma for Inter-Circle & Intra-Circle transfer request under Rule 38.',
-      link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-      badge: 'Transfer',
-    },
-    {
-      title: 'CGHS & Medical Reimbursement Claim Form',
-      desc: 'Form for claiming medical expenses, hospitalization and emergency treatments.',
-      link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-      badge: 'Medical',
-    },
-    {
-      title: 'MACP Representation & Benchmark Proforma',
-      desc: 'Representation format for delayed MACP financial upgradation.',
-      link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-      badge: 'Promotion',
-    },
-    {
-      title: 'RTI Application Form A (Act 2005)',
-      desc: 'Statutory format for seeking information from postal authorities under RTI.',
-      link: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
-      badge: 'RTI Act',
-    },
-    {
-      title: 'Staff Adalat Grievance Proforma',
-      desc: 'Format to present grievances in the Half-Yearly Divisional Staff Adalat.',
-      link: 'https://drive.google.com/file/d/1ArNMez75hZPspwG6FDQu6uG4l67-ok_0/view',
-      badge: 'Adalat',
-    },
-    {
-      title: 'Union Membership Form B & Subscription Mandate',
-      desc: 'Official membership enrollment and monthly check-off deduction authorization.',
-      link: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
-      badge: 'Union',
-    },
-    {
-      title: 'Pension & Gratuity Calculation Sheet',
-      desc: 'Proforma for verifying pension calculation, commutation value & DCRG.',
-      link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-      badge: 'Pension',
-    },
-    {
-      title: 'Child Care Leave (CCL) Proforma',
-      desc: 'Official leave application format for female postal employees.',
-      link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
-      badge: 'Leave',
-    },
-  ];
+  const [liveForms, setLiveForms] = useState<DownloadableForm[]>(() => getStoredForms());
+
+  useEffect(() => {
+    getDownloadableFormsFromFirestore()
+      .then((forms) => {
+        if (forms && forms.length > 0) setLiveForms(forms);
+      })
+      .catch((err) => console.warn('Could not fetch forms in UserPortal:', err));
+
+    const unsubForms = subscribeToDownloadableForms((forms) => {
+      setLiveForms(forms);
+    });
+
+    return () => unsubForms();
+  }, []);
+
+  const handleDownloadFormFile = async (rawUrl: string, title: string) => {
+    if (!rawUrl) return;
+    const resolved = rawUrl.startsWith('firestore-file://') ? await resolveFileUrl(rawUrl) : rawUrl;
+    if (!resolved) return;
+    const a = document.createElement('a');
+    if (resolved.startsWith('data:')) {
+      try {
+        const [header, base64] = resolved.split(',');
+        const mimeMatch = header.match(/data:([^;]+);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+        const binary = atob(base64 || '');
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+        a.href = blobUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = `${title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+    a.href = resolved;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const downloadableForms = useMemo(() => {
+    if (liveForms.length > 0) {
+      return liveForms.map((f) => ({
+        id: f.id,
+        title: f.title,
+        desc: `${f.formCode ? `Form Code: ${f.formCode} · ` : ''}Official ${f.category || 'Departmental'} proforma uploaded to Firebase portal.`,
+        link: f.downloadUrl,
+        badge: f.category || 'Form',
+      }));
+    }
+    return [
+      {
+        id: 'default-1',
+        title: 'Rule 38 Transfer Application Form',
+        desc: 'Standard proforma for Inter-Circle & Intra-Circle transfer request under Rule 38.',
+        link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
+        badge: 'Transfer',
+      },
+      {
+        id: 'default-2',
+        title: 'CGHS & Medical Reimbursement Claim Form',
+        desc: 'Form for claiming medical expenses, hospitalization and emergency treatments.',
+        link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
+        badge: 'Medical',
+      },
+      {
+        id: 'default-3',
+        title: 'MACP Representation & Benchmark Proforma',
+        desc: 'Representation format for delayed MACP financial upgradation.',
+        link: 'https://aipeup3dkl.blogspot.com/p/important-orders.html',
+        badge: 'Promotion',
+      },
+      {
+        id: 'default-4',
+        title: 'Union Membership Form B & Subscription Mandate',
+        desc: 'Official membership enrollment and monthly check-off deduction authorization.',
+        link: 'https://aipeup3dkl.blogspot.com/p/register-of-trade-union-form-b.html',
+        badge: 'Union',
+      },
+    ];
+  }, [liveForms]);
 
   const handleSubmitGrievance = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1071,15 +1119,26 @@ export const UserPortal: React.FC<UserPortalProps> = ({
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <a
-                    href={item.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download / Open Form</span>
-                  </a>
+                  {item.link?.startsWith('firestore-file://') || item.link?.startsWith('data:') ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFormFile(item.link, item.title)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download / Open Form</span>
+                    </button>
+                  ) : (
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition-all"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download / Open Form</span>
+                    </a>
+                  )}
                   <span className="text-[11px] font-semibold text-slate-400">PDF / Doc</span>
                 </div>
               </div>

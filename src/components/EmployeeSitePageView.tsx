@@ -10,6 +10,11 @@ import {
 } from 'lucide-react';
 import { EmployeeResource, PlatformStyle } from '../types';
 import { getStoredEmployeeResources } from '../data/portalMenuData';
+import {
+  getEmployeeResourcesFromFirestore,
+  subscribeToEmployeeResources,
+  resolveFileUrl,
+} from '../services/firebase';
 import { PageHeaderWithNav } from './PageHeaderWithNav';
 
 interface EmployeeSitePageViewProps {
@@ -29,7 +34,49 @@ export const EmployeeSitePageView: React.FC<EmployeeSitePageViewProps> = ({
 
   useEffect(() => {
     setResources(getStoredEmployeeResources());
+    getEmployeeResourcesFromFirestore()
+      .then((list) => {
+        if (list) setResources(list);
+      })
+      .catch(() => {});
+    const unsub = subscribeToEmployeeResources((liveList) => setResources(liveList));
+    return () => unsub();
   }, []);
+
+  const handleOpenResource = async (rawUrl: string, title: string) => {
+    if (!rawUrl) return;
+    const resolved = rawUrl.startsWith('firestore-file://') ? await resolveFileUrl(rawUrl) : rawUrl;
+    if (!resolved) return;
+    const a = document.createElement('a');
+    if (resolved.startsWith('data:')) {
+      try {
+        const [header, base64] = resolved.split(',');
+        const mimeMatch = header.match(/data:([^;]+);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+        const binary = atob(base64 || '');
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+        a.href = blobUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = `${title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      } catch {
+        // fallback below
+      }
+    }
+    a.href = resolved;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   const categories = ['all', ...Array.from(new Set(resources.map((r) => r.category)))];
 
@@ -102,40 +149,49 @@ export const EmployeeSitePageView: React.FC<EmployeeSitePageViewProps> = ({
 
       {/* Resource Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredResources.map((res) => (
-          <a
-            key={res.id}
-            href={res.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group active:scale-[0.99]"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 uppercase tracking-wider">
-                  {res.category}
+        {filteredResources.map((res) => {
+          const isFirestoreFile = res.url?.startsWith('firestore-file://') || res.url?.startsWith('data:');
+          return (
+            <a
+              key={res.id}
+              href={isFirestoreFile ? '#' : res.url}
+              target={isFirestoreFile ? undefined : '_blank'}
+              rel={isFirestoreFile ? undefined : 'noopener noreferrer'}
+              onClick={(e) => {
+                if (isFirestoreFile) {
+                  e.preventDefault();
+                  handleOpenResource(res.url, res.title);
+                }
+              }}
+              className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-lg transition-all flex flex-col justify-between gap-3 group active:scale-[0.99] cursor-pointer"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+                    {res.category}
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-snug">
+                  {res.title}
+                </h4>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-400 group-hover:underline flex items-center gap-1">
+                  <span>Open Reference</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </span>
-                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                  <FileText className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </div>
               </div>
-
-              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors leading-snug">
-                {res.title}
-              </h4>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-400 group-hover:underline flex items-center gap-1">
-                <span>Open Reference</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                <ExternalLink className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </a>
-        ))}
+            </a>
+          );
+        })}
       </div>
 
       {filteredResources.length === 0 && (
