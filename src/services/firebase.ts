@@ -403,6 +403,7 @@ export function isLegacySeedId(id?: string): boolean {
   if (/^nc-[0-9]+$/.test(id)) return true;
   if (id.startsWith('org-seed-')) return true;
   if (id.startsWith('bearer-') || id === 'exec-seed-1' || id === 'exec-seed-2') return true;
+  if (id === 'app-acg17-generator' || id === 'app-target-calc' || /^app-([1-9]|1[0-2])$/.test(id)) return true;
   return false;
 }
 
@@ -2152,41 +2153,37 @@ export async function getMyAppsFromFirestore(): Promise<CustomPortalApp[]> {
   try {
     const colRef = collection(db, 'customPortalApps');
     const snap = await getDocs(colRef);
-    const firestoreApps: CustomPortalApp[] = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        name: data.name || '',
-        category: data.category || 'Others',
-        sourceType: data.sourceType || 'code',
-        codeSnippet: data.codeSnippet,
-        url: data.url,
-        description: data.description || '',
-        fileSize: data.fileSize,
-        createdAt: data.createdAt || '',
-      } as CustomPortalApp;
-    });
+    const firestoreApps: CustomPortalApp[] = snap.docs
+      .filter((d) => !isLegacySeedId(d.id) && !deletedIds.has(d.id))
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name || '',
+          category: data.category || 'Others',
+          sourceType: data.sourceType || 'code',
+          codeSnippet: data.codeSnippet,
+          url: data.url,
+          description: data.description || '',
+          fileSize: data.fileSize,
+          createdAt: data.createdAt || '',
+        } as CustomPortalApp;
+      });
 
-    const map = new Map<string, CustomPortalApp>();
-    DEFAULT_MY_APPS.forEach((a) => {
-      if (!deletedIds.has(a.id)) map.set(a.id, a);
-    });
-    firestoreApps.forEach((a) => {
-      if (!deletedIds.has(a.id)) map.set(a.id, a);
-    });
-
-    const merged = Array.from(map.values());
     try {
-      localStorage.setItem('aipeu_admin_apps', JSON.stringify(merged));
+      localStorage.setItem('aipeu_admin_apps', JSON.stringify(firestoreApps));
     } catch {}
-    return merged;
+    return firestoreApps;
   } catch (err) {
     console.warn('Firestore fetch myApps offline fallback:', err);
     try {
       const raw = localStorage.getItem('aipeu_admin_apps');
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed: CustomPortalApp[] = JSON.parse(raw);
+        return parsed.filter((a) => a && !isLegacySeedId(a.id) && !deletedIds.has(a.id));
+      }
     } catch {}
-    return DEFAULT_MY_APPS;
+    return [];
   }
 }
 
@@ -2225,7 +2222,9 @@ export async function saveMyAppToFirestore(app: CustomPortalApp): Promise<string
 
   try {
     const raw = localStorage.getItem('aipeu_admin_apps');
-    const list: CustomPortalApp[] = raw ? JSON.parse(raw) : [...DEFAULT_MY_APPS];
+    const list: CustomPortalApp[] = raw
+      ? JSON.parse(raw).filter((a: CustomPortalApp) => a && !isLegacySeedId(a.id))
+      : [];
     const idx = list.findIndex((a) => a.id === targetId);
     const updatedApp: CustomPortalApp = {
       id: targetId,
@@ -2293,14 +2292,11 @@ export function subscribeToMyApps(
         if (rawDel) JSON.parse(rawDel).forEach((id: string) => deletedIds.add(id));
       } catch {}
 
-      const map = new Map<string, CustomPortalApp>();
-      DEFAULT_MY_APPS.forEach((a) => {
-        if (!deletedIds.has(a.id)) map.set(a.id, a);
-      });
+      const liveApps: CustomPortalApp[] = [];
       snapshot.forEach((d) => {
-        if (!deletedIds.has(d.id)) {
+        if (!isLegacySeedId(d.id) && !deletedIds.has(d.id)) {
           const data = d.data();
-          map.set(d.id, {
+          liveApps.push({
             id: d.id,
             name: data.name || '',
             category: data.category || 'Others',
@@ -2314,11 +2310,10 @@ export function subscribeToMyApps(
         }
       });
 
-      const merged = Array.from(map.values());
       try {
-        localStorage.setItem('aipeu_admin_apps', JSON.stringify(merged));
+        localStorage.setItem('aipeu_admin_apps', JSON.stringify(liveApps));
       } catch {}
-      callback(merged);
+      callback(liveApps);
     },
     (err) => logSnapshotError(err, 'customPortalApps')
   );

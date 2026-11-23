@@ -608,40 +608,24 @@ export const TARGET_CALCULATOR_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export const DEFAULT_MY_APPS: CustomPortalApp[] = [
-  {
-    id: 'app-acg17-generator',
-    name: 'ACG-17 Receipt Generator',
-    category: 'Operations',
-    sourceType: 'code',
-    codeSnippet: ACG_17_RECEIPT_GENERATOR_HTML,
-    description: 'Department of Posts ACG-17 official receipt generator with auto amount-in-words & instant print preview',
-    fileSize: '7.8 KB',
-    createdAt: '2026-03-24',
-  },
-  {
-    id: 'app-target-calc',
-    name: 'Target Calculator',
-    category: 'Calculators',
-    sourceType: 'code',
-    codeSnippet: TARGET_CALCULATOR_HTML,
-    description: 'Interactive Postal & GDS monthly target & daily run rate calculator',
-    fileSize: '3.2 KB',
-    createdAt: '2026-03-20',
-  },
-  { id: 'app-1', name: 'India Post Official Portal', category: 'Official Portal', sourceType: 'url', url: 'https://www.indiapost.gov.in', description: 'Central India Post portal for tracking, rules, and circulars' },
-  { id: 'app-2', name: 'Meghdoot / SAP ERP Portal', category: 'Operations', sourceType: 'url', url: 'https://sapep.indiapost.gov.in', description: 'Postal Enterprise Resource Planning and daily operations' },
-  { id: 'app-3', name: 'Dak Karmayogi E-Learning', category: 'Training', sourceType: 'url', url: 'https://dakkarmayogi.gov.in', description: 'Mandatory online training modules for GDS and Postal Assistants' },
-  { id: 'app-4', name: 'CEPT Web Services Hub', category: 'IT & Technology', sourceType: 'url', url: 'https://cept.gov.in', description: 'Centre for Excellence in Postal Technology utilities' },
-  { id: 'app-5', name: 'Finacle Core Banking System (CBS)', category: 'Banking', sourceType: 'url', url: 'https://cbs.indiapost.gov.in', description: 'POSB Core Banking and ATM transaction portal' },
-  { id: 'app-6', name: 'Postal Life Insurance (PLI)', category: 'Insurance', sourceType: 'url', url: 'https://pli.indiapost.gov.in', description: 'PLI and RPLI customer portal and quotation tools' },
-  { id: 'app-7', name: 'Speed Post Tracking Tool', category: 'Tracking', sourceType: 'url', url: 'https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx', description: 'Consignment track and trace service' },
-  { id: 'app-8', name: 'Central Govt Health Scheme (CGHS)', category: 'Medical', sourceType: 'url', url: 'https://cghs.nic.in', description: 'CGHS empanelled hospitals, plastic card and claims' },
-  { id: 'app-9', name: 'Bhavishya Pension Portal', category: 'Pension', sourceType: 'url', url: 'https://bhavishya.nic.in', description: 'Civil servants pension sanction and payment tracking' },
-  { id: 'app-10', name: 'CPENGRAMS Grievance Portal', category: 'Grievance', sourceType: 'url', url: 'https://pgportal.gov.in/pension', description: 'Online pension grievances redressal system' },
-  { id: 'app-11', name: 'Odisha Postal Circle Cuttack', category: 'Circle Office', sourceType: 'url', url: 'https://odishapost.gov.in', description: 'Odisha Circle administrative notifications & transfers' },
-  { id: 'app-12', name: 'NFPE National Confederation', category: 'Union Portal', sourceType: 'url', url: 'http://confederationhq.blogspot.com', description: 'National Federation of Postal Employees updates' },
-];
+export const LEGACY_DEFAULT_APP_IDS = new Set([
+  'app-acg17-generator',
+  'app-target-calc',
+  'app-1',
+  'app-2',
+  'app-3',
+  'app-4',
+  'app-5',
+  'app-6',
+  'app-7',
+  'app-8',
+  'app-9',
+  'app-10',
+  'app-11',
+  'app-12',
+]);
+
+export const DEFAULT_MY_APPS: CustomPortalApp[] = [];
 
 export const DEFAULT_EMPLOYEE_RESOURCES: EmployeeResource[] = [
   { id: 'res-1', title: 'Postal Manual Volume IV (Appointments, Promotion, Leave & Discipline)', category: 'Postal Manuals', url: 'https://www.indiapost.gov.in' },
@@ -665,18 +649,15 @@ export function getStoredMyApps(): CustomPortalApp[] {
     if (raw) {
       const parsed: CustomPortalApp[] = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // If user already had custom apps, ensure the ACG-17 receipt generator is available
-        const hasAcg17 = parsed.some((a) => a.id === 'app-acg17-generator');
-        if (!hasAcg17) {
-          const merged = [DEFAULT_MY_APPS[0], ...parsed];
-          localStorage.setItem('aipeu_admin_apps', JSON.stringify(merged));
-          return merged;
+        const cleaned = parsed.filter((a) => a && !LEGACY_DEFAULT_APP_IDS.has(a.id));
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem('aipeu_admin_apps', JSON.stringify(cleaned));
         }
-        return parsed;
+        return cleaned;
       }
     }
   } catch {}
-  return DEFAULT_MY_APPS;
+  return [];
 }
 
 export const DEFAULT_FORMS_LIST = [

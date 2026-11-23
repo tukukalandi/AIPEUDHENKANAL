@@ -447,9 +447,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [myApps, setMyApps] = useState<CustomPortalApp[]>(() => {
     try {
       const raw = localStorage.getItem('aipeu_admin_apps');
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        return JSON.parse(raw).filter((a: CustomPortalApp) => a && !isLegacySeedId(a.id));
+      }
     } catch {}
-    return DEFAULT_MY_APPS;
+    return [];
   });
   const [showAddAppModal, setShowAddAppModal] = useState(false);
   const [editingApp, setEditingApp] = useState<CustomPortalApp | null>(null);
@@ -562,7 +564,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setNoticeCirculars((notcs || []).filter((n) => !isLegacySeedId(n.id)));
       setUnionRulings(rulings || []);
       setOrdersRulingsGuides((orgs || []).filter((o) => !isLegacySeedId(o.id)));
-      if (apps && apps.length > 0) setMyApps(apps);
+      setMyApps((apps || []).filter((a) => !isLegacySeedId(a.id)));
       const deletedIds = new Set<string>(JSON.parse(localStorage.getItem('aipeu_deleted_post_ids') || '[]'));
       setCirculars(posts.filter((p) => !deletedIds.has(p.id)));
 
@@ -603,9 +605,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (isOpen && isAuthenticated) {
       loadAllData();
       const unsubApps = subscribeToMyApps((liveApps) => {
-        if (liveApps && liveApps.length > 0) {
-          setMyApps(liveApps);
-        }
+        setMyApps((liveApps || []).filter((a) => !isLegacySeedId(a.id)));
       });
       return () => {
         unsubApps();

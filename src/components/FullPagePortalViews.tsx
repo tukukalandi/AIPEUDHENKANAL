@@ -1022,6 +1022,21 @@ export const MyAppsPage: React.FC = () => {
           );
         })}
       </div>
+
+      {filteredApps.length === 0 && (
+        <div className="p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            {appSearch || selectedCategory !== 'all'
+              ? 'No apps found matching your filter.'
+              : 'No apps published yet.'}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {appSearch || selectedCategory !== 'all'
+              ? 'Try clearing your search or selecting All Categories.'
+              : 'Apps uploaded in the Admin Portal will appear here automatically.'}
+          </p>
+        </div>
+      )}
     </div>
   );
 };
