@@ -106,7 +106,13 @@ import {
   clearAllExecutiveMembersFromFirestore,
   isLegacySeedId,
   NewCircularInput,
+  AUTHORIZED_ADMIN_EMAIL,
+  DEFAULT_TOOL_ADMIN_AUTHOR,
+  signInAdminWithGoogle,
+  signOutAdmin,
+  subscribeToAdminAuth,
 } from '../services/firebase';
+import type { User as FirebaseAuthUser } from 'firebase/auth';
 import {
   DEFAULT_HERO_SLIDES,
   DEFAULT_NEWS_ITEMS,
@@ -266,11 +272,57 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const isAuthenticated = true;
-  const adminUserEmail = 'tukukalandi@gmail.com';
+  const [adminUser, setAdminUser] = useState<FirebaseAuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const isAuthenticated = !!adminUser;
+  const adminUserEmail = adminUser?.email || AUTHORIZED_ADMIN_EMAIL;
+  const adminDisplayName = adminUser?.displayName || 'Tool Administrator';
   const [statusMsg, setStatusMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const unsubAuth = subscribeToAdminAuth((user, ready) => {
+      setAdminUser(user);
+      setAuthReady(ready);
+      if (user) {
+        setAuthError('');
+      }
+    });
+    return () => unsubAuth();
+  }, []);
+
+  const handleGoogleAdminLogin = async () => {
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const signedIn = await signInAdminWithGoogle();
+      setAdminUser(signedIn);
+      setStatusMsg(`✅ Signed in as Tool Administrator (${signedIn.email})`);
+      setTimeout(() => setStatusMsg(''), 4000);
+    } catch (err: any) {
+      setAuthError(err?.message || 'Google Sign-In failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    try {
+      await signOutAdmin();
+      setAdminUser(null);
+      setActiveTab('dashboard');
+      setMobileMenuOpen(false);
+      setAuthError('');
+      setStatusMsg('✅ Signed out from Admin Portal.');
+      setTimeout(() => setStatusMsg(''), 4000);
+    } catch (err: any) {
+      setStatusMsg(`❌ Sign out failed: ${err?.message || 'Unknown error'}`);
+      setTimeout(() => setStatusMsg(''), 4000);
+    }
+  };
 
   // In-app deletion confirmation state (replaces window.confirm which is blocked in iframes)
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -304,7 +356,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [docPostSnippet, setDocPostSnippet] = useState('');
   const [docPostFileUrl, setDocPostFileUrl] = useState('');
   const [docPostImageUrl, setDocPostImageUrl] = useState('');
-  const [docPostAuthor, setDocPostAuthor] = useState('Divisional Secretary, AIPEU Dhenkanal');
+  const [docPostAuthor, setDocPostAuthor] = useState(DEFAULT_TOOL_ADMIN_AUTHOR);
   const [docPostUrgent, setDocPostUrgent] = useState(false);
   const [docPostFileMode, setDocPostFileMode] = useState<'upload' | 'url'>('upload');
   const [docPostFileName, setDocPostFileName] = useState('');
@@ -548,7 +600,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isAuthenticated) {
       loadAllData();
       const unsubApps = subscribeToMyApps((liveApps) => {
         if (liveApps && liveApps.length > 0) {
@@ -559,15 +611,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         unsubApps();
       };
     }
-  }, [isOpen]);
+  }, [isOpen, isAuthenticated]);
 
   if (!isOpen) return null;
 
-  // Direct executive access - login prompt and logout removed as requested
-
   const showNotification = (msg: string) => {
     setStatusMsg(msg);
-    setTimeout(() => setStatusMsg(''), 4000);
+    setTimeout(() => setStatusMsg(''), msg.startsWith('❌') ? 6500 : 4000);
   };
 
   // ================= 1. HERO SLIDER HANDLERS =================
@@ -717,7 +767,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const fileUrl = circ.driveLinks?.[0] || circ.url || '';
     setDocPostFileUrl(fileUrl);
     setDocPostImageUrl(circ.images?.[0] || '');
-    setDocPostAuthor(circ.author || 'Divisional Secretary, AIPEU Dhenkanal');
+    setDocPostAuthor(circ.author || DEFAULT_TOOL_ADMIN_AUTHOR);
     setDocPostUrgent(!!circ.urgent);
 
     if (fileUrl && fileUrl.startsWith('data:')) {
@@ -740,7 +790,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDocPostSnippet('');
     setDocPostFileUrl('');
     setDocPostImageUrl('');
-    setDocPostAuthor('Divisional Secretary, AIPEU Dhenkanal');
+    setDocPostAuthor(DEFAULT_TOOL_ADMIN_AUTHOR);
     setDocPostUrgent(false);
     setDocPostFileName('');
     setDocPostFileSize('');
@@ -763,7 +813,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         contentHtml: `<p>${docPostSnippet.trim()}</p>`,
         fileLinks: docPostFileUrl.trim() ? [docPostFileUrl.trim()] : [],
         imageUrls: docPostImageUrl.trim() ? [docPostImageUrl.trim()] : [],
-        author: docPostAuthor.trim() || 'Divisional Secretary, AIPEU Dhenkanal',
+        author: docPostAuthor.trim() || DEFAULT_TOOL_ADMIN_AUTHOR,
         urgent: docPostUrgent,
       };
 
@@ -773,7 +823,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         setCirculars(updated);
         window.dispatchEvent(new CustomEvent('posts-updated'));
         window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-        showNotification('✅ Document / Circular successfully updated!');
+        showNotification('✅ Document / Circular successfully updated in Firebase!');
       } else {
         const docId = await addCircularToFirestore(circularInput);
         const updated = await getCircularsFromFirestore();
@@ -784,7 +834,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           title: circularInput.title,
           published: new Date().toISOString(),
           updated: new Date().toISOString(),
-          author: circularInput.author || 'Divisional Secretary, AIPEU Dhenkanal',
+          author: circularInput.author || DEFAULT_TOOL_ADMIN_AUTHOR,
           url: '',
           categories: [circularInput.category],
           snippet: circularInput.snippet,
@@ -798,9 +848,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       }
 
       handleCancelEditCircular();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showNotification('❌ Failed to save document.');
+      showNotification(`❌ Failed to save document to Firebase: ${err?.message || 'Permission or network error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1034,46 +1084,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    const targetId = editingDoc ? editingDoc.id : `doc-${Date.now()}`;
-    const newItem: ImportantDocItem = {
-      id: targetId,
-      title: docTitle.trim(),
-      url: docUrl.trim(),
-      category: docCategory.trim() || 'General',
-      published: docPublished.trim() || new Date().toISOString().split('T')[0],
-      order: editingDoc?.order ?? importantDocs.length + 1,
-    };
-
-    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
-    let updatedList: ImportantDocItem[];
-    if (editingDoc) {
-      updatedList = importantDocs.map((d) => (d.id === editingDoc.id ? newItem : d));
-    } else {
-      updatedList = [newItem, ...importantDocs];
-    }
-    setImportantDocs(updatedList);
-
-    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
-    try {
-      localStorage.setItem('aipeu_important_documents', JSON.stringify(updatedList));
-    } catch {}
-
-    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
-    if (onDocsUpdated) onDocsUpdated();
-    window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
-    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
-    handleCancelEditImportantDoc();
+    setIsSubmitting(true);
     showNotification(editingDoc ? '⏳ Updating document in Cloud Firestore...' : '⏳ Saving document to Cloud Firestore...');
-
-    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
     try {
-      await saveImportantDocumentToFirestore(newItem);
-      showNotification(editingDoc ? '✅ Document updated and synced to all devices!' : '✅ Document saved to Cloud Firestore & synced across all links!');
-    } catch (err) {
-      console.warn('Firestore save doc error:', err);
-      showNotification('✅ Saved locally! Background cloud sync in progress.');
+      const payload: Partial<ImportantDocItem> & { id?: string } = {
+        ...(editingDoc ? { id: editingDoc.id } : {}),
+        title: docTitle.trim(),
+        url: docUrl.trim(),
+        category: docCategory.trim() || 'General',
+        published: docPublished.trim() || new Date().toISOString().split('T')[0],
+        order: editingDoc?.order ?? importantDocs.length + 1,
+      };
+      const savedId = await saveImportantDocumentToFirestore(payload);
+      const savedItem: ImportantDocItem = {
+        id: savedId,
+        title: payload.title!,
+        url: payload.url!,
+        category: payload.category!,
+        published: payload.published!,
+        order: payload.order!,
+      };
+      const updatedList = editingDoc
+        ? importantDocs.map((d) => (d.id === editingDoc.id ? savedItem : d))
+        : [savedItem, ...importantDocs.filter((d) => d.id !== savedId)];
+      setImportantDocs(updatedList);
+      if (onDocsUpdated) onDocsUpdated();
+      window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+      handleCancelEditImportantDoc();
+      showNotification(editingDoc ? '✅ Document updated in Firebase & visible on Public Portal!' : '✅ Document saved to Firebase & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firestore save doc error:', err);
+      showNotification(`❌ Failed to save document to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1085,22 +1129,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: docItem?.title || 'Selected document',
       onConfirm: async () => {
-        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
-        const updatedList = importantDocs.filter((d) => d.id !== id);
-        setImportantDocs(updatedList);
         try {
-          localStorage.setItem('aipeu_important_documents', JSON.stringify(updatedList));
-        } catch {}
-
-        if (onDocsUpdated) onDocsUpdated();
-        window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
-        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-        showNotification('✅ Document removed instantly from Homepage.');
-
-        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
-        deleteImportantDocumentFromFirestore(id).catch((err) => {
-          console.warn('Background Firestore delete doc error:', err);
-        });
+          await deleteImportantDocumentFromFirestore(id);
+          const updatedList = importantDocs.filter((d) => d.id !== id);
+          setImportantDocs(updatedList);
+          if (onDocsUpdated) onDocsUpdated();
+          window.dispatchEvent(new CustomEvent('docs-updated', { detail: updatedList }));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+          showNotification('✅ Document permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firestore delete doc error:', err);
+          showNotification(`❌ Failed to delete document from Firebase: ${err?.message || 'Permission denied'}`);
+        }
       },
     });
   };
@@ -1164,46 +1204,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    const targetId = editingNotice ? editingNotice.id : `nc-${Date.now()}`;
-    const newItem: NoticeCircularItem = {
-      id: targetId,
-      title: noticeTitle.trim(),
-      category: noticeCategory,
-      published: noticePublished || new Date().toISOString().split('T')[0],
-      url: noticeUrl.trim(),
-      order: editingNotice?.order ?? noticeCirculars.length + 1,
-    };
-
-    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
-    let updatedList: NoticeCircularItem[];
-    if (editingNotice) {
-      updatedList = noticeCirculars.map((n) => (n.id === editingNotice.id ? newItem : n));
-    } else {
-      updatedList = [newItem, ...noticeCirculars];
-    }
-    setNoticeCirculars(updatedList);
-
-    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
-    try {
-      localStorage.setItem('aipeu_notice_circulars', JSON.stringify(updatedList));
-    } catch {}
-
-    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
-    if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
-    window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
-    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
-    handleCancelEditNotice();
+    setIsSubmitting(true);
     showNotification(editingNotice ? '⏳ Updating notice in Cloud Firestore...' : '⏳ Saving notice to Cloud Firestore...');
-
-    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
     try {
-      await saveNoticeCircularToFirestore(newItem);
-      showNotification(editingNotice ? '✅ Notice updated and synced across all portals!' : '✅ Notice saved to Cloud Firestore & synced across all links!');
-    } catch (err) {
-      console.warn('Firestore save notice error:', err);
-      showNotification('✅ Saved locally! Background cloud sync in progress.');
+      const payload: Partial<NoticeCircularItem> & { id?: string } = {
+        ...(editingNotice ? { id: editingNotice.id } : {}),
+        title: noticeTitle.trim(),
+        category: noticeCategory,
+        published: noticePublished || new Date().toISOString().split('T')[0],
+        url: noticeUrl.trim(),
+        order: editingNotice?.order ?? noticeCirculars.length + 1,
+      };
+      const savedId = await saveNoticeCircularToFirestore(payload);
+      const savedItem: NoticeCircularItem = {
+        id: savedId,
+        title: payload.title!,
+        category: payload.category!,
+        published: payload.published!,
+        url: payload.url!,
+        order: payload.order!,
+      };
+      const updatedList = editingNotice
+        ? noticeCirculars.map((n) => (n.id === editingNotice.id ? savedItem : n))
+        : [savedItem, ...noticeCirculars.filter((n) => n.id !== savedId)];
+      setNoticeCirculars(updatedList);
+      if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+      window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+      handleCancelEditNotice();
+      showNotification(editingNotice ? '✅ Notice updated in Firebase & visible on Public Portal!' : '✅ Notice saved to Firebase & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firestore save notice error:', err);
+      showNotification(`❌ Failed to save notice to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1215,22 +1249,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: nc?.title || 'Selected notice',
       onConfirm: async () => {
-        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
-        const updatedList = noticeCirculars.filter((n) => n.id !== id);
-        setNoticeCirculars(updatedList);
         try {
-          localStorage.setItem('aipeu_notice_circulars', JSON.stringify(updatedList));
-        } catch {}
-
-        if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
-        window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
-        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-        showNotification('✅ Notice circular removed instantly.');
-
-        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
-        deleteNoticeCircularFromFirestore(id).catch((err) => {
-          console.warn('Background Firestore delete notice error:', err);
-        });
+          await deleteNoticeCircularFromFirestore(id);
+          const updatedList = noticeCirculars.filter((n) => n.id !== id);
+          setNoticeCirculars(updatedList);
+          if (onNoticeCircularsUpdated) onNoticeCircularsUpdated();
+          window.dispatchEvent(new CustomEvent('notices-updated', { detail: updatedList }));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+          showNotification('✅ Notice circular permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firestore delete notice error:', err);
+          showNotification(`❌ Failed to delete notice from Firebase: ${err?.message || 'Permission denied'}`);
+        }
       },
     });
   };
@@ -1291,46 +1321,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    const targetId = editingAnn ? editingAnn.id : `ann-${Date.now()}`;
-    const newItem: AnnouncementItem = {
-      id: targetId,
-      title: annTitle.trim(),
-      link: annLink.trim(),
-      published: annPublished || new Date().toISOString().split('T')[0],
-      order: editingAnn?.order ?? announcements.length + 1,
-      active: true,
-    };
-
-    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
-    let updatedList: AnnouncementItem[];
-    if (editingAnn) {
-      updatedList = announcements.map((a) => (a.id === editingAnn.id ? newItem : a));
-    } else {
-      updatedList = [newItem, ...announcements];
-    }
-    setAnnouncements(updatedList);
-
-    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
-    try {
-      localStorage.setItem('aipeu_announcements', JSON.stringify(updatedList));
-    } catch {}
-
-    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
-    if (onAnnouncementsUpdated) onAnnouncementsUpdated();
-    window.dispatchEvent(new CustomEvent('announcements-updated', { detail: updatedList }));
-    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
-    handleCancelEditAnnouncement();
+    setIsSubmitting(true);
     showNotification(editingAnn ? '⏳ Updating announcement in Cloud Firestore...' : '⏳ Saving announcement to Cloud Firestore...');
-
-    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE
     try {
-      await saveAnnouncementToFirestore(newItem);
-      showNotification(editingAnn ? '✅ Announcement updated and synced across all devices!' : '✅ Announcement saved to Cloud Firestore & synced across all links!');
-    } catch (err) {
-      console.warn('Firestore save announcement error:', err);
-      showNotification('✅ Saved locally! Background cloud sync in progress.');
+      const payload: Partial<AnnouncementItem> & { id?: string } = {
+        ...(editingAnn ? { id: editingAnn.id } : {}),
+        title: annTitle.trim(),
+        link: annLink.trim(),
+        published: annPublished || new Date().toISOString().split('T')[0],
+        order: editingAnn?.order ?? announcements.length + 1,
+        active: true,
+      };
+      const savedId = await saveAnnouncementToFirestore(payload);
+      const savedItem: AnnouncementItem = {
+        id: savedId,
+        title: payload.title!,
+        link: payload.link!,
+        published: payload.published!,
+        order: payload.order!,
+        active: true,
+      };
+      const updatedList = editingAnn
+        ? announcements.map((a) => (a.id === editingAnn.id ? savedItem : a))
+        : [savedItem, ...announcements.filter((a) => a.id !== savedId)];
+      setAnnouncements(updatedList);
+      if (onAnnouncementsUpdated) onAnnouncementsUpdated();
+      window.dispatchEvent(new CustomEvent('announcements-updated', { detail: updatedList }));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+      handleCancelEditAnnouncement();
+      showNotification(editingAnn ? '✅ Announcement updated in Firebase & visible on Public Portal!' : '✅ Announcement saved to Firebase & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firestore save announcement error:', err);
+      showNotification(`❌ Failed to save announcement to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1396,17 +1420,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       category: galCategory.trim() || 'General Event',
       date: galDate || new Date().toISOString().split('T')[0],
     };
-    const updated = [newPhoto, ...galleryPhotos];
-    setGalleryPhotos(updated);
-    localStorage.setItem('aipeu_admin_gallery', JSON.stringify(updated));
-    setGalTitle('');
-    setGalUrl('');
+    setIsSubmitting(true);
     try {
       await saveGalleryPhotoToFirestore(newPhoto);
-      showNotification('✅ Photo saved to Firebase Gallery archive!');
+      const updated = [newPhoto, ...galleryPhotos.filter((p) => p.id !== newPhoto.id)];
+      setGalleryPhotos(updated);
+      setGalTitle('');
+      setGalUrl('');
+      showNotification('✅ Photo saved to Firebase Gallery & visible on Public Portal!');
     } catch (err: any) {
-      console.warn('Firebase photo save error:', err);
-      showNotification('✅ Photo saved (cached locally)!');
+      console.error('Firebase photo save error:', err);
+      showNotification(`❌ Failed to save photo to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1418,15 +1444,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: photo?.title || 'Selected photo',
       onConfirm: async () => {
-        const updated = galleryPhotos.filter((p) => p.id !== id);
-        setGalleryPhotos(updated);
-        localStorage.setItem('aipeu_admin_gallery', JSON.stringify(updated));
         try {
           await deleteGalleryPhotoFromFirestore(id);
-          showNotification('✅ Photo deleted from Firebase.');
-        } catch (err) {
-          console.warn('Firebase photo delete error:', err);
-          showNotification('✅ Photo deleted.');
+          setGalleryPhotos((prev) => prev.filter((p) => p.id !== id));
+          showNotification('✅ Photo permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firebase photo delete error:', err);
+          showNotification(`❌ Failed to delete photo from Firebase: ${err?.message || 'Permission denied'}`);
         }
       },
     });
@@ -1512,26 +1536,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       createdAt: editingApp?.createdAt || new Date().toISOString().split('T')[0],
     };
 
-    // Instant local state update
-    const updated = editingApp
-      ? myApps.map((a) => (a.id === editingApp.id ? appToPersist : a))
-      : [appToPersist, ...myApps];
-    setMyApps(updated);
-    try {
-      localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
-    } catch (err) {
-      console.warn('LocalStorage error:', err);
-    }
-
-    handleCancelApp();
+    setIsSubmitting(true);
     showNotification(editingApp ? '⏳ Updating App card in Cloud Firestore...' : '⏳ Saving App card to Cloud Firestore...');
 
     try {
-      await saveMyAppToFirestore(appToPersist);
-      showNotification(editingApp ? '✅ App card updated and synced to all devices!' : '✅ App card saved to Cloud Firestore & visible in Public Portal My Apps!');
-    } catch (err) {
-      console.warn('Error saving app to Firestore:', err);
-      showNotification('✅ Saved locally! Background cloud sync in progress.');
+      const savedId = await saveMyAppToFirestore(appToPersist);
+      const savedApp = { ...appToPersist, id: savedId };
+      const updated = editingApp
+        ? myApps.map((a) => (a.id === editingApp.id ? savedApp : a))
+        : [savedApp, ...myApps.filter((a) => a.id !== savedId)];
+      setMyApps(updated);
+      handleCancelApp();
+      showNotification(editingApp ? '✅ App card updated in Firebase & synced to all devices!' : '✅ App card saved to Cloud Firestore & visible in Public Portal My Apps!');
+    } catch (err: any) {
+      console.error('Error saving app to Firestore:', err);
+      showNotification(`❌ Failed to save App card to Firebase: ${err?.message || 'Permission or size error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1543,18 +1564,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: app?.name || 'Selected app card',
       onConfirm: async () => {
-        const updated = myApps.filter((a) => a.id !== id);
-        setMyApps(updated);
-        try {
-          localStorage.setItem('aipeu_admin_apps', JSON.stringify(updated));
-        } catch (err) {
-          console.warn('LocalStorage error:', err);
-        }
         try {
           await deleteMyAppFromFirestore(id);
-          showNotification('✅ App card deleted from Firebase.');
-        } catch (e) {
-          showNotification('✅ App card removed.');
+          setMyApps((prev) => prev.filter((a) => a.id !== id));
+          showNotification('✅ App card permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Error deleting app from Firestore:', err);
+          showNotification(`❌ Failed to delete App card from Firebase: ${err?.message || 'Permission denied'}`);
         }
       },
     });
@@ -1568,17 +1584,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       title: 'Remove all previous cards',
       onConfirm: async () => {
         const appsToDelete = [...myApps];
-        setMyApps([]);
-        try {
-          localStorage.setItem('aipeu_admin_apps', JSON.stringify([]));
-        } catch (err) {
-          console.warn('LocalStorage error:', err);
-        }
         try {
           await Promise.all(appsToDelete.map((a) => deleteMyAppFromFirestore(a.id)));
-          showNotification('✅ All previous cards removed from Firebase.');
-        } catch (e) {
-          showNotification('✅ All previous cards removed. You can now add your own HTML files.');
+          setMyApps([]);
+          showNotification('✅ All previous cards permanently removed from Firebase.');
+        } catch (err: any) {
+          console.error('Error clearing apps from Firestore:', err);
+          showNotification(`❌ Failed to remove all cards from Firebase: ${err?.message || 'Permission denied'}`);
         }
       },
     });
@@ -1625,21 +1637,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       category: formCat.trim() || 'Service Matters',
       downloadUrl: formDownloadUrl.trim(),
     };
-    let updated: DownloadableForm[];
-    if (editingForm) {
-      updated = formsList.map((f) => (f.id === editingForm.id ? formToPersist : f));
-    } else {
-      updated = [...formsList, formToPersist];
-    }
-    setFormsList(updated);
-    localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
-    handleCancelEditForm();
+    setIsSubmitting(true);
     try {
       await saveDownloadableFormToFirestore(formToPersist);
-      showNotification(editingForm ? '✅ Downloadable Form updated in Firebase!' : '✅ Downloadable Form saved to Firebase!');
-    } catch (err) {
-      console.warn('Firebase form save error:', err);
-      showNotification('✅ Form saved (cached locally)!');
+      const updated = editingForm
+        ? formsList.map((f) => (f.id === editingForm.id ? formToPersist : f))
+        : [...formsList, formToPersist];
+      setFormsList(updated);
+      handleCancelEditForm();
+      showNotification(editingForm ? '✅ Downloadable Form updated in Firebase!' : '✅ Downloadable Form saved to Firebase & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firebase form save error:', err);
+      showNotification(`❌ Failed to save Form to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1651,15 +1662,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: f?.title || 'Selected form',
       onConfirm: async () => {
-        const updated = formsList.filter((item) => item.id !== id);
-        setFormsList(updated);
-        localStorage.setItem('aipeu_admin_forms', JSON.stringify(updated));
         try {
           await deleteDownloadableFormFromFirestore(id);
-          showNotification('✅ Form removed from Firebase.');
-        } catch (err) {
-          console.warn('Firebase form delete error:', err);
-          showNotification('✅ Form removed.');
+          setFormsList((prev) => prev.filter((item) => item.id !== id));
+          showNotification('✅ Form permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firebase form delete error:', err);
+          showNotification(`❌ Failed to delete Form from Firebase: ${err?.message || 'Permission denied'}`);
         }
       },
     });
@@ -1678,17 +1687,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       category: resCategory.trim() || 'Postal Rules',
       url: resUrl.trim(),
     };
-    const updated = [...employeeResources, newRes];
-    setEmployeeResources(updated);
-    localStorage.setItem('aipeu_admin_resources', JSON.stringify(updated));
-    setResTitle('');
-    setResUrl('');
+    setIsSubmitting(true);
     try {
       await saveEmployeeResourceToFirestore(newRes);
-      showNotification('✅ Employee Resource saved to Firebase!');
-    } catch (err) {
-      console.warn('Firebase resource save error:', err);
-      showNotification('✅ Employee Resource saved!');
+      setEmployeeResources((prev) => [...prev, newRes]);
+      setResTitle('');
+      setResUrl('');
+      showNotification('✅ Employee Resource saved to Firebase & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firebase resource save error:', err);
+      showNotification(`❌ Failed to save Resource to Firebase: ${err?.message || 'Permission or network error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1700,15 +1710,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: res?.title || 'Selected resource',
       onConfirm: async () => {
-        const updated = employeeResources.filter((r) => r.id !== id);
-        setEmployeeResources(updated);
-        localStorage.setItem('aipeu_admin_resources', JSON.stringify(updated));
         try {
           await deleteEmployeeResourceFromFirestore(id);
-          showNotification('✅ Resource removed from Firebase.');
-        } catch (err) {
-          console.warn('Firebase resource delete error:', err);
-          showNotification('✅ Resource removed.');
+          setEmployeeResources((prev) => prev.filter((r) => r.id !== id));
+          showNotification('✅ Resource permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firebase resource delete error:', err);
+          showNotification(`❌ Failed to delete Resource from Firebase: ${err?.message || 'Permission denied'}`);
         }
       },
     });
@@ -2033,47 +2041,44 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    const targetId = editingOrgItem ? editingOrgItem.id : `org-${Date.now()}`;
-    const newItem: OrderRulingGuideItem = {
-      id: targetId,
-      fileName: orgFileName.trim(),
-      folderName: orgFolderName.trim(),
-      category: orgCategory.trim(),
-      documentUrl: orgDocumentUrl.trim(),
-      published: orgPublished.trim() || new Date().toISOString().split('T')[0],
-      notes: orgNotes.trim(),
-      order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
-    };
-
-    // ⚡ 1. INSTANT LOCAL STATE UPDATE (< 5ms)
-    let updatedList: OrderRulingGuideItem[];
-    if (editingOrgItem) {
-      updatedList = ordersRulingsGuides.map((o) => (o.id === editingOrgItem.id ? newItem : o));
-    } else {
-      updatedList = [newItem, ...ordersRulingsGuides];
-    }
-    setOrdersRulingsGuides(updatedList);
-
-    // ⚡ 2. INSTANT LOCALSTORAGE UPDATE
-    try {
-      localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updatedList));
-    } catch {}
-
-    // ⚡ 3. INSTANT SYNCHRONOUS EVENT DISPATCH
-    window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
-    window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-
-    // ⚡ 4. RESET FORM & INSTANT NOTIFICATION
-    handleCancelEditOrg();
+    setIsSubmitting(true);
     showNotification(editingOrgItem ? '⏳ Updating document in Cloud Firestore...' : '⏳ Saving document to Cloud Firestore...');
 
-    // ⚡ 5. AWAITED CLOUD FIRESTORE PERSISTENCE (CHUNKED FOR LARGE FILES)
     try {
-      await saveOrderRulingGuideToFirestore(newItem);
-      showNotification(editingOrgItem ? '✅ Document updated and synced across all portals!' : '✅ Document saved to Cloud Firestore & synced across all links!');
-    } catch (err) {
-      console.warn('Firestore save org error:', err);
-      showNotification('✅ Saved locally! Background cloud sync in progress.');
+      const payload: Partial<OrderRulingGuideItem> & { id?: string } = {
+        ...(editingOrgItem ? { id: editingOrgItem.id } : {}),
+        fileName: orgFileName.trim(),
+        folderName: orgFolderName.trim(),
+        category: orgCategory.trim(),
+        documentUrl: orgDocumentUrl.trim(),
+        published: orgPublished.trim() || new Date().toISOString().split('T')[0],
+        notes: orgNotes.trim(),
+        order: editingOrgItem?.order ?? ordersRulingsGuides.length + 1,
+      };
+      const savedId = await saveOrderRulingGuideToFirestore(payload);
+      const savedItem: OrderRulingGuideItem = {
+        id: savedId,
+        fileName: payload.fileName!,
+        folderName: payload.folderName!,
+        category: payload.category!,
+        documentUrl: payload.documentUrl!,
+        published: payload.published!,
+        notes: payload.notes!,
+        order: payload.order!,
+      };
+      const updatedList = editingOrgItem
+        ? ordersRulingsGuides.map((o) => (o.id === editingOrgItem.id ? savedItem : o))
+        : [savedItem, ...ordersRulingsGuides.filter((o) => o.id !== savedId)];
+      setOrdersRulingsGuides(updatedList);
+      window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
+      window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+      handleCancelEditOrg();
+      showNotification(editingOrgItem ? '✅ Document updated in Firebase & visible on Public Portal!' : '✅ Document saved to Cloud Firestore & visible on Public Portal!');
+    } catch (err: any) {
+      console.error('Firestore save org error:', err);
+      showNotification(`❌ Failed to save document to Firebase: ${err?.message || 'Permission or size error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -2085,21 +2090,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id,
       title: item ? item.fileName : 'Selected document',
       onConfirm: async () => {
-        // ⚡ 1. INSTANT LOCAL REMOVAL (< 5ms)
-        const updatedList = ordersRulingsGuides.filter((r) => r.id !== id);
-        setOrdersRulingsGuides(updatedList);
         try {
-          localStorage.setItem('aipeu_orders_rulings_guides', JSON.stringify(updatedList));
-        } catch {}
-
-        window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
-        window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
-        showNotification('✅ Document removed instantly from Orders/Rullings/Guide.');
-
-        // ⚡ 2. NON-BLOCKING BACKGROUND FIRESTORE DELETION
-        deleteOrderRulingGuideFromFirestore(id).catch((err) => {
-          console.warn('Background Firestore delete org error:', err);
-        });
+          await deleteOrderRulingGuideFromFirestore(id);
+          const updatedList = ordersRulingsGuides.filter((r) => r.id !== id);
+          setOrdersRulingsGuides(updatedList);
+          window.dispatchEvent(new CustomEvent('orders-rulings-guide-updated', { detail: updatedList }));
+          window.dispatchEvent(new CustomEvent('dynamic-content-updated'));
+          showNotification('✅ Document permanently deleted from Firebase.');
+        } catch (err: any) {
+          console.error('Firestore delete org error:', err);
+          showNotification(`❌ Failed to delete document from Firebase: ${err?.message || 'Permission denied'}`);
+        }
       },
     });
   };
@@ -2226,12 +2227,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
           )}
 
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="truncate max-w-[260px]" title="Comrade Kalandi Charan Sahoo (tukukalandi@gmail.com)">
-              Comrade Kalandi Charan Sahoo
-            </span>
-          </div>
+          {isAuthenticated && (
+            <>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="truncate max-w-[220px]" title={`${adminDisplayName} (${adminUserEmail}) · Union Member & Tool Administrator`}>
+                  {adminDisplayName}
+                </span>
+              </div>
+
+              <button
+                onClick={handleAdminLogout}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Sign out of Tool Administrator session"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={onClose}
@@ -2269,13 +2283,99 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       {/* Status toast message */}
       {statusMsg && (
-        <div className="fixed top-16 right-4 sm:right-6 z-50 max-w-md bg-slate-900 text-white text-xs font-medium px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-bounce">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+        <div
+          className={`fixed top-16 right-4 sm:right-6 z-50 max-w-md text-white text-xs font-medium px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 ${
+            statusMsg.startsWith('❌') ? 'bg-red-700 border border-red-400' : 'bg-slate-900'
+          }`}
+        >
+          {statusMsg.startsWith('❌') ? (
+            <AlertCircle className="w-4 h-4 text-amber-300 shrink-0" />
+          ) : (
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          )}
           <span>{statusMsg}</span>
         </div>
       )}
 
-      {/* Main Container - Direct Executive Management Access */}
+      {/* Single-Admin Google Sign-In Gate */}
+      {!isAuthenticated ? (
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 via-blue-50/40 to-red-50/30">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200/80 p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col items-center text-center space-y-3">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#022A61] to-[#B91C1C] text-white flex items-center justify-center shadow-lg">
+                <ShieldCheck className="w-8 h-8" />
+              </div>
+              <div>
+                <span className="inline-block px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-wider mb-2">
+                  RESTRICTED ADMIN ACCESS
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  Tool Administrator Sign-In
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
+                  Only the authorized Union Member &amp; Tool Administrator Google account can sign in to publish or modify Firebase portal data.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-xs text-slate-600 space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <Lock className="w-4 h-4 text-[#022A61] shrink-0" />
+                <span>Authorized Administrator Account</span>
+              </div>
+              <p className="font-mono text-[11px] text-[#022A61] font-bold pl-6">
+                {AUTHORIZED_ADMIN_EMAIL}
+              </p>
+              <p className="text-[11px] text-slate-500 pl-6">
+                All uploaded documents, circulars, photos, apps, and member records are saved directly to Cloud Firestore and appear automatically on the Public Portal.
+              </p>
+            </div>
+
+            {authError && (
+              <div className="rounded-2xl bg-red-50 border border-red-200 p-3.5 text-xs text-red-700 font-semibold flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleGoogleAdminLogin}
+                disabled={authLoading || !authReady}
+                className="w-full py-3.5 px-5 rounded-2xl bg-[#022A61] hover:bg-blue-900 disabled:opacity-60 text-white font-bold text-sm shadow-lg active:scale-[0.99] transition-all flex items-center justify-center gap-3 cursor-pointer"
+              >
+                <svg className="w-5 h-5 bg-white rounded-full p-0.5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z" />
+                  <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z" />
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z" />
+                </svg>
+                <span>
+                  {!authReady
+                    ? 'Checking session...'
+                    : authLoading
+                    ? 'Verifying Google Account...'
+                    : 'Sign in with Google'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onGoHome) onGoHome();
+                  else onClose();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Return to Public Portal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* Main Container - Authenticated Tool Administrator Console */
       <div className="flex-1 flex relative">
           {/* Mobile Drawer Backdrop */}
           {mobileMenuOpen && (
@@ -2295,22 +2395,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <div className="flex items-center justify-between gap-2 pb-4 border-b border-slate-100 mb-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative shrink-0">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
-                    alt="Administrator Kalandi Charan Sahoo"
-                    className="w-11 h-11 rounded-full object-cover border-2 border-red-500/80 shadow-sm"
-                  />
+                  {adminUser?.photoURL ? (
+                    <img
+                      src={adminUser.photoURL}
+                      alt={adminDisplayName}
+                      className="w-11 h-11 rounded-full object-cover border-2 border-red-500/80 shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#022A61] to-[#B91C1C] text-white flex items-center justify-center border-2 border-red-500/80 shadow-sm">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                  )}
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
                 </div>
                 <div className="min-w-0">
                   <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block">
-                    ADMINISTRATOR
+                    TOOL ADMINISTRATOR
                   </span>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate" title={adminUserEmail}>
-                    {adminUserEmail}
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate" title={adminDisplayName}>
+                    {adminDisplayName}
                   </h3>
-                  <p className="text-[11px] text-slate-400 truncate">
-                    Divisional Secretary / Executive
+                  <p className="text-[10px] text-slate-500 truncate" title={adminUserEmail}>
+                    Union Member · {adminUserEmail}
                   </p>
                 </div>
               </div>
@@ -2365,8 +2471,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               })}
             </nav>
 
-            {/* Sidebar Footer info */}
-            <div className="pt-3 border-t border-slate-100">
+            {/* Sidebar Footer info & Sign Out */}
+            <div className="pt-3 border-t border-slate-100 space-y-2.5">
+              <button
+                type="button"
+                onClick={handleAdminLogout}
+                className="w-full py-2 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out ({adminUserEmail.split('@')[0]})</span>
+              </button>
               <div className="text-[10px] text-slate-400 text-center leading-tight">
                 NFPE AIPEU Unions AIGDSU AIPRPA AIPCPCCWF - Dhenkanal Division
               </div>
@@ -2923,13 +3037,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <div className="space-y-2 max-w-2xl">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-sm">
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>DIVISIONAL EXECUTIVE COMMAND CENTER</span>
+                        <span>TOOL ADMINISTRATOR CONSOLE</span>
                       </span>
                       <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                        Welcome, Divisional Secretary · AIPEU Dhenkanal Portal
+                        Welcome, {adminDisplayName} · AIPEU Dhenkanal Portal
                       </h2>
                       <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
-                        Manage union members, publish departmental orders & rulings, update homepage documents, and control all 14 portal modules from one unified dashboard.
+                        Signed in as Union Member &amp; Tool Administrator ({adminUserEmail}). All uploaded documents, orders, circulars, gallery photos, apps, and member records are saved directly to Firebase and shown live on the Public Portal.
                       </p>
                     </div>
 
@@ -7258,6 +7372,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
           )}
         </div>
+      )}
     </div>
   );
 };

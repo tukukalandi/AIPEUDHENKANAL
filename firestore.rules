@@ -1,119 +1,621 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow connection test doc
-    match /test/{docId} {
-      allow read, write: if true;
+
+    // ===============================================================
+    // DEFAULT DENY CATCH-ALL (Zero-Trust Baseline)
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // Public read for union members, write/delete for admin portal
+    // ===============================================================
+    // GLOBAL PRIMITIVES & IDENTITY HELPERS
+    // ===============================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Single Authorized Tool Administrator (Google Account verified)
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'tukukalandi@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Strict Path Variable Hardening (ID Hygiene)
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isStr(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptStr(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isOptNum(data, field) {
+      return !(field in data) || data[field] is number;
+    }
+
+    function isOptTimestampOrStr(data, field) {
+      return !(field in data)
+        || data[field] is timestamp
+        || (data[field] is string && data[field].size() <= 64);
+    }
+
+    // ===============================================================
+    // PER-COLLECTION VALIDATION BLUEPRINTS
+    // ===============================================================
+
+    function isValidCircular(data) {
+      return data.keys().hasAll(['title', 'category', 'snippet', 'published'])
+        && data.keys().hasOnly([
+          'title', 'category', 'snippet', 'contentHtml', 'driveLinks', 'images',
+          'published', 'updated', 'author', 'urgent', 'url', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isStr(data.category, 1, 120)
+        && isStr(data.snippet, 1, 5000)
+        && isStr(data.published, 1, 64)
+        && isOptStr(data, 'contentHtml', 200000)
+        && (!('driveLinks' in data) || (data.driveLinks is list && data.driveLinks.size() <= 50))
+        && (!('images' in data) || (data.images is list && data.images.size() <= 50))
+        && isOptStr(data, 'updated', 64)
+        && isOptStr(data, 'author', 200)
+        && isOptBool(data, 'urgent')
+        && isOptStr(data, 'url', 2000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidExecutiveMember(data) {
+      return data.keys().hasAll(['name', 'designation', 'branch', 'location'])
+        && data.keys().hasOnly([
+          'name', 'designation', 'branch', 'phone', 'location', 'roleType', 'photoUrl',
+          'createdAt', 'updatedAt'
+        ])
+        && isStr(data.name, 1, 200)
+        && isStr(data.designation, 1, 200)
+        && isStr(data.branch, 0, 200)
+        && isStr(data.location, 0, 200)
+        && isOptStr(data, 'phone', 50)
+        && isOptStr(data, 'roleType', 50)
+        && isOptStr(data, 'photoUrl', 500000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidHeroSlide(data) {
+      return data.keys().hasAll(['title', 'subtitle', 'imageUrl'])
+        && data.keys().hasOnly([
+          'title', 'subtitle', 'tag', 'imageUrl', 'ctaText', 'ctaLink',
+          'gradient', 'order', 'active', 'targetPage', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 300)
+        && isStr(data.subtitle, 0, 2000)
+        && isStr(data.imageUrl, 0, 500000)
+        && isOptStr(data, 'tag', 120)
+        && isOptStr(data, 'ctaText', 120)
+        && isOptStr(data, 'ctaLink', 2000)
+        && isOptStr(data, 'gradient', 200)
+        && isOptNum(data, 'order')
+        && isOptBool(data, 'active')
+        && isOptStr(data, 'targetPage', 32)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidNewsSliderItem(data) {
+      return data.keys().hasAll(['title'])
+        && data.keys().hasOnly([
+          'title', 'category', 'link', 'isUrgent', 'published', 'order', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isOptStr(data, 'category', 120)
+        && isOptStr(data, 'link', 2000)
+        && isOptBool(data, 'isUrgent')
+        && isOptStr(data, 'published', 64)
+        && isOptNum(data, 'order')
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title'])
+        && data.keys().hasOnly([
+          'title', 'link', 'published', 'order', 'active', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isOptStr(data, 'link', 500000)
+        && isOptStr(data, 'published', 64)
+        && isOptNum(data, 'order')
+        && isOptBool(data, 'active')
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidImportantDocument(data) {
+      return data.keys().hasAll(['title', 'url'])
+        && data.keys().hasOnly([
+          'title', 'url', 'category', 'order', 'published', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isStr(data.url, 0, 500000)
+        && isOptStr(data, 'category', 120)
+        && isOptNum(data, 'order')
+        && isOptStr(data, 'published', 64)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidNoticeCircular(data) {
+      return data.keys().hasAll(['title', 'category', 'published'])
+        && data.keys().hasOnly([
+          'title', 'category', 'published', 'url', 'order', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isStr(data.category, 1, 120)
+        && isStr(data.published, 1, 64)
+        && isOptStr(data, 'url', 500000)
+        && isOptNum(data, 'order')
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidUnionDocumentRuling(data) {
+      return data.keys().hasAll(['title', 'link', 'type'])
+        && data.keys().hasOnly([
+          'title', 'desc', 'link', 'type', 'order', 'published', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 500)
+        && isOptStr(data, 'desc', 2000)
+        && isStr(data.link, 0, 500000)
+        && isStr(data.type, 1, 120)
+        && isOptNum(data, 'order')
+        && isOptStr(data, 'published', 64)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidOrderRulingGuide(data) {
+      return data.keys().hasAll(['fileName', 'folderName', 'category', 'documentUrl'])
+        && data.keys().hasOnly([
+          'fileName', 'folderName', 'category', 'documentUrl', 'published', 'order', 'notes',
+          'createdAt', 'updatedAt'
+        ])
+        && isStr(data.fileName, 1, 500)
+        && isStr(data.folderName, 1, 200)
+        && isStr(data.category, 1, 120)
+        && isStr(data.documentUrl, 0, 500000)
+        && isOptStr(data, 'published', 64)
+        && isOptNum(data, 'order')
+        && isOptStr(data, 'notes', 3000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidCustomPortalApp(data) {
+      return data.keys().hasAll(['name', 'category', 'sourceType'])
+        && data.keys().hasOnly([
+          'name', 'category', 'sourceType', 'codeSnippet', 'url', 'description',
+          'fileSize', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.name, 1, 300)
+        && isStr(data.category, 1, 120)
+        && data.sourceType in ['code', 'url']
+        && isOptStr(data, 'codeSnippet', 500000)
+        && isOptStr(data, 'url', 2000)
+        && isOptStr(data, 'description', 2000)
+        && isOptStr(data, 'fileSize', 64)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidUploadedFile(data) {
+      return data.keys().hasAll(['fileId', 'fileName', 'mimeType', 'chunkCount', 'totalLength'])
+        && data.keys().hasOnly([
+          'fileId', 'fileName', 'mimeType', 'chunkCount', 'totalLength', 'createdAt'
+        ])
+        && isStr(data.fileId, 1, 128)
+        && isStr(data.fileName, 1, 500)
+        && isStr(data.mimeType, 1, 150)
+        && data.chunkCount is number && data.chunkCount >= 1 && data.chunkCount <= 100
+        && data.totalLength is number && data.totalLength >= 1
+        && isOptTimestampOrStr(data, 'createdAt');
+    }
+
+    function isValidUploadedFileChunk(data) {
+      return data.keys().hasAll(['index', 'data'])
+        && data.keys().hasOnly(['index', 'data', 'createdAt'])
+        && data.index is number && data.index >= 0 && data.index < 100
+        && isStr(data.data, 1, 500000)
+        && isOptTimestampOrStr(data, 'createdAt');
+    }
+
+    function isValidGalleryPhoto(data) {
+      return data.keys().hasAll(['title', 'imageUrl', 'category', 'date'])
+        && data.keys().hasOnly([
+          'title', 'imageUrl', 'url', 'category', 'date', 'caption', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 300)
+        && isStr(data.imageUrl, 1, 500000)
+        && isOptStr(data, 'url', 500000)
+        && isStr(data.category, 1, 120)
+        && isStr(data.date, 1, 64)
+        && isOptStr(data, 'caption', 1000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidDownloadableForm(data) {
+      return data.keys().hasAll(['title', 'formCode', 'category', 'downloadUrl'])
+        && data.keys().hasOnly([
+          'title', 'formCode', 'category', 'downloadUrl', 'fileSize', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 300)
+        && isStr(data.formCode, 1, 100)
+        && isStr(data.category, 1, 120)
+        && isStr(data.downloadUrl, 1, 500000)
+        && isOptStr(data, 'fileSize', 64)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidEmployeeResource(data) {
+      return data.keys().hasAll(['title', 'category', 'url'])
+        && data.keys().hasOnly([
+          'title', 'category', 'url', 'description', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.title, 1, 300)
+        && isStr(data.category, 1, 120)
+        && isStr(data.url, 1, 500000)
+        && isOptStr(data, 'description', 1000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidMemberProfile(data) {
+      return data.keys().hasAll(['membershipId', 'name', 'mobile', 'cadre', 'office', 'division', 'status'])
+        && data.keys().hasOnly([
+          'membershipId', 'uid', 'name', 'fullName', 'cadre', 'office', 'division',
+          'mobile', 'email', 'address', 'dateOfJoining', 'status', 'mustChangePassword',
+          'passwordStatus', 'authEpoch', 'validFrom', 'validTo', 'photoUrl',
+          'activeCardId', 'activeCardToken', 'approvedBy', 'approvedAt', 'lastLogin',
+          'remarks', 'createdAt', 'updatedAt'
+        ])
+        && isStr(data.membershipId, 1, 64)
+        && isOptStr(data, 'uid', 128)
+        && isStr(data.name, 1, 200)
+        && isOptStr(data, 'fullName', 200)
+        && isStr(data.cadre, 1, 150)
+        && isStr(data.office, 1, 200)
+        && isStr(data.division, 1, 100)
+        && isStr(data.mobile, 10, 20)
+        && isOptStr(data, 'email', 200)
+        && isOptStr(data, 'address', 500)
+        && isOptStr(data, 'dateOfJoining', 64)
+        && data.status in ['Active', 'Pending', 'Expired']
+        && isOptBool(data, 'mustChangePassword')
+        && isOptStr(data, 'passwordStatus', 32)
+        && isOptNum(data, 'authEpoch')
+        && isOptStr(data, 'validFrom', 64)
+        && isOptStr(data, 'validTo', 64)
+        && isOptStr(data, 'photoUrl', 500000)
+        && isOptStr(data, 'activeCardId', 128)
+        && isOptStr(data, 'activeCardToken', 128)
+        && isOptStr(data, 'approvedBy', 200)
+        && isOptStr(data, 'approvedAt', 64)
+        && isOptStr(data, 'lastLogin', 64)
+        && isOptStr(data, 'remarks', 1000)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidMemberCredential(data) {
+      return data.keys().hasAll(['membershipId', 'mobile', 'passwordHash', 'salt'])
+        && data.keys().hasOnly([
+          'membershipId', 'uid', 'authEmail', 'authEpoch', 'mobile', 'email',
+          'passwordHash', 'salt', 'mustChangePassword', 'passwordStatus',
+          'failedAttempts', 'lockedUntil', 'recoveryEmail', 'lastLogin', 'updatedAt'
+        ])
+        && isStr(data.membershipId, 1, 64)
+        && isOptStr(data, 'uid', 128)
+        && isOptStr(data, 'authEmail', 200)
+        && isOptNum(data, 'authEpoch')
+        && isStr(data.mobile, 10, 20)
+        && isOptStr(data, 'email', 200)
+        && isStr(data.passwordHash, 16, 256)
+        && isStr(data.salt, 8, 128)
+        && isOptBool(data, 'mustChangePassword')
+        && isOptStr(data, 'passwordStatus', 32)
+        && isOptNum(data, 'failedAttempts')
+        && (!('lockedUntil' in data) || data.lockedUntil == null || data.lockedUntil is number || data.lockedUntil is string)
+        && isOptStr(data, 'recoveryEmail', 200)
+        && isOptStr(data, 'lastLogin', 64)
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidProfileUpdateRequest(data) {
+      return data.keys().hasAll(['membershipId', 'status', 'requestedAt'])
+        && data.keys().hasOnly([
+          'memberId', 'membershipId', 'memberName', 'proposedChanges', 'currentValues',
+          'status', 'requestedAt', 'reviewedBy', 'reviewedAt', 'reviewRemarks'
+        ])
+        && isOptStr(data, 'memberId', 128)
+        && isStr(data.membershipId, 1, 64)
+        && isOptStr(data, 'memberName', 200)
+        && (!('proposedChanges' in data) || data.proposedChanges is map)
+        && (!('currentValues' in data) || data.currentValues is map)
+        && data.status in ['Pending', 'Approved', 'Rejected']
+        && isStr(data.requestedAt, 1, 64)
+        && isOptStr(data, 'reviewedBy', 200)
+        && isOptStr(data, 'reviewedAt', 64)
+        && isOptStr(data, 'reviewRemarks', 1000);
+    }
+
+    function isValidMembershipCard(data) {
+      return data.keys().hasAll(['membershipId', 'cardToken', 'cardStatus'])
+        && data.keys().hasOnly([
+          'memberId', 'membershipId', 'memberName', 'cadre', 'office', 'division',
+          'photoUrl', 'issueDate', 'validFrom', 'validTo', 'cardToken', 'cardStatus',
+          'revokedAt', 'revocationReason', 'createdAt', 'updatedAt'
+        ])
+        && isOptStr(data, 'memberId', 128)
+        && isStr(data.membershipId, 1, 64)
+        && isOptStr(data, 'memberName', 200)
+        && isOptStr(data, 'cadre', 150)
+        && isOptStr(data, 'office', 200)
+        && isOptStr(data, 'division', 100)
+        && isOptStr(data, 'photoUrl', 500000)
+        && isOptStr(data, 'issueDate', 64)
+        && isOptStr(data, 'validFrom', 64)
+        && isOptStr(data, 'validTo', 64)
+        && isStr(data.cardToken, 8, 128)
+        && data.cardStatus in ['Valid', 'Expired', 'Revoked', 'Replaced']
+        && isOptStr(data, 'revokedAt', 64)
+        && isOptStr(data, 'revocationReason', 500)
+        && isOptTimestampOrStr(data, 'createdAt')
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    function isValidCardVerification(data) {
+      return data.keys().hasAll(['membershipId', 'memberName', 'status'])
+        && data.keys().hasOnly([
+          'token', 'status', 'membershipId', 'memberName', 'cadre', 'office',
+          'division', 'unionName', 'validFrom', 'validTo', 'issueDate',
+          'verifiedCount', 'lastCheckedAt', 'message'
+        ])
+        && isOptStr(data, 'token', 128)
+        && data.status in ['Valid', 'Expired', 'Revoked', 'Invalid']
+        && isStr(data.membershipId, 1, 64)
+        && isStr(data.memberName, 1, 200)
+        && isOptStr(data, 'cadre', 150)
+        && isOptStr(data, 'office', 200)
+        && isOptStr(data, 'division', 100)
+        && isOptStr(data, 'unionName', 200)
+        && isOptStr(data, 'validFrom', 64)
+        && isOptStr(data, 'validTo', 64)
+        && isOptStr(data, 'issueDate', 64)
+        && isOptNum(data, 'verifiedCount')
+        && isOptStr(data, 'lastCheckedAt', 64)
+        && isOptStr(data, 'message', 500);
+    }
+
+    function isValidMemberAuditLog(data) {
+      return data.keys().hasAll(['action', 'actor', 'targetMembershipId', 'timestamp'])
+        && data.keys().hasOnly([
+          'action', 'actor', 'targetMemberId', 'targetMembershipId',
+          'details', 'timestamp', 'createdAt'
+        ])
+        && isStr(data.action, 1, 100)
+        && isStr(data.actor, 1, 200)
+        && isOptStr(data, 'targetMemberId', 128)
+        && isStr(data.targetMembershipId, 1, 64)
+        && isOptStr(data, 'details', 2000)
+        && isStr(data.timestamp, 1, 64)
+        && isOptTimestampOrStr(data, 'createdAt');
+    }
+
+    function isValidPasswordResetRequest(data) {
+      return data.keys().hasAll(['membershipId', 'status', 'requestedAt'])
+        && data.keys().hasOnly([
+          'memberId', 'membershipId', 'memberName', 'mobile', 'email',
+          'requestedAt', 'status', 'updatedAt'
+        ])
+        && isOptStr(data, 'memberId', 128)
+        && isStr(data.membershipId, 1, 64)
+        && isOptStr(data, 'memberName', 200)
+        && isOptStr(data, 'mobile', 20)
+        && isOptStr(data, 'email', 200)
+        && isStr(data.requestedAt, 1, 64)
+        && data.status in ['Pending', 'PendingAdminAssistance', 'Resolved']
+        && isOptTimestampOrStr(data, 'updatedAt');
+    }
+
+    // ===============================================================
+    // CONNECTION CHECK DOCUMENT
+    // ===============================================================
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+
+    // ===============================================================
+    // PUBLIC PORTAL CONTENT COLLECTIONS (Public Read, Admin-Only Write)
+    // ===============================================================
+
     match /circulars/{circularId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(circularId) && isValidCircular(incoming());
+      allow delete: if isAdmin() && isValidId(circularId);
     }
 
     match /executiveMembers/{memberId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(memberId) && isValidExecutiveMember(incoming());
+      allow delete: if isAdmin() && isValidId(memberId);
     }
 
-    // Hero Slides for Home page (DakShiksha)
     match /heroSlides/{slideId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(slideId) && isValidHeroSlide(incoming());
+      allow delete: if isAdmin() && isValidId(slideId);
     }
 
-    // Moving News Slider / Ticker items
     match /newsSliderItems/{itemId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(itemId) && isValidNewsSliderItem(incoming());
+      allow delete: if isAdmin() && isValidId(itemId);
     }
 
-    // Announcements section
     match /announcements/{annId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(annId) && isValidAnnouncement(incoming());
+      allow delete: if isAdmin() && isValidId(annId);
     }
 
-    // Important Documents section
     match /importantDocuments/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(docId) && isValidImportantDocument(incoming());
+      allow delete: if isAdmin() && isValidId(docId);
     }
 
-    // Notice & Circulars section
     match /noticeCirculars/{ncId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(ncId) && isValidNoticeCircular(incoming());
+      allow delete: if isAdmin() && isValidId(ncId);
     }
 
-    // Union Documents & Rulings section (Executive Bearers)
     match /unionDocumentsAndRulings/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(docId) && isValidUnionDocumentRuling(incoming());
+      allow delete: if isAdmin() && isValidId(docId);
     }
 
-    // Orders, Rulings & Guides uploaded by Admin (card type view)
     match /ordersRulingsGuides/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(docId) && isValidOrderRulingGuide(incoming());
+      allow delete: if isAdmin() && isValidId(docId);
     }
 
-    // My Apps & Online Tools uploaded by Admin (HTML calculators, apps, portal links)
     match /customPortalApps/{appId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(appId) && isValidCustomPortalApp(incoming());
+      allow delete: if isAdmin() && isValidId(appId);
     }
 
-    // Chunked uploaded documents and files (supports large PDFs/files without 1MB limit)
     match /uploadedFiles/{fileId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(fileId) && isValidUploadedFile(incoming());
+      allow delete: if isAdmin() && isValidId(fileId);
+
+      // Master Gate: chunks require parent manifest to already exist
       match /chunks/{chunkId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow create, update: if isAdmin()
+          && isValidId(fileId)
+          && isValidId(chunkId)
+          && exists(/databases/$(database)/documents/uploadedFiles/$(fileId))
+          && isValidUploadedFileChunk(incoming());
+        allow delete: if isAdmin() && isValidId(fileId) && isValidId(chunkId);
       }
     }
-    match /fileChunks/{chunkId} {
-      allow read, write: if true;
-    }
 
-    // ==========================================
-    // 🛡️ MEMBER DIRECTORY & MEMBERSHIP SECURITY
-    // ==========================================
-
-    // Approved member profiles
-    match /members/{memberId} {
-      allow read, write: if true;
-    }
-
-    // Member authentication credentials (salted hashes only, no plaintext passwords)
-    match /memberCredentials/{memberId} {
-      allow read, write: if true;
-    }
-
-    // Member profile change requests submitted for admin approval
-    match /profileUpdateRequests/{requestId} {
-      allow read, write: if true;
-    }
-
-    // Digital membership card records and tokens
-    match /membershipCards/{cardId} {
-      allow read, write: if true;
-    }
-
-    // Public QR code card verification endpoint (Zero PII - no phone, email, address)
-    match /cardVerifications/{tokenId} {
-      allow read, write: if true;
-    }
-
-    // Administrator action audit log
-    match /memberAuditLogs/{logId} {
-      allow read, create: if true;
-      allow update, delete: if false; // Append-only audit trail
-    }
-
-    // Photo Gallery photos
     match /galleryPhotos/{photoId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(photoId) && isValidGalleryPhoto(incoming());
+      allow delete: if isAdmin() && isValidId(photoId);
     }
 
-    // Downloadable Forms
     match /downloadableForms/{formId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(formId) && isValidDownloadableForm(incoming());
+      allow delete: if isAdmin() && isValidId(formId);
     }
 
-    // Employee Site Resources & Manuals
     match /employeeResources/{resId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(resId) && isValidEmployeeResource(incoming());
+      allow delete: if isAdmin() && isValidId(resId);
+    }
+
+    // ===============================================================
+    // MEMBER DIRECTORY, CREDENTIALS, CARDS & AUDIT LOGS
+    // ===============================================================
+
+    match /members/{memberId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(memberId) && isValidMemberProfile(incoming());
+      allow delete: if isAdmin() && isValidId(memberId);
+    }
+
+    match /memberCredentials/{credId} {
+      allow get: if isAdmin() || (isSignedIn() && existing().uid is string && existing().uid != '' && existing().uid == request.auth.uid);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(credId) && isValidMemberCredential(incoming());
+      allow update: if (isAdmin()
+          || (isSignedIn()
+              && existing().uid is string
+              && existing().uid != ''
+              && existing().uid == request.auth.uid
+              && incoming().membershipId == existing().membershipId
+              && incoming().uid == existing().uid))
+        && isValidId(credId)
+        && isValidMemberCredential(incoming());
+      allow delete: if isAdmin() && isValidId(credId);
+    }
+
+    match /profileUpdateRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(requestId)
+        && isValidProfileUpdateRequest(incoming())
+        && (isAdmin() || incoming().status == 'Pending');
+      allow update: if isAdmin() && isValidId(requestId) && isValidProfileUpdateRequest(incoming());
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    match /membershipCards/{cardId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(cardId) && isValidMembershipCard(incoming());
+      allow delete: if isAdmin() && isValidId(cardId);
+    }
+
+    match /cardVerifications/{tokenId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidId(tokenId) && isValidCardVerification(incoming());
+      allow delete: if isAdmin() && isValidId(tokenId);
+    }
+
+    // Append-only administrator audit trail (no update/delete even by admin)
+    match /memberAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidId(logId) && isValidMemberAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    match /passwordResetRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(requestId)
+        && isValidPasswordResetRequest(incoming())
+        && (isAdmin() || incoming().status in ['Pending', 'PendingAdminAssistance']);
+      allow update: if isAdmin() && isValidId(requestId) && isValidPasswordResetRequest(incoming());
+      allow delete: if isAdmin() && isValidId(requestId);
     }
   }
 }

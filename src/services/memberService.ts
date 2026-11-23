@@ -14,7 +14,14 @@ import {
   addDoc,
   onSnapshot,
 } from 'firebase/firestore';
-import { db, getSecondaryAdminAuth } from './firebase';
+import {
+  db,
+  getSecondaryAdminAuth,
+  handleFirestoreError,
+  OperationType,
+  DEFAULT_TOOL_ADMIN_AUTHOR,
+  uploadFileToFirestore,
+} from './firebase';
 import { createUserWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
 import {
   MemberProfile,
@@ -226,7 +233,7 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
     photoUrl: '',
     activeCardId: 'card-1001',
     activeCardToken: 'AIPEU-DKL-SEC-CARD-1001',
-    approvedBy: 'Divisional Secretary, AIPEU Dhenkanal',
+    approvedBy: DEFAULT_TOOL_ADMIN_AUTHOR,
     approvedAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -251,7 +258,7 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
     photoUrl: '',
     activeCardId: 'card-1002',
     activeCardToken: 'AIPEU-DKL-CARD-1002-VAL',
-    approvedBy: 'Divisional Secretary, AIPEU Dhenkanal',
+    approvedBy: DEFAULT_TOOL_ADMIN_AUTHOR,
     approvedAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -282,54 +289,28 @@ export const INITIAL_SAMPLE_MEMBERS: MemberProfile[] = [
 // ================= MEMBER QUERIES =================
 export async function getMembersFromFirestore(): Promise<MemberProfile[]> {
   const deletedSet = getDeletedMemberIds();
-  const localList = getCachedMembers();
-  let firestoreList: MemberProfile[] = [];
 
   try {
     const col = collection(db, 'members');
-    const snap = await withTimeout(getDocs(col), 2500);
-    if (!snap.empty) {
-      firestoreList = snap.docs.map((d) => ({ id: d.id, ...d.data() } as MemberProfile));
-    }
+    const snap = await withTimeout(getDocs(col), 4000);
+    const firestoreList = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as MemberProfile))
+      .filter((fm) => {
+        const key = (fm.membershipId || fm.id).toUpperCase();
+        return !deletedSet.has(fm.id) && !deletedSet.has(key);
+      })
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    saveCachedMembers(firestoreList);
+    return firestoreList;
   } catch (err) {
-    console.warn('Firestore fetch members notice (using local cache):', err);
+    console.warn('Firestore fetch members offline fallback:', err);
+    const localList = getCachedMembers().filter((lm) => {
+      const key = (lm.membershipId || lm.id).toUpperCase();
+      return !deletedSet.has(lm.id) && !deletedSet.has(key);
+    });
+    return localList.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
-
-  // Merge Firestore and local cached members by membershipId, keeping the newest version
-  const mergedMap = new Map<string, MemberProfile>();
-
-  // If both are empty and never initialized, include sample members
-  if (firestoreList.length === 0 && localList.length === 0) {
-    for (const sm of INITIAL_SAMPLE_MEMBERS) {
-      if (!deletedSet.has(sm.id) && !deletedSet.has(sm.membershipId.toUpperCase())) {
-        mergedMap.set(sm.membershipId.toUpperCase(), sm);
-      }
-    }
-    // Trigger non-blocking background seed
-    seedInitialMembersIfEmpty().catch(() => {});
-  }
-
-  for (const fm of firestoreList) {
-    const key = (fm.membershipId || fm.id).toUpperCase();
-    if (deletedSet.has(fm.id) || deletedSet.has(key)) continue;
-    mergedMap.set(key, fm);
-  }
-
-  for (const lm of localList) {
-    const key = (lm.membershipId || lm.id).toUpperCase();
-    if (deletedSet.has(lm.id) || deletedSet.has(key)) continue;
-    const existing = mergedMap.get(key);
-    if (!existing || (lm.updatedAt || '') >= (existing.updatedAt || '')) {
-      mergedMap.set(key, lm);
-    }
-  }
-
-  const finalList = Array.from(mergedMap.values()).sort((a, b) =>
-    (b.createdAt || '').localeCompare(a.createdAt || '')
-  );
-
-  saveCachedMembers(finalList);
-  return finalList;
 }
 
 export async function getMemberById(id: string): Promise<MemberProfile | null> {
@@ -400,7 +381,7 @@ export interface EnrolledMemberResult {
 
 export async function addMemberToFirestore(
   input: NewMemberInput,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<EnrolledMemberResult> {
   // 1. Strict validation of required fields
   const cleanName = (input.name || '').trim();
@@ -522,6 +503,11 @@ export async function addMemberToFirestore(
   const passwordHash = await hashPassword(initialPass, salt);
   const mobileAuthEmail = `${normalizedMobile}@member.aipeudhenkanal.org`;
 
+  let resolvedPhotoUrl = (input.photoUrl || '').trim();
+  if (resolvedPhotoUrl.startsWith('data:') && resolvedPhotoUrl.length >= 450000) {
+    resolvedPhotoUrl = await uploadFileToFirestore(resolvedPhotoUrl, `${membershipId}-photo.jpg`);
+  }
+
   // Preserve exact entered name: never alter spelling, prepend/append prefixes, or reverse
   const newMemberProfile: MemberProfile = {
     id: docId,
@@ -542,7 +528,7 @@ export async function addMemberToFirestore(
     authEpoch: 1,
     validFrom: input.validFrom || now.split('T')[0],
     validTo: input.validTo || `${new Date().getFullYear() + 2}-12-31`,
-    photoUrl: (input.photoUrl || '').trim(),
+    photoUrl: resolvedPhotoUrl,
     createdAt: now,
     updatedAt: now,
     ...(input.status === 'Active' ? { approvedBy: actor, approvedAt: now } : {}),
@@ -565,7 +551,7 @@ export async function addMemberToFirestore(
     updatedAt: now,
   };
 
-  // 4. Save to Firebase Firestore immediately
+  // 4. Save to Firebase Firestore and confirm before reporting success
   const { id: _omitId, ...firestoreMemberPayload } = newMemberProfile;
   try {
     await withTimeout(
@@ -573,12 +559,10 @@ export async function addMemberToFirestore(
         setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }),
         setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }),
       ]),
-      5000
+      10000
     );
   } catch (dbErr: any) {
-    console.warn('Direct Firestore write delayed, continuing background push:', dbErr);
-    setDoc(docRef, cleanFirestoreData(firestoreMemberPayload), { merge: true }).catch((e) => console.warn(e));
-    setDoc(doc(db, 'memberCredentials', membershipId), cleanFirestoreData(cred), { merge: true }).catch((e) => console.warn(e));
+    handleFirestoreError(dbErr, OperationType.CREATE, `members/${docId}`);
   }
 
   // 5. Background optional Firebase Auth account provisioning (non-blocking)
@@ -637,7 +621,7 @@ export async function addMemberToFirestore(
 export async function updateMemberInFirestore(
   memberId: string,
   updates: Partial<MemberProfile>,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   const now = new Date().toISOString();
   const cachedList = getCachedMembers();
@@ -664,25 +648,44 @@ export async function updateMemberInFirestore(
   if (updates.dateOfJoining !== undefined) updateData.dateOfJoining = updates.dateOfJoining;
   if (updates.validFrom !== undefined) updateData.validFrom = updates.validFrom;
   if (updates.validTo !== undefined) updateData.validTo = updates.validTo;
-  if (updates.photoUrl !== undefined) updateData.photoUrl = updates.photoUrl;
+  if (updates.photoUrl !== undefined) {
+    let resolvedPhoto = updates.photoUrl;
+    if (resolvedPhoto.startsWith('data:') && resolvedPhoto.length >= 450000) {
+      resolvedPhoto = await uploadFileToFirestore(resolvedPhoto, `${membershipId}-photo.jpg`);
+    }
+    updateData.photoUrl = resolvedPhoto;
+  }
   if (updates.remarks !== undefined) updateData.remarks = updates.remarks;
 
   if (updates.mobile !== undefined) {
     const norm = normalizeMobileNumber(updates.mobile);
     if (norm.length !== 10) throw new Error('Mobile number must be 10 digits.');
     updateData.mobile = norm;
-
-    // Update cached credential mobile reference
-    const creds = getCachedCredentials();
-    const existingCred = creds[membershipId.toUpperCase()];
-    if (existingCred) {
-      existingCred.mobile = norm;
-      existingCred.updatedAt = now;
-      saveCachedCredential(existingCred);
-    }
   }
 
-  // 1. Update localStorage cache immediately
+  // Confirm Firestore update before updating local cache
+  try {
+    const docRef = doc(db, 'members', memberId);
+    await withTimeout(setDoc(docRef, cleanFirestoreData(updateData), { merge: true }), 8000);
+
+    if (updateData.mobile) {
+      const credRef = doc(db, 'memberCredentials', membershipId);
+      await withTimeout(
+        setDoc(credRef, { mobile: updateData.mobile, updatedAt: now }, { merge: true }),
+        5000
+      );
+      const creds = getCachedCredentials();
+      const existingCred = creds[membershipId.toUpperCase()];
+      if (existingCred) {
+        existingCred.mobile = updateData.mobile;
+        existingCred.updatedAt = now;
+        saveCachedCredential(existingCred);
+      }
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `members/${memberId}`);
+  }
+
   const idx = cachedList.findIndex(
     (m) => m.id === memberId || m.membershipId === membershipId
   );
@@ -691,22 +694,6 @@ export async function updateMemberInFirestore(
     saveCachedMembers(cachedList);
   }
   window.dispatchEvent(new CustomEvent('members-updated'));
-
-  // 2. Sync to Firestore with timeout protection
-  try {
-    const docRef = doc(db, 'members', memberId);
-    await withTimeout(setDoc(docRef, cleanFirestoreData(updateData), { merge: true }), 2500);
-
-    if (updateData.mobile) {
-      const credRef = doc(db, 'memberCredentials', membershipId);
-      await withTimeout(
-        setDoc(credRef, { mobile: updateData.mobile, updatedAt: now }, { merge: true }),
-        2000
-      );
-    }
-  } catch (err) {
-    console.warn('Firestore member update cached locally:', err);
-  }
 
   logMemberAudit(
     'MEMBER_UPDATED',
@@ -720,7 +707,7 @@ export async function updateMemberInFirestore(
 // ================= DELETE / REMOVE MEMBER =================
 export async function deleteMemberFromFirestore(
   memberId: string,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   const cachedList = getCachedMembers();
   const existing = cachedList.find(
@@ -728,26 +715,25 @@ export async function deleteMemberFromFirestore(
   );
   const membershipId = existing?.membershipId || memberId;
 
-  // 1. Immediately mark deleted and remove from localStorage
-  markMemberIdDeleted(memberId, membershipId);
-  const filtered = cachedList.filter(
-    (m) => m.id !== memberId && m.membershipId !== membershipId
-  );
-  saveCachedMembers(filtered);
-  window.dispatchEvent(new CustomEvent('members-updated'));
-
-  // 2. Delete from Firestore with timeout protection
+  // Confirm deletion in Firestore first
   try {
     await withTimeout(
       Promise.all([
         deleteDoc(doc(db, 'members', memberId)),
         deleteDoc(doc(db, 'memberCredentials', membershipId)),
       ]),
-      2500
+      8000
     );
   } catch (err) {
-    console.warn('Firestore member delete note:', err);
+    handleFirestoreError(err, OperationType.DELETE, `members/${memberId}`);
   }
+
+  markMemberIdDeleted(memberId, membershipId);
+  const filtered = cachedList.filter(
+    (m) => m.id !== memberId && m.membershipId !== membershipId
+  );
+  saveCachedMembers(filtered);
+  window.dispatchEvent(new CustomEvent('members-updated'));
 
   logMemberAudit(
     'MEMBER_DELETED',
@@ -763,7 +749,7 @@ export async function changeMemberStatus(
   memberId: string,
   newStatus: MemberStatus,
   reason = '',
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   const now = new Date().toISOString();
   const cachedList = getCachedMembers();
@@ -782,7 +768,16 @@ export async function changeMemberStatus(
     updatePayload.approvedAt = now;
   }
 
-  // 1. Update localStorage immediately
+  try {
+    const docRef = doc(db, 'members', memberId);
+    await withTimeout(
+      setDoc(docRef, cleanFirestoreData(updatePayload), { merge: true }),
+      8000
+    );
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `members/${memberId}`);
+  }
+
   const idx = cachedList.findIndex(
     (m) => m.id === memberId || m.membershipId === membershipId
   );
@@ -791,17 +786,6 @@ export async function changeMemberStatus(
     saveCachedMembers(cachedList);
   }
   window.dispatchEvent(new CustomEvent('members-updated'));
-
-  // 2. Sync to Firestore with timeout protection
-  try {
-    const docRef = doc(db, 'members', memberId);
-    await withTimeout(
-      setDoc(docRef, cleanFirestoreData(updatePayload), { merge: true }),
-      2500
-    );
-  } catch (err) {
-    console.warn('Firestore status change cached locally:', err);
-  }
 
   logMemberAudit(
     'STATUS_CHANGED',
@@ -816,7 +800,7 @@ export async function changeMemberStatus(
 export async function adminResetMemberPassword(
   membershipId: string,
   newPassword: string,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   if (!newPassword || newPassword.length < 6) {
     throw new Error('Temporary password must be at least 6 characters.');
@@ -937,13 +921,6 @@ export async function submitProfileUpdateRequest(
 ): Promise<string> {
   const now = new Date().toISOString();
 
-  // Also apply changes directly to member profile so member updates reflect immediately in Admin Portal
-  await updateMemberInFirestore(
-    member.id,
-    proposedChanges,
-    `Member Self-Update (${member.name})`
-  );
-
   const reqDoc: Omit<ProfileUpdateRequest, 'id'> = {
     memberId: member.id,
     membershipId: member.membershipId,
@@ -958,18 +935,16 @@ export async function submitProfileUpdateRequest(
       address: member.address,
       photoUrl: member.photoUrl || '',
     },
-    status: 'Approved',
+    status: 'Pending',
     requestedAt: now,
-    reviewedBy: 'Auto-Synced with Firebase Member Directory',
-    reviewedAt: now,
   };
 
   try {
     const col = collection(db, 'profileUpdateRequests');
-    const docRef = await withTimeout(addDoc(col, cleanFirestoreData(reqDoc)), 2200);
+    const docRef = await withTimeout(addDoc(col, cleanFirestoreData(reqDoc)), 6000);
     return docRef.id;
-  } catch {
-    return `req-${Date.now()}`;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, 'profileUpdateRequests');
   }
 }
 
@@ -977,7 +952,7 @@ export async function getProfileUpdateRequests(): Promise<ProfileUpdateRequest[]
   try {
     const col = collection(db, 'profileUpdateRequests');
     const q = query(col, orderBy('requestedAt', 'desc'));
-    const snap = await withTimeout(getDocs(q), 2000);
+    const snap = await withTimeout(getDocs(q), 3000);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ProfileUpdateRequest));
   } catch {
     return [];
@@ -988,10 +963,10 @@ export async function reviewProfileUpdateRequest(
   requestId: string,
   decision: 'Approved' | 'Rejected',
   remarks = '',
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   const reqRef = doc(db, 'profileUpdateRequests', requestId);
-  const snap = await withTimeout(getDoc(reqRef), 2000);
+  const snap = await withTimeout(getDoc(reqRef), 3000);
   if (!snap.exists()) throw new Error('Request not found.');
   const req = snap.data() as ProfileUpdateRequest;
 
@@ -1001,21 +976,25 @@ export async function reviewProfileUpdateRequest(
     await updateMemberInFirestore(req.memberId, req.proposedChanges, actor);
   }
 
-  await withTimeout(
-    updateDoc(reqRef, {
-      status: decision,
-      reviewedBy: actor,
-      reviewedAt: now,
-      reviewRemarks: remarks,
-    }),
-    2000
-  );
+  try {
+    await withTimeout(
+      updateDoc(reqRef, {
+        status: decision,
+        reviewedBy: actor,
+        reviewedAt: now,
+        reviewRemarks: remarks,
+      }),
+      5000
+    );
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `profileUpdateRequests/${requestId}`);
+  }
 }
 
 // ================= DIGITAL MEMBERSHIP CARD & QR VERIFICATION =================
 export async function generateOrReissueMembershipCard(
   member: MemberProfile,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal',
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR,
   reason = 'Initial Issue'
 ): Promise<DigitalMembershipCard> {
   const now = new Date().toISOString();
@@ -1097,7 +1076,7 @@ export async function generateOrReissueMembershipCard(
 export async function revokeMembershipCard(
   cardId: string,
   reason: string,
-  actor = 'Divisional Secretary, AIPEU Dhenkanal'
+  actor = DEFAULT_TOOL_ADMIN_AUTHOR
 ): Promise<void> {
   const now = new Date().toISOString();
   try {

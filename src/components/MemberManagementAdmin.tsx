@@ -234,7 +234,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
         remarks: addRemarks.trim(),
       };
 
-      const result = await addMemberToFirestore(input, 'Admin Portal (Divisional Secretary)');
+      const result = await addMemberToFirestore(input, 'Tool Administrator (Union Member)');
 
       // 1. Set registration completion state to immediately display prominent success badge & Member ID
       setEnrolledSuccess(result);
@@ -274,7 +274,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       await updateMemberInFirestore(
         editingMember.id,
         editingMember,
-        'Admin Portal (Divisional Secretary)'
+        'Tool Administrator (Union Member)'
       );
       onNotify(`✅ Successfully updated record for ${editingMember.name} (${editingMember.membershipId})`);
       setEditingMember(null);
@@ -289,7 +289,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
     if (!statusConfirmModal) return;
     const { member, newStatus } = statusConfirmModal;
     try {
-      await changeMemberStatus(member.id, newStatus, 'Divisional admin update', 'Divisional Secretary');
+      await changeMemberStatus(member.id, newStatus, 'Admin Portal status update', 'Tool Administrator');
       onNotify(`✅ Status changed to ${newStatus} for ${member.name}`);
       setStatusConfirmModal(null);
       await loadData();
@@ -303,7 +303,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
     if (!cardIssueModal) return;
     const { member, action } = cardIssueModal;
     try {
-      await generateOrReissueMembershipCard(member, 'Divisional Secretary', `${action} requested via Admin`);
+      await generateOrReissueMembershipCard(member, 'Tool Administrator', `${action} requested via Admin`);
       onNotify(`✅ Digital Card successfully ${action.toLowerCase()}d with a live verification token!`);
       setCardIssueModal(null);
       await loadData();
@@ -316,7 +316,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
   const handleConfirmDeleteMember = async () => {
     if (!deleteConfirmModal) return;
     try {
-      await deleteMemberFromFirestore(deleteConfirmModal.memberId, 'Divisional Secretary');
+      await deleteMemberFromFirestore(deleteConfirmModal.memberId, 'Tool Administrator');
       onNotify(`🗑️ Member ${deleteConfirmModal.memberName} (${deleteConfirmModal.membershipId}) removed from register.`);
       setDeleteConfirmModal(null);
       await loadData();
@@ -331,8 +331,8 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
     try {
       await revokeMembershipCard(
         revokeCardModal.cardId,
-        revokeReason || 'Revoked by Divisional Authority',
-        'Divisional Secretary'
+        revokeReason || 'Revoked by Tool Administrator',
+        'Tool Administrator'
       );
       onNotify(`🚫 Card for ${revokeCardModal.membershipId} revoked and QR verification invalidated.`);
       setRevokeCardModal(null);
@@ -350,8 +350,8 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       await reviewProfileUpdateRequest(
         reviewModal.req.id,
         reviewModal.decision,
-        reviewModal.remarks || `${reviewModal.decision} by Divisional Secretary`,
-        'Divisional Secretary'
+        reviewModal.remarks || `${reviewModal.decision} by Tool Administrator`,
+        'Tool Administrator'
       );
       onNotify(`✅ Request #${reviewModal.req.id.slice(0, 8)} marked as ${reviewModal.decision}.`);
       setReviewModal(null);
@@ -369,7 +369,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
       await adminResetMemberPassword(
         resetPassMember.membershipId,
         newPasswordInput.trim(),
-        'Divisional Secretary'
+        'Tool Administrator'
       );
       onNotify(`🔑 Password successfully updated for ${resetPassMember.membershipId}!`);
       setResetPassMember(null);
@@ -996,7 +996,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                             isOpen: true,
                             req,
                             decision: 'Rejected',
-                            remarks: 'Rejected by Divisional Secretary',
+                            remarks: 'Rejected by Tool Administrator',
                           })
                         }
                         className="px-4 py-1.5 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 font-bold text-xs cursor-pointer"
@@ -1010,7 +1010,7 @@ export const MemberManagementAdmin: React.FC<MemberManagementAdminProps> = ({ on
                             isOpen: true,
                             req,
                             decision: 'Approved',
-                            remarks: 'Approved by Divisional Secretary',
+                            remarks: 'Approved by Tool Administrator',
                           })
                         }
                         className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer"

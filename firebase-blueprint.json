@@ -5,14 +5,15 @@
       "description": "Union circular, official order, or notice",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Title of circular or notice" },
-        "category": { "type": "string", "description": "Union cadre or topic category" },
-        "snippet": { "type": "string", "description": "Short summary" },
-        "contentHtml": { "type": "string", "description": "Full HTML description/body" },
-        "fileLinks": { "type": "array", "description": "Uploaded or linked official document/PDF links" },
-        "imageUrls": { "type": "array", "description": "Uploaded or linked photo URLs" },
-        "published": { "type": "string", "description": "ISO date string" },
-        "author": { "type": "string", "description": "Author or issuing body" },
+        "title": { "type": "string", "maxLength": 500, "description": "Title of circular or notice" },
+        "category": { "type": "string", "maxLength": 120, "description": "Union cadre or topic category" },
+        "snippet": { "type": "string", "maxLength": 5000, "description": "Short summary" },
+        "contentHtml": { "type": "string", "maxLength": 200000, "description": "Full HTML description/body" },
+        "driveLinks": { "type": "array", "description": "Uploaded or linked official document/PDF links" },
+        "images": { "type": "array", "description": "Uploaded or linked photo URLs" },
+        "published": { "type": "string", "maxLength": 64, "description": "ISO date string" },
+        "updated": { "type": "string", "maxLength": 64, "description": "ISO updated date string" },
+        "author": { "type": "string", "maxLength": 200, "description": "Author or issuing body" },
         "urgent": { "type": "boolean", "description": "Whether this is urgent flash news" }
       },
       "required": ["title", "category", "snippet", "published"]
@@ -22,55 +23,56 @@
       "description": "Office bearer details for Dhenkanal Division",
       "type": "object",
       "properties": {
-        "name": { "type": "string", "description": "Full name with Comrade title" },
-        "designation": { "type": "string", "description": "Union post / designation" },
-        "branch": { "type": "string", "description": "Union wing / branch" },
-        "phone": { "type": "string", "description": "Contact phone number" },
-        "location": { "type": "string", "description": "Office / Sub Post Office location" },
-        "roleType": { "type": "string", "description": "president, secretary, treasurer, or executive" },
-        "photoUrl": { "type": "string", "description": "Profile portrait or avatar image URL" }
+        "name": { "type": "string", "maxLength": 200, "description": "Full name" },
+        "designation": { "type": "string", "maxLength": 200, "description": "Union post / designation" },
+        "branch": { "type": "string", "maxLength": 200, "description": "Union wing / branch" },
+        "phone": { "type": "string", "maxLength": 50, "description": "Contact phone number" },
+        "location": { "type": "string", "maxLength": 200, "description": "Office / Sub Post Office location" },
+        "roleType": { "type": "string", "maxLength": 50, "description": "president, secretary, treasurer, or executive" },
+        "photoUrl": { "type": "string", "maxLength": 500000, "description": "Profile portrait or avatar image URL" }
       },
       "required": ["name", "designation", "branch", "location"]
     },
     "HeroSlide": {
       "title": "HeroSlide",
-      "description": "Featured hero banner slides for DakShiksha home page",
+      "description": "Featured hero banner slides for home page",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Headline of the slide" },
-        "subtitle": { "type": "string", "description": "Description text / writings" },
-        "tag": { "type": "string", "description": "Tag badge text" },
-        "imageUrl": { "type": "string", "description": "Banner photo URL" },
-        "ctaText": { "type": "string", "description": "Call to action label" },
-        "ctaLink": { "type": "string", "description": "Target section or URL" },
-        "gradient": { "type": "string", "description": "Color theme gradient" },
+        "title": { "type": "string", "maxLength": 300, "description": "Headline of the slide" },
+        "subtitle": { "type": "string", "maxLength": 2000, "description": "Description text" },
+        "tag": { "type": "string", "maxLength": 120, "description": "Tag badge text" },
+        "imageUrl": { "type": "string", "maxLength": 500000, "description": "Banner photo URL" },
+        "ctaText": { "type": "string", "maxLength": 120, "description": "Call to action label" },
+        "ctaLink": { "type": "string", "maxLength": 2000, "description": "Target section or URL" },
+        "gradient": { "type": "string", "maxLength": 200, "description": "Color theme gradient" },
         "order": { "type": "number", "description": "Display order index" },
-        "active": { "type": "boolean", "description": "Whether visible" }
+        "active": { "type": "boolean", "description": "Whether visible" },
+        "targetPage": { "type": "string", "maxLength": 32, "description": "home, feed, or both" }
       },
       "required": ["title", "subtitle", "imageUrl"]
     },
     "NewsSliderItem": {
       "title": "NewsSliderItem",
-      "description": "Headlines and writings displayed in moving news ticker slider",
+      "description": "Headlines displayed in moving news ticker slider",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "News headline text" },
-        "category": { "type": "string", "description": "Category or badge" },
-        "link": { "type": "string", "description": "Optional click link or circular ID" },
+        "title": { "type": "string", "maxLength": 500, "description": "News headline text" },
+        "category": { "type": "string", "maxLength": 120, "description": "Category or badge" },
+        "link": { "type": "string", "maxLength": 2000, "description": "Optional click link or circular ID" },
         "isUrgent": { "type": "boolean", "description": "Whether urgent flash headline" },
-        "published": { "type": "string", "description": "ISO date string" },
+        "published": { "type": "string", "maxLength": 64, "description": "ISO date string" },
         "order": { "type": "number", "description": "Display order index" }
       },
       "required": ["title"]
     },
     "Announcement": {
       "title": "Announcement",
-      "description": "Urgent union and departmental announcements with red bell header",
+      "description": "Urgent union and departmental announcements",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Title or subject of announcement" },
-        "link": { "type": "string", "description": "Optional click URL or order link" },
-        "published": { "type": "string", "description": "Date or timestamp" },
+        "title": { "type": "string", "maxLength": 500, "description": "Title or subject of announcement" },
+        "link": { "type": "string", "maxLength": 500000, "description": "Optional click URL or document link" },
+        "published": { "type": "string", "maxLength": 64, "description": "Date or timestamp" },
         "order": { "type": "number", "description": "Display order" },
         "active": { "type": "boolean", "description": "Visibility flag" }
       },
@@ -78,90 +80,171 @@
     },
     "ImportantDocument": {
       "title": "ImportantDocument",
-      "description": "Key workflow documents, leave rules, and claim forms with LINK badge",
+      "description": "Key workflow documents, leave rules, and claim forms",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Document name" },
-        "url": { "type": "string", "description": "Direct file or webpage link" },
-        "category": { "type": "string", "description": "Document category tag" },
+        "title": { "type": "string", "maxLength": 500, "description": "Document name" },
+        "url": { "type": "string", "maxLength": 500000, "description": "Direct file or webpage link" },
+        "category": { "type": "string", "maxLength": 120, "description": "Document category tag" },
         "order": { "type": "number", "description": "Display order" },
-        "published": { "type": "string", "description": "Publication date" }
+        "published": { "type": "string", "maxLength": 64, "description": "Publication date" }
       },
       "required": ["title", "url"]
     },
     "NoticeCircular": {
       "title": "NoticeCircular",
-      "description": "Categorized notices and circulars (Notice, Accommodation, CGHS, Pension/Salary, Miscellaneous)",
+      "description": "Categorized notices and circulars",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Notice or circular title" },
-        "category": { "type": "string", "description": "Category tab name" },
-        "published": { "type": "string", "description": "Date published (YYYY-MM-DD)" },
-        "url": { "type": "string", "description": "Target download or view link" },
+        "title": { "type": "string", "maxLength": 500, "description": "Notice or circular title" },
+        "category": { "type": "string", "maxLength": 120, "description": "Category tab name" },
+        "published": { "type": "string", "maxLength": 64, "description": "Date published" },
+        "url": { "type": "string", "maxLength": 500000, "description": "Target download or view link" },
         "order": { "type": "number", "description": "Display order" }
       },
       "required": ["title", "category", "published"]
     },
     "UnionDocumentRuling": {
       "title": "UnionDocumentRuling",
-      "description": "Union Constitution, trade union rulings, Form 'B' register entries, and grievance templates",
+      "description": "Union Constitution, trade union rulings, Form B register entries, and grievance templates",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "description": "Document or ruling title" },
-        "desc": { "type": "string", "description": "Brief description of the ruling or document" },
-        "link": { "type": "string", "description": "URL or download link to the document" },
-        "type": { "type": "string", "description": "Category or document type (Legal, Constitution, Grievance, etc.)" },
+        "title": { "type": "string", "maxLength": 500, "description": "Document or ruling title" },
+        "desc": { "type": "string", "maxLength": 2000, "description": "Brief description" },
+        "link": { "type": "string", "maxLength": 500000, "description": "URL or download link" },
+        "type": { "type": "string", "maxLength": 120, "description": "Category or document type" },
         "order": { "type": "number", "description": "Display order index" },
-        "published": { "type": "string", "description": "Publication or entry date" }
+        "published": { "type": "string", "maxLength": 64, "description": "Publication or entry date" }
       },
       "required": ["title", "link", "type"]
     },
     "OrderRulingGuide": {
       "title": "OrderRulingGuide",
-      "description": "Uploaded postal department orders, union rulings, and cadre guides in card view",
+      "description": "Uploaded postal department orders, union rulings, and cadre guides",
       "type": "object",
       "properties": {
-        "fileName": { "type": "string", "description": "Display name of the uploaded document or order file" },
-        "folderName": { "type": "string", "description": "Folder grouping name (e.g. Postal Manuals, Rule 38 Transfers)" },
-        "category": { "type": "string", "description": "Category badge (Orders, Rulings, Guide, Manuals, etc.)" },
-        "documentUrl": { "type": "string", "description": "Direct URL or Google Drive link to document" },
-        "published": { "type": "string", "description": "Date published (YYYY-MM-DD)" },
+        "fileName": { "type": "string", "maxLength": 500, "description": "Display name of the uploaded document" },
+        "folderName": { "type": "string", "maxLength": 200, "description": "Folder grouping name" },
+        "category": { "type": "string", "maxLength": 120, "description": "Category badge" },
+        "documentUrl": { "type": "string", "maxLength": 500000, "description": "Direct URL or firestore-file pointer" },
+        "published": { "type": "string", "maxLength": 64, "description": "Date published" },
         "order": { "type": "number", "description": "Display order index" },
-        "notes": { "type": "string", "description": "Optional notes or details" }
+        "notes": { "type": "string", "maxLength": 3000, "description": "Optional notes" }
       },
       "required": ["fileName", "folderName", "category", "documentUrl"]
+    },
+    "CustomPortalApp": {
+      "title": "CustomPortalApp",
+      "description": "Custom HTML tools and online postal portal links",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 300, "description": "App display title" },
+        "category": { "type": "string", "maxLength": 120, "description": "Category badge" },
+        "sourceType": { "type": "string", "enum": ["code", "url"], "description": "HTML tool or external URL" },
+        "codeSnippet": { "type": "string", "maxLength": 500000, "description": "HTML source or firestore-file pointer" },
+        "url": { "type": "string", "maxLength": 2000, "description": "External portal link" },
+        "description": { "type": "string", "maxLength": 2000, "description": "Short app summary" },
+        "fileSize": { "type": "string", "maxLength": 64, "description": "File size string" },
+        "createdAt": { "type": "string", "maxLength": 64, "description": "Creation date" }
+      },
+      "required": ["name", "category", "sourceType"]
+    },
+    "UploadedFile": {
+      "title": "UploadedFile",
+      "description": "Manifest for chunked files stored in Firestore",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string", "maxLength": 128, "description": "Unique file identifier" },
+        "fileName": { "type": "string", "maxLength": 500, "description": "Original filename" },
+        "mimeType": { "type": "string", "maxLength": 150, "description": "MIME type" },
+        "chunkCount": { "type": "number", "description": "Total number of chunks" },
+        "totalLength": { "type": "number", "description": "Total string length" }
+      },
+      "required": ["fileId", "fileName", "mimeType", "chunkCount", "totalLength"]
+    },
+    "UploadedFileChunk": {
+      "title": "UploadedFileChunk",
+      "description": "Individual chunk of a chunked file",
+      "type": "object",
+      "properties": {
+        "index": { "type": "number", "description": "Zero-based chunk index" },
+        "data": { "type": "string", "maxLength": 500000, "description": "Chunk payload" }
+      },
+      "required": ["index", "data"]
+    },
+    "GalleryPhoto": {
+      "title": "GalleryPhoto",
+      "description": "Union Photo Gallery item",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 300, "description": "Photo title" },
+        "imageUrl": { "type": "string", "maxLength": 500000, "description": "Photo URL or firestore-file pointer" },
+        "url": { "type": "string", "maxLength": 500000, "description": "Photo URL alias" },
+        "category": { "type": "string", "maxLength": 120, "description": "Event category" },
+        "date": { "type": "string", "maxLength": 64, "description": "Event date" },
+        "caption": { "type": "string", "maxLength": 1000, "description": "Optional caption" }
+      },
+      "required": ["title", "imageUrl", "category", "date"]
+    },
+    "DownloadableForm": {
+      "title": "DownloadableForm",
+      "description": "Official downloadable departmental or union form",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 300, "description": "Form title" },
+        "formCode": { "type": "string", "maxLength": 100, "description": "Form code" },
+        "category": { "type": "string", "maxLength": 120, "description": "Form category" },
+        "downloadUrl": { "type": "string", "maxLength": 500000, "description": "Download link or firestore-file pointer" },
+        "fileSize": { "type": "string", "maxLength": 64, "description": "Optional file size" }
+      },
+      "required": ["title", "formCode", "category", "downloadUrl"]
+    },
+    "EmployeeResource": {
+      "title": "EmployeeResource",
+      "description": "Employee site postal manual or rulebook link",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 300, "description": "Resource title" },
+        "category": { "type": "string", "maxLength": 120, "description": "Resource category" },
+        "url": { "type": "string", "maxLength": 500000, "description": "Resource URL or firestore-file pointer" },
+        "description": { "type": "string", "maxLength": 1000, "description": "Optional description" }
+      },
+      "required": ["title", "category", "url"]
     },
     "MemberProfile": {
       "title": "MemberProfile",
       "description": "Official union member profile record in Dhenkanal Division",
       "type": "object",
       "properties": {
-        "membershipId": { "type": "string", "description": "Unique format AIPEU-DKL-XXXX" },
-        "name": { "type": "string", "description": "Member's full name" },
-        "mobile": { "type": "string", "description": "10-digit registered mobile number" },
-        "email": { "type": "string", "description": "Member email" },
-        "cadre": { "type": "string", "description": "Designation/Cadre" },
-        "office": { "type": "string", "description": "Office or Post Office" },
-        "division": { "type": "string", "description": "Dhenkanal" },
-        "address": { "type": "string", "description": "Residential address" },
-        "joiningDate": { "type": "string", "description": "Date of joining union" },
-        "status": { "type": "string", "description": "Active, Pending, Expired" },
-        "validFrom": { "type": "string", "description": "Validity start date" },
-        "validUntil": { "type": "string", "description": "Validity expiry date" },
-        "photoUrl": { "type": "string", "description": "Member photo" },
-        "activeCardId": { "type": "string", "description": "ID of current issued membership card" }
+        "membershipId": { "type": "string", "maxLength": 64, "description": "Unique format AIPEU-DKL-XXXX" },
+        "uid": { "type": "string", "maxLength": 128, "description": "Optional auth UID" },
+        "name": { "type": "string", "maxLength": 200, "description": "Member full name" },
+        "fullName": { "type": "string", "maxLength": 200, "description": "Member full name alias" },
+        "mobile": { "type": "string", "maxLength": 20, "description": "10-digit registered mobile number" },
+        "email": { "type": "string", "maxLength": 200, "description": "Member email" },
+        "cadre": { "type": "string", "maxLength": 150, "description": "Designation/Cadre" },
+        "office": { "type": "string", "maxLength": 200, "description": "Office or Post Office" },
+        "division": { "type": "string", "maxLength": 100, "description": "Dhenkanal" },
+        "address": { "type": "string", "maxLength": 500, "description": "Residential address" },
+        "dateOfJoining": { "type": "string", "maxLength": 64, "description": "Date of joining union" },
+        "status": { "type": "string", "enum": ["Active", "Pending", "Expired"], "description": "Membership status" },
+        "validFrom": { "type": "string", "maxLength": 64, "description": "Validity start date" },
+        "validTo": { "type": "string", "maxLength": 64, "description": "Validity expiry date" },
+        "photoUrl": { "type": "string", "maxLength": 500000, "description": "Member photo" },
+        "activeCardId": { "type": "string", "maxLength": 128, "description": "ID of current issued membership card" },
+        "activeCardToken": { "type": "string", "maxLength": 128, "description": "Active QR verification token" }
       },
       "required": ["membershipId", "name", "mobile", "cadre", "office", "division", "status"]
     },
     "MemberCredential": {
       "title": "MemberCredential",
-      "description": "Secure salted PBKDF2 hash credential for member login",
+      "description": "Salted PBKDF2 hash credential for member authentication (Admin-only access)",
       "type": "object",
       "properties": {
-        "membershipId": { "type": "string", "description": "Membership ID" },
-        "mobile": { "type": "string", "description": "Normalized mobile number" },
-        "passwordHash": { "type": "string", "description": "PBKDF2 SHA-256 hash" },
-        "salt": { "type": "string", "description": "Cryptographic salt" }
+        "membershipId": { "type": "string", "maxLength": 64, "description": "Membership ID" },
+        "mobile": { "type": "string", "maxLength": 20, "description": "Normalized mobile number" },
+        "passwordHash": { "type": "string", "maxLength": 256, "description": "PBKDF2 SHA-256 hash" },
+        "salt": { "type": "string", "maxLength": 128, "description": "Cryptographic salt" }
       },
       "required": ["membershipId", "mobile", "passwordHash", "salt"]
     },
@@ -170,61 +253,78 @@
       "description": "Member change requests pending administrator review and approval",
       "type": "object",
       "properties": {
-        "membershipId": { "type": "string", "description": "Member ID" },
+        "memberId": { "type": "string", "maxLength": 128, "description": "Member document ID" },
+        "membershipId": { "type": "string", "maxLength": 64, "description": "Member ID" },
+        "memberName": { "type": "string", "maxLength": 200, "description": "Member name" },
         "proposedChanges": { "type": "object", "description": "Field modifications proposed by member" },
-        "status": { "type": "string", "description": "Pending, Approved, Rejected" },
-        "submittedAt": { "type": "string", "description": "Submission timestamp" }
+        "currentValues": { "type": "object", "description": "Current field values" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Request status" },
+        "requestedAt": { "type": "string", "maxLength": 64, "description": "Submission timestamp" }
       },
-      "required": ["membershipId", "status", "submittedAt"]
+      "required": ["membershipId", "status", "requestedAt"]
     },
     "DigitalMembershipCard": {
       "title": "DigitalMembershipCard",
       "description": "Issued digital membership card metadata and QR token",
       "type": "object",
       "properties": {
-        "membershipId": { "type": "string", "description": "Membership ID" },
-        "cardToken": { "type": "string", "description": "Unguessable 24-character random verification token" },
-        "status": { "type": "string", "description": "Valid, Expired, Revoked, Replaced" },
-        "issueDate": { "type": "string", "description": "Date of issue" },
-        "expiryDate": { "type": "string", "description": "Validity expiration date" }
+        "memberId": { "type": "string", "maxLength": 128, "description": "Member document ID" },
+        "membershipId": { "type": "string", "maxLength": 64, "description": "Membership ID" },
+        "memberName": { "type": "string", "maxLength": 200, "description": "Member name" },
+        "cardToken": { "type": "string", "maxLength": 128, "description": "Verification token" },
+        "status": { "type": "string", "maxLength": 32, "description": "Valid, Expired, Revoked, Replaced" },
+        "issueDate": { "type": "string", "maxLength": 64, "description": "Date of issue" },
+        "validFrom": { "type": "string", "maxLength": 64, "description": "Validity start date" },
+        "validTo": { "type": "string", "maxLength": 64, "description": "Validity expiration date" }
       },
-      "required": ["membershipId", "cardToken", "status", "issueDate", "expiryDate"]
+      "required": ["membershipId", "cardToken", "status"]
     },
     "CardVerification": {
       "title": "CardVerification",
       "description": "Public card verification lookup without exposing private member PII",
       "type": "object",
       "properties": {
-        "token": { "type": "string", "description": "Token key" },
-        "membershipId": { "type": "string", "description": "AIPEU-DKL-XXXX" },
-        "memberName": { "type": "string", "description": "Member name" },
-        "cadre": { "type": "string", "description": "Cadre" },
-        "office": { "type": "string", "description": "Office" },
-        "division": { "type": "string", "description": "Dhenkanal" },
-        "status": { "type": "string", "description": "Valid, Expired, Revoked" },
-        "validFrom": { "type": "string", "description": "Valid from date" },
-        "validUntil": { "type": "string", "description": "Valid until date" }
+        "token": { "type": "string", "maxLength": 128, "description": "Token key" },
+        "membershipId": { "type": "string", "maxLength": 64, "description": "AIPEU-DKL-XXXX" },
+        "memberName": { "type": "string", "maxLength": 200, "description": "Member name" },
+        "cadre": { "type": "string", "maxLength": 150, "description": "Cadre" },
+        "office": { "type": "string", "maxLength": 200, "description": "Office" },
+        "division": { "type": "string", "maxLength": 100, "description": "Dhenkanal" },
+        "status": { "type": "string", "maxLength": 32, "description": "Valid, Expired, Revoked" }
       },
-      "required": ["token", "membershipId", "memberName", "status"]
+      "required": ["membershipId", "memberName", "status"]
     },
     "MemberAuditLog": {
       "title": "MemberAuditLog",
       "description": "Administrator audit trail for member lifecycle and card events",
       "type": "object",
       "properties": {
-        "action": { "type": "string", "description": "Action performed" },
-        "actor": { "type": "string", "description": "Administrator identity" },
-        "targetMembershipId": { "type": "string", "description": "Target member ID" },
-        "timestamp": { "type": "string", "description": "ISO timestamp" },
-        "details": { "type": "string", "description": "Action specifics without secrets" }
+        "action": { "type": "string", "maxLength": 100, "description": "Action performed" },
+        "actor": { "type": "string", "maxLength": 200, "description": "Administrator identity" },
+        "targetMemberId": { "type": "string", "maxLength": 128, "description": "Target member doc ID" },
+        "targetMembershipId": { "type": "string", "maxLength": 64, "description": "Target member ID" },
+        "timestamp": { "type": "string", "maxLength": 64, "description": "ISO timestamp" },
+        "details": { "type": "string", "maxLength": 2000, "description": "Action specifics" }
       },
       "required": ["action", "actor", "targetMembershipId", "timestamp"]
+    },
+    "PasswordResetRequest": {
+      "title": "PasswordResetRequest",
+      "description": "Password reset requests logged for administrator review",
+      "type": "object",
+      "properties": {
+        "membershipId": { "type": "string", "maxLength": 64, "description": "Membership ID" },
+        "mobile": { "type": "string", "maxLength": 20, "description": "Registered mobile" },
+        "status": { "type": "string", "maxLength": 32, "description": "Pending or Resolved" },
+        "requestedAt": { "type": "string", "maxLength": 64, "description": "ISO timestamp" }
+      },
+      "required": ["membershipId", "status", "requestedAt"]
     }
   },
   "firestore": {
     "/circulars/{circularId}": {
       "schema": "Circular",
-      "description": "Collection of union circulars, orders and latest news items added by admins"
+      "description": "Collection of union circulars, orders and latest news items added by the tool administrator"
     },
     "/executiveMembers/{memberId}": {
       "schema": "ExecutiveMember",
@@ -232,7 +332,7 @@
     },
     "/heroSlides/{slideId}": {
       "schema": "HeroSlide",
-      "description": "Dynamic hero carousel slides for DakShiksha home page"
+      "description": "Dynamic hero carousel slides for home and circular pages"
     },
     "/newsSliderItems/{itemId}": {
       "schema": "NewsSliderItem",
@@ -252,35 +352,63 @@
     },
     "/unionDocumentsAndRulings/{docId}": {
       "schema": "UnionDocumentRuling",
-      "description": "Trade union rulings, Constitution, Form B, and grievance documents managed in Executive Bearer section"
+      "description": "Trade union rulings, Constitution, Form B, and grievance documents"
     },
     "/ordersRulingsGuides/{docId}": {
       "schema": "OrderRulingGuide",
       "description": "Uploaded postal department orders, union rulings, and cadre guides in card view"
     },
+    "/customPortalApps/{appId}": {
+      "schema": "CustomPortalApp",
+      "description": "Custom HTML tools and external portal links in My Apps"
+    },
+    "/uploadedFiles/{fileId}": {
+      "schema": "UploadedFile",
+      "description": "Manifest records for large chunked documents and images"
+    },
+    "/uploadedFiles/{fileId}/chunks/{chunkId}": {
+      "schema": "UploadedFileChunk",
+      "description": "Subcollection storing ordered string chunks of large uploaded files"
+    },
+    "/galleryPhotos/{photoId}": {
+      "schema": "GalleryPhoto",
+      "description": "Photo gallery event archive"
+    },
+    "/downloadableForms/{formId}": {
+      "schema": "DownloadableForm",
+      "description": "Downloadable departmental and union proformas"
+    },
+    "/employeeResources/{resId}": {
+      "schema": "EmployeeResource",
+      "description": "Employee site manuals, rulebooks, and pay matrix links"
+    },
     "/members/{memberId}": {
       "schema": "MemberProfile",
-      "description": "Approved union member profiles in Dhenkanal Division"
+      "description": "Union member directory records in Dhenkanal Division"
     },
     "/memberCredentials/{memberId}": {
       "schema": "MemberCredential",
-      "description": "PBKDF2 salted hash credentials for member authentication"
+      "description": "Admin-only PBKDF2 salted hash credentials"
     },
     "/profileUpdateRequests/{requestId}": {
       "schema": "ProfileUpdateRequest",
-      "description": "Profile change proposals submitted by members for admin approval"
+      "description": "Profile change proposals submitted by members for administrator approval"
     },
     "/membershipCards/{cardId}": {
       "schema": "DigitalMembershipCard",
-      "description": "Issued digital membership cards with QR codes and lifecycle status"
+      "description": "Issued digital membership cards with QR codes"
     },
     "/cardVerifications/{tokenId}": {
       "schema": "CardVerification",
-      "description": "Public certificate verification records checked via QR code scanning without private PII"
+      "description": "Public certificate verification records checked via QR code scanning"
     },
     "/memberAuditLogs/{logId}": {
       "schema": "MemberAuditLog",
-      "description": "Tamper-evident audit trail of all membership administrative actions"
+      "description": "Append-only administrator audit trail of membership actions"
+    },
+    "/passwordResetRequests/{requestId}": {
+      "schema": "PasswordResetRequest",
+      "description": "Password reset requests for administrator review"
     }
   }
 }
